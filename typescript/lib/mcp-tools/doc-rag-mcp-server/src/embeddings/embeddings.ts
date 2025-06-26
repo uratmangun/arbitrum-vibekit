@@ -40,11 +40,11 @@ export class EmbeddingsGenerator {
     }
 
     const embeddings = new Map<string, number[]>();
-    
+
     // Process in batches to avoid rate limits
     for (let i = 0; i < chunks.length; i += this.options.batchSize) {
       const batch = chunks.slice(i, i + this.options.batchSize);
-      
+
       try {
         const response = await this.openai.embeddings.create({
           model: this.options.model,
@@ -64,7 +64,12 @@ export class EmbeddingsGenerator {
           await this.delay(100); // 100ms delay between batches
         }
       } catch (error) {
-        // Continue with other batches even if one fails - don't log to avoid protocol contamination
+        // Log to stderr for debugging (won't contaminate MCP protocol)
+        console.error(
+          `Embedding generation failed for batch ${Math.floor(i / this.options.batchSize) + 1}:`,
+          error instanceof Error ? error.message : String(error)
+        );
+        // Continue with other batches even if one fails
       }
     }
 
@@ -87,7 +92,11 @@ export class EmbeddingsGenerator {
 
       return response.data[0]?.embedding || null;
     } catch (error) {
-      // Don't log errors for single embeddings to avoid MCP protocol contamination
+      // Log to stderr for debugging (won't contaminate MCP protocol)
+      console.error(
+        `Single embedding generation failed:`,
+        error instanceof Error ? error.message : String(error)
+      );
       return null;
     }
   }
@@ -99,7 +108,7 @@ export class EmbeddingsGenerator {
     // Rough estimation: 1 token ≈ 4 characters for English text
     const totalCharacters = chunks.reduce((sum, chunk) => sum + chunk.content.length, 0);
     const estimatedTokens = Math.ceil(totalCharacters / 4);
-    
+
     // Ada-002 pricing: $0.0001 per 1K tokens
     const costPer1KTokens = 0.0001;
     const estimatedCost = (estimatedTokens / 1000) * costPer1KTokens;
@@ -113,4 +122,4 @@ export class EmbeddingsGenerator {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-} 
+}

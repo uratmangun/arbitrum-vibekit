@@ -30,12 +30,12 @@ services:
   doc-rag-agent:
     build:
       context: ./
-      dockerfile: examples/doc-rag-agent/Dockerfile
+      dockerfile: templates/scraper-agent/Dockerfile
     container_name: vibekit-doc-rag-agent
     env_file:
       - path: .env
         required: true
-      - path: examples/doc-rag-agent/.env
+      - path: templates/scraper-agent/.env
         required: false
     ports:
       - 3008:3008
