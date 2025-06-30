@@ -10,6 +10,23 @@ An MCP (Model Context Protocol) server that enables AI agents to scrape, index, 
 - **Citation Support**: Returns sources with every query response for accurate attribution
 - **Domain Restriction**: Stays within the provided base URL to avoid crawling unrelated content
 
+## Demonstration Agent
+
+This MCP server is demonstrated by the **Scraper Agent** template located at `typescript/templates/scraper-agent/`. The scraper agent provides a complete working example of how to integrate this MCP tool into an AI agent that can:
+
+- Index documentation from any website
+- Answer questions based on the indexed content
+- Manage the documentation index (clear, list indexed URLs)
+- Provide citations for all responses
+
+To try the demonstration:
+
+```bash
+cd typescript/templates/scraper-agent
+pnpm install
+pnpm dev
+```
+
 ## Installation
 
 ```bash
@@ -89,6 +106,8 @@ Lists all URLs that have been indexed.
 **Parameters:** None
 
 ## Example Usage
+
+The following examples show how to use this MCP server directly, or you can see it in action with the [Scraper Agent](../../templates/scraper-agent/) template.
 
 1. Index documentation:
 ```json
