@@ -1,0 +1,53 @@
+DeFi Safety Scoring Rubric
+
+Overall Score Weighting (Total 100%)
+
+Q1: Are the deployed smart contract addresses easy to find? - 15%
+Q2: Does the protocol have a public source code repository? - 3%
+Q3: Is there a whitepaper or equivalent documentation? - 8%
+Q4: Is the software architecture clearly documented? - 8%
+Q5: Has the protocol thoroughly tested its code? - 15%
+Q6: Is the bug bounty program value acceptably high? - 15%
+Q7: Is the admin control documentation easy to find? - 7%
+Q8: Are contracts clearly labeled as upgradeable or immutable? - 7%
+Q9: Is the type of contract ownership clearly indicated? - 7%
+Q10: Are contract change capabilities described? - 7%
+Q11: Is the protocol's use of an oracle sufficiently documented? - 8%
+
+Total = 100%
+
+Scoring Categories:
+- Smart Contracts & Repositories (Q1-Q2): 18%
+- Code Documentation (Q3-Q4): 16%
+- Testing (Q5): 15%
+- Security (Q6): 15%
+- Admin Controls (Q7-Q10): 28%
+- Oracles (Q11): 8%
+
+How to Calculate Overall Score:
+1. Score each question individually (0-100%)
+2. Multiply each question score by its weight
+3. Sum all weighted scores for the final protocol score
+
+Example Calculation:
+If a protocol scores:
+- Q1: 100% x 15% = 15 points
+- Q2: 100% x 3% = 3 points
+- Q3: 100% x 8% = 8 points
+- Q4: 0% x 8% = 0 points
+- Q5: 80% x 15% = 12 points
+- Q6: 70% x 15% = 10.5 points
+- Q7: 100% x 7% = 7 points
+- Q8: 80% x 7% = 5.6 points
+- Q9: 100% x 7% = 7 points
+- Q10: 50% x 7% = 3.5 points
+- Q11: 100% x 8% = 8 points
+
+Total Score = 79.6%
+
+Score Interpretation:
+- 90-100%: Excellent - Very high transparency and security practices
+- 70-89%: Good - Solid documentation and practices with minor gaps
+- 50-69%: Fair - Some important documentation missing or practices lacking
+- 30-49%: Poor - Major gaps in transparency and security practices
+- 0-29%: Failing - Critical lack of documentation and transparency
