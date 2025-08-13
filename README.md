@@ -1,7 +1,7 @@
 ![Graphic](img/Banner.png)
 
 <p align="center"> 
-   &nbsp&nbsp <a href="https://docs.emberai.xyz/vibekit/introduction">Documentation </a> &nbsp&nbsp | &nbsp&nbsp <a href="https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates"> Agent Playground</a>  &nbsp&nbsp |  &nbsp&nbsp   <a href="https://www.emberai.xyz/"> Ember AI</a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://discord.com/invite/bgxWQ2fSBR"> Support Discord </a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://t.me/EmberChat"> Ember Telegram</a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://x.com/EmberAGI"> 𝕏 </a> &nbsp&nbsp
+   &nbsp&nbsp <a href="https://docs.emberai.xyz/vibekit/introduction">Documentation </a> &nbsp&nbsp | &nbsp&nbsp <a href="https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates"> Agent Templates</a>  &nbsp&nbsp |  &nbsp&nbsp   <a href="https://www.emberai.xyz/"> Ember AI</a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://discord.com/invite/bgxWQ2fSBR"> Support Discord </a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://t.me/EmberChat"> Ember Telegram</a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://x.com/EmberAGI"> 𝕏 </a> &nbsp&nbsp
 </p>
 
 ## 🧭 Table of Contents
@@ -15,9 +15,9 @@
 
 ## 📙 Introduction
 
-Welcome to Vibekit, the polyglot toolkit for vibe coding smart, autonomous DeFi agents that vibe with the blockchain. Whether you're automating trades, managing liquidity, or integrating with on-chain and off-chain data, Vibekit makes it effortless and fun.
+Welcome to Vibekit, the polyglot toolkit for vibe coding smart, autonomous DeFi agents that can perform complex on-chain operations. Whether you're automating trades, managing liquidity, or integrating with blockchain data, Vibekit makes it simple to create intelligent agents that understand natural language and execute sophisticated workflows.
 
-At its core, Vibekit uses the Model Context Protocol (MCP) to standardize how agents connect with tools and data. It includes built-in Agent2Agent (A2A) integration, so the agents can easily work together. Vibekit also works smoothly with popular frameworks like Eliza and LangGraph, just add our MCP tools to your existing agents and watch them level up with DeFi superpowers!
+At its core, Vibekit uses the Model Context Protocol (MCP) to standardize how agents connect with tools and data. It includes built-in Agent2Agent (A2A) integration, so the agents can easily work together. Vibekit also works smoothly with popular frameworks like Eliza and LangGraph, allowing you to enhance your existing agents with our specialized DeFi tools.
 
 Here's an overview of how everything fits together:
 
@@ -25,43 +25,58 @@ Here's an overview of how everything fits together:
   <img src="img/Flow Chart.png" width="800px" alt="FlowChart"/>
 </p>
 
+### 📚 Vibekit Concepts
+
+For deeper understanding of Vibekit concepts, explore our comprehensive lesson series in [this directory](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/lib/arbitrum-vibekit-core/docs). These lessons cover everything from basic concepts to advanced agent development patterns, including skills architecture, LLM orchestration, deployment strategies, and production best practices.
+
 ## 🧬 Repository Organization
 
 Vibekit is structured as a monorepo with TypeScript at its core, with a Rust implementation on the horizon. Here's how it's organized:
 
 ```
 Vibekit/
-├── typescript/
-|   └── clients/
-|       └── web/
-│   └── templates/
-│   └── examples/
-│----── lib/
-│       └── a2a/
-│       └── arbitrum-vibekit-core/
-│       └── ember-schemas/
-│       └── mcp-tools/
-│       └── test-utils/
-│----── test/
+├── .claude/                        # Claude AI prompt engineering files
+├── .cursor/                        # Cursor IDE rules and configuration
+├── .github/                        # GitHub Actions and configurations
+├── .vscode/                        # VSCode workspace settings
+├── typescript/                     # Main monorepo workspace
+│   ├── clients/
+│   │   └── web/                    # Frontend for interacting with agents
+│   ├── templates/                  # Agent templates
+│   ├── examples/                   # [Legacy] Older architecture examples
+│   ├── lib/
+│   │   ├── arbitrum-vibekit-core/  # Core framework implementation
+│   │   ├── ember-api/              # Ember API client
+│   │   ├── ember-schemas/          # Schema definitions
+│   │   ├── mcp-tools/              # MCP tool server implementations
+│   │   ├── test-utils/             # Testing utilities
+│   │   └── a2a-types/              # Agent-to-Agent type definitions
+│   ├── test/                       # Integration tests
+│   └── scripts/                    # Build and utility scripts
+├── img/                            # Documentation images
 ├── CHANGELOG.md
 ├── CONTRIBUTIONS.md
 ├── LICENSE
-├── README.md
+└── README.md
 ```
 
-- `clients/`: Clients for front-end interaction with agents.
+### Key Directories
 
-- `templates/`: Vibekit framework agents to use as a starting template to build your own agent, and agent examples that demonstrate the use of Ember AI's MCP tools.
+- **`templates/`**: Production-ready agent templates with skills, tools, hooks, and modern deployment patterns. **Start here for new projects.**
 
-- `examples/` [Legacy - Use Templates]: Agent examples that demonstrate the use of Ember AI's MCP tools.
+- **`examples/` [Legacy]**: Older architecture examples. Use templates instead for new development.
 
-- `lib/`: Core libraries and tools.
+- **`clients/web/`**: Web frontend for interacting with agents via MCP.
 
-- `mcp-tools/`: Implementations of MCP tools.
+- **`lib/`**: Core framework libraries and supporting packages:
+
+- **`.cursor/`**: Cursor IDE configuration and development rules for vibe coding.
+
+- **`.claude/`**: Claude AI prompt engineering files.
 
 ## ⚡ Developer Quickstart
 
-Follow these steps to build and run a DeFi agent:
+Follow these steps to build and run DeFi agents:
 
 ### 1. Get the Code
 
@@ -90,7 +105,7 @@ Let's run the swapping and lending agents. These agents are started by default w
 Make sure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) with Docker Compose v2.24 or greater installed on your system.
 
 > [!NOTE]  
-> If your are on an M-series Mac, you need to install Docker using the [dmg package](https://docs.docker.com/desktop/setup/install/mac-install/) supplied officially by Docker rather than through Homebrew or other means to avoid build issues.
+> If you are on an M-series Mac, you need to install Docker using the [dmg package](https://docs.docker.com/desktop/setup/install/mac-install/) supplied officially by Docker rather than through Homebrew or other means to avoid build issues.
 
 - **Configure Environment Variables:**
 
@@ -101,13 +116,17 @@ cd typescript &&
 cp .env.example .env
 ```
 
-Make sure to populate the `typescript/.env` file with your API keys and configurations.
+Open the `.env` file and fill in the required values. At minimum, you need:
 
-- **Start Services with Docker Compose:**
+- Your preferred AI provider API key (e.g., `OPENROUTER_API_KEY`, `OPENAI_API_KEY`)
+- Generate a secure `AUTH_SECRET` (you can use https://generate-secret.vercel.app/32 or `openssl rand -base64 32`)
 
-From the [typescript](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript) directory, run the following command to build and start the frontend and its associated services (including the lending agent, the swapping agent and the database):
+**Optional:** Other agents like Allora price prediction may require additional API keys.
+
+- **Start Services:**
 
 ```bash
+# Start the web frontend and default agents
 docker compose up
 ```
 
@@ -127,15 +146,15 @@ docker compose up
 >    docker compose down && docker volume rm typescript_db_data && docker compose build web --no-cache && docker compose up
 >    ```
 
-- **Access Vibekit's Web Interface:**
+- **Access the Web Interface:**
 
-Open your web browser and navigate to http://localhost:3000. To be able to chat with the agents, you need to connect your wallet first. Click on "Connect Wallet" to get started:
+Once all services are running, open your browser and navigate to http://localhost:3000. To be able to chat with the agents, you need to connect your wallet first. Click on "Connect Wallet" to get started:
 
 <p align="left">
   <img src="img/wallet.png" width="900px" alt="wallet"/>
 </p>
 
-After setting up your wallet, you can interact with the lending and swapping agents through the chat interface:
+After setting up your wallet, you'll see the Vibekit web interface where you can explore different agent capabilities:
 
 <p align="left">
   <img src="img/frontend.png" width="900px" alt="frontend"/>
@@ -229,9 +248,23 @@ Ready to vibe with some DeFi agents? to run any of the existing agents or vibe c
 
 ### 🧠 Crafting Effective AI Prompts
 
-To make the most of vibe coding, it's important to provide your AI assistant with clear and structured context. In the `.cursor/rules` folder, you can define the scope of your project, including its purpose, key components, and any relevant data schemas.
+To make the most of vibe coding, it's important to provide your AI assistant with clear and structured context. This is done through prompt engineering files that define the scope of your project, including its purpose, key components, and any relevant data schemas.
 
-#### 📝 Vibekit's Cursor Rules Structure
+#### 📝 Claude Prompt Engineering
+
+For Claude models, prompt engineering is handled through a set of dedicated files in the project's [`.claude/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/.claude) directory. These files include detailed instructions, examples, and best practices to guide the AI in generating accurate and efficient code:
+
+- **agents/**: Contains prompts for persona-driven agents that specialize in tasks like Test-Driven Development, documentation, and feature writing.
+- **commands/**: Includes prompts that define high-level command structures for planning, execution, and version control.
+- **hooks/**: Provides scripts that can be triggered at different stages of the development lifecycle, such as pre-task and post-task actions.
+
+#### Extending and Maintaining Claude Prompts
+
+- **Add a New Prompt File** – Place your Markdown prompt in the relevant sub-directory (`agents`, `commands`, or `hooks`). Keep filenames short and descriptive.
+- **Update Existing Prompts** – Edit the appropriate file and describe the change clearly in your commit message.
+- **Best Practices** – Keep prompts concise, include concrete examples, and document any assumptions for future contributors.
+
+#### 📝 Cursor Prompt Engineering
 
 Vibekit's rules files are located in the project's [`arbitrum-vibekit/.cursor/rules`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/.cursor/rules) directory. These files define best practices, workflows, and workspace conventions for building and maintaining agents:
 
@@ -247,9 +280,9 @@ Vibekit's rules files are located in the project's [`arbitrum-vibekit/.cursor/ru
 
   Documents workspace-wide guidelines and best practices for the monorepo, such as dependency management, development scripts, and CI/CD standards.
 
-#### 🔄 Extending and Maintaining Rules
+#### Extending and Maintaining Cursor Rules
 
-Here's a guidelines for adding or editing rules:
+Here's guidelines for adding or editing rules:
 
 - **Add a New Rule File**
 
