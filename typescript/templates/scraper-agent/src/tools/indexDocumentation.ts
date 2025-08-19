@@ -26,7 +26,7 @@ export const indexDocumentationTool: VibkitToolDefinition<typeof IndexDocumentat
   execute: async (input, context) => {
     try {
       // Check if MCP client is available
-      const mcpClientKey = '/app/lib/mcp-tools/doc-rag-mcp-server/dist/index.js';
+      const mcpClientKey = 'doc-rag-server';
       if (!context.mcpClients?.[mcpClientKey]) {
         throw new Error('Documentation RAG MCP server not connected');
       }

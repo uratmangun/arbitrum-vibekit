@@ -42,7 +42,7 @@ RUN pnpm -r build
 WORKDIR /app/templates/defisafety-agent
 
 # Expose port
-EXPOSE 3008
+EXPOSE 3010
 
 # Start the agent
-CMD ["pnpm", "start"] 
+CMD ["pnpm", "start"]

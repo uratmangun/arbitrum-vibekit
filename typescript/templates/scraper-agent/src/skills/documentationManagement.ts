@@ -28,16 +28,16 @@ export const documentationManagementSkill = defineSkill({
   tools: [listIndexedUrlsTool, clearIndexTool],
 
   // MCP server configuration
-  mcpServers: [
-    {
+  mcpServers: {
+    'doc-rag-server': {
       command: 'node',
-      moduleName: path.join(
+      args: [path.join(
         __dirname,
         '../../../../lib/mcp-tools/doc-rag-mcp-server/dist/index.js'
-      ),
+      )],
       env: Object.fromEntries(
         Object.entries(process.env).filter(([_, value]) => value !== undefined)
       ) as Record<string, string>,
     },
-  ],
+  },
 });

@@ -51,6 +51,28 @@ export const chatAgents = [
       },
     ],
   },
+  {
+    id: 'defisafety-agent' as const,
+    name: 'DeFi Safety',
+    description: 'AI agent for evaluating DeFi protocol safety and documentation quality',
+    suggestedActions: [
+      {
+        title: 'Quick Evaluation',
+        label: 'safety score',
+        action: 'Evaluate the safety of Aave protocol with 30 pages',
+      },
+      {
+        title: 'Compare Protocols',
+        label: 'side by side',
+        action: 'Compare Uniswap and SushiSwap safety scores with 20 pages each',
+      },
+      {
+        title: 'Generate Report',
+        label: 'detailed analysis',
+        action: 'Generate a comprehensive safety report for Compound with 50 pages',
+      },
+    ],
+  },
   // {
   //   id: 'langgraph-workflow' as const,
   //   name: 'Greeting Optimizer',
@@ -158,11 +180,7 @@ export const DEFAULT_SERVER_URLS = new Map<ChatAgentId, string>([
   ['ember-aave', 'http://lending-agent-no-wallet:3001/sse'],
   ['ember-camelot', 'http://swapping-agent-no-wallet:3005/sse'],
   ['ember-docs', 'http://doc-rag-agent:3008/sse'],
-  // ['langgraph-workflow', 'http://langgraph-workflow-agent:3009/sse'],
-  // ['quickstart-agent-template', 'http://quickstart-agent-template:3007/sse'],
-  // ['allora-price-prediction-agent', 'http://allora-price-prediction-agent:3008/sse'],
-  // ["ember-lp", "http://liquidity-agent-no-wallet:3002/sse"],
-  // ["ember-pendle", "http://pendle-agent:3003/sse"],
+  ['defisafety-agent', 'http://defisafety-agent:3010/sse'],
 ]);
 
 export type ChatAgentId = (typeof chatAgents)[number]['id'];

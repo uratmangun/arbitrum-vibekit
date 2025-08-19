@@ -37,46 +37,49 @@ export async function evaluateQuestions(
   queryFunction: (query: string) => Promise<any>,
   openaiApiKey: string
 ): Promise<QuestionResult[]> {
-  const results: QuestionResult[] = [];
   const openai = new OpenAI({ apiKey: openaiApiKey });
   
-  for (const question of questions) {
+  // Process questions in parallel for massive speed improvement
+  const evaluationPromises = questions.map(async (question) => {
     console.error(`\n=== Evaluating ${question.id}: ${question.title} ===`);
     
-    // Query documentation with the full question content
-    const queryResult = await queryFunction(question.fullContent!);
-    
-    // Get relevant documentation chunks
-    const relevantChunks = queryResult.results || [];
-    const documentationFound = relevantChunks.map((chunk: any) => 
-      `[${chunk.source}]: ${chunk.content}`
-    );
-    
-    console.error(`Found ${relevantChunks.length} relevant documentation chunks`);
-    
-    // Prepare context for LLM
-    const systemMessage = `You are a DeFiSafety auditor evaluating protocol documentation. 
-Based on the documentation provided, you must answer the evaluation question and provide a score.
-You MUST follow the exact answer format provided in the question.
-Be objective and base your answer ONLY on what is found in the documentation.`;
-
-    const userMessage = `${question.fullContent}
-
-Documentation Found:
-${documentationFound.length > 0 ? documentationFound.join('\n\n') : 'No relevant documentation found.'}
-
-Please analyze the documentation and provide your score with justification.`;
-
     try {
-      // Use LLM to analyze the documentation
+      // Query documentation with the full question content
+      const queryResult = await queryFunction(question.fullContent!);
+      
+      // Get relevant documentation chunks
+      const relevantChunks = queryResult.results || [];
+      const documentationFound = relevantChunks.map((chunk: any) => 
+        `[${chunk.source}]: ${chunk.content}`
+      );
+      
+      console.error(`Found ${relevantChunks.length} relevant documentation chunks`);
+      
+      // Optimized prompt for faster processing
+      const systemMessage = `You are a DeFiSafety auditor. Analyze the documentation and provide a score (0%, 40%, 70%, or 100%) with brief justification.
+Format: "Score: X%" followed by justification.`;
+
+      // Compressed user message for faster processing
+      const userMessage = `Question: ${question.question}
+      
+Scoring: 100% = ${question.scoringCriteria['100'] || 'Fully documented'}
+40% = ${question.scoringCriteria['40'] || 'Partially documented'} 
+0% = ${question.scoringCriteria['0'] || 'Not documented'}
+
+Documentation:
+${documentationFound.length > 0 ? documentationFound.slice(0, 3).join('\n\n') : 'No relevant documentation found.'}
+
+Provide score and justification:`;
+
+      // Use faster model (GPT-4o-mini) instead of gpt-4-turbo-preview
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: userMessage }
         ],
-        temperature: 0.3, // Lower temperature for more consistent scoring
-        max_tokens: 500
+        temperature: 0.1, // Lower temperature for consistent scoring
+        max_tokens: 300 // Reduced tokens for faster response
       });
 
       const llmResponse = completion.choices[0]?.message?.content || '';
@@ -86,28 +89,28 @@ Please analyze the documentation and provide your score with justification.`;
       const scoreMatch = llmResponse.match(/Score:\s*(\d+)%/);
       const score = scoreMatch ? parseInt(scoreMatch[1]!) : 0;
       
-      results.push({
+      return {
         questionId: question.id,
         questionTitle: question.title,
         score,
         justification: llmResponse,
         documentationFound: documentationFound.slice(0, 3) // Keep top 3 for report
-      });
+      };
       
     } catch (error) {
       console.error(`Error calling OpenAI for ${question.id}:`, error);
-      results.push({
+      return {
         questionId: question.id,
         questionTitle: question.title,
         score: 0,
         justification: `Error: Failed to analyze documentation - ${error instanceof Error ? error.message : 'Unknown error'}`,
         documentationFound: []
-      });
+      };
     }
-    
-    // Small delay between questions to avoid rate limits
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
+  });
+  
+  // Wait for all evaluations to complete in parallel
+  const results = await Promise.all(evaluationPromises);
   
   return results;
 }

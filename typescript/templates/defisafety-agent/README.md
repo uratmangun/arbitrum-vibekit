@@ -1,145 +1,146 @@
 # DeFi Safety Agent
 
-An AI agent that scores DeFi protocols based on DeFiSafety criteria by analyzing their documentation.
+An AI agent for evaluating DeFi protocol safety and documentation quality using the established DeFiSafety criteria. This agent integrates with the Arbitrum Vibekit framework to provide comprehensive protocol assessments through natural language interactions.
 
-## Overview
+## Features
 
-The DeFi Safety Agent evaluates DeFi protocols across 11 key criteria:
+- **Protocol Safety Evaluation**: Complete assessment using DeFiSafety criteria (Q1-Q10)
+- **Comparative Analysis**: Side-by-side comparison of multiple protocols
+- **Comprehensive Reports**: Detailed safety reports with scores and recommendations
+- **Natural Language Interface**: Easy-to-use conversational interface
+- **Weighted Scoring**: Industry-standard DeFiSafety scoring methodology
 
-1. **Contract Addresses** (15%) - Are deployed smart contract addresses easy to find?
-2. **Public Repository** (3%) - Does the protocol have a public source code repository?
-3. **Whitepaper** (8%) - Is there comprehensive project documentation available?
-4. **Architecture** (8%) - Is the software architecture clearly documented?
-5. **Testing** (15%) - Has the protocol thoroughly tested its code?
-6. **Bug Bounty** (15%) - Is the bug bounty program value acceptably high?
-7. **Admin Controls** (7%) - Is admin control documentation easy to find?
-8. **Upgradeability** (7%) - Are contracts clearly labeled as upgradeable or immutable?
-9. **Contract Ownership** (7%) - Is the type of contract ownership clearly indicated?
-10. **Change Capabilities** (7%) - Are contract change capabilities described?
-11. **Oracle Documentation** (8%) - Is the protocol's use of oracles sufficiently documented?
+## DeFiSafety Criteria
 
-## How It Works
+The agent evaluates protocols against 10 key criteria with weighted importance:
 
-1. **Documentation Indexing**: The agent first indexes the protocol's documentation from provided URLs
-2. **Question Processing**: For each DeFiSafety criterion, the agent queries the indexed documentation
-3. **Scoring**: Each question is scored based on the quality and completeness of information found
-4. **Report Generation**: A comprehensive report is generated with:
-   - Overall score (0-100%)
-   - Category rating (Excellent/Good/Fair/Poor/Failing)
-   - Detailed breakdown by question
-   - Citations from documentation
-   - Summary of strengths and weaknesses
+### Critical Documentation (44% of total score)
+- **Q1 - Contract Addresses (15%)**: Availability and accuracy of smart contract addresses
+- **Q4 - Architecture Documentation (12%)**: System design and component interaction docs
+- **Q9 - Change Capabilities (12%)**: Governance and modification processes
+- **Q2 - Public Repository (5%)**: Open source code availability
 
-## Usage
+### Security & Risk Management (33% of total score)
+- **Q10 - Oracle Documentation (12%)**: Price feed and external data documentation
+- **Q7 - Upgradeability (10%)**: Upgrade mechanisms and procedures
+- **Q5 - Bug Bounty Programs (8%)**: Security vulnerability disclosure programs
+- **Q3 - Whitepaper/Docs (5%)**: Foundational technical documentation
 
-### Prerequisites
+### Transparency & Governance (23% of total score)
+- **Q6 - Admin Controls (8%)**: Administrative function documentation
+- **Q8 - Contract Ownership (7%)**: Ownership structure and control mechanisms
 
-- Node.js 18+
-- OpenRouter API key
+## Usage Examples
 
-### Setup
-
-1. Install dependencies:
 ```bash
-pnpm install
+# Evaluate a single protocol
+"Evaluate the safety of Aave protocol from https://docs.aave.com"
+
+# Compare multiple protocols
+"Compare Uniswap and SushiSwap safety scores"
+
+# Generate detailed report
+"Generate a comprehensive safety report for Compound protocol"
 ```
 
-2. Configure environment variables:
+## Environment Variables
+
+The agent requires these environment variables:
+
 ```bash
-cp env.example .env
-# Edit .env with your API keys
+# AI Provider (choose one)
+OPENROUTER_API_KEY=your_openrouter_key
+OPENAI_API_KEY=your_openai_key
+
+# Agent Configuration
+AGENT_NAME=DeFi Safety Agent
+AGENT_VERSION=1.0.0
+PORT=3010
+
+# Optional
+LLM_MODEL=google/gemini-2.0-flash-thinking-exp-1219
+ENABLE_CORS=true
 ```
-
-3. Build the agent:
-```bash
-pnpm build
-```
-
-4. Start the agent:
-```bash
-pnpm start
-```
-
-### Example Commands
-
-Once the agent is running, you can interact with it through the VibeKit interface:
-
-1. **Score a protocol with documentation URL**:
-   ```
-   "Score the Uniswap protocol using their documentation at https://docs.uniswap.org"
-   ```
-
-2. **Score a protocol (will prompt for documentation)**:
-   ```
-   "Generate a DeFi Safety report for Aave"
-   ```
-
-3. **View indexed documentation**:
-   ```
-   "List all indexed documentation"
-   ```
-
-4. **Clear index before scoring another protocol**:
-   ```
-"Clear the documentation index"
-```
-
-## Scoring Interpretation
-
-- **90-100%**: Excellent - Very high transparency and security practices
-- **70-89%**: Good - Solid documentation and practices with minor gaps
-- **50-69%**: Fair - Some important documentation missing or practices lacking
-- **30-49%**: Poor - Major gaps in transparency and security practices
-- **0-29%**: Failing - Critical lack of documentation and transparency
 
 ## Development
 
-### Running in Development Mode
-
 ```bash
+# Install dependencies
+pnpm install
+
+# Development mode
 pnpm dev
+
+# Build the agent
+pnpm build
+
+# Run tests
+pnpm test
+
+# Production mode
+pnpm start
 ```
 
-### Testing
+## Docker
 
 ```bash
-pnpm test
+# Build and run with Docker Compose
+docker compose up defisafety-agent
+
+# Or build standalone
+docker build -f Dockerfile -t defisafety-agent .
+docker run -p 3010:3010 --env-file .env defisafety-agent
 ```
 
-### Project Structure
+## API Endpoints
+
+- **Agent Card**: `GET /.well-known/agent.json`
+- **SSE Stream**: `GET /sse`
+- **Health Check**: `GET /health`
+
+## Architecture
+
+The agent follows the Vibekit V2 framework architecture:
 
 ```
 defisafety-agent/
 ├── src/
 │   ├── index.ts              # Main agent entry point
 │   ├── skills/
-│   │   └── defiSafetyScoring.ts  # DeFi Safety scoring skill
+│   │   └── defiSafetyEvaluation.ts  # Primary skill definition
 │   └── tools/
-│       ├── scoreProtocol.ts      # Protocol scoring logic
-│       ├── indexDocumentation.ts # Documentation indexing
-│       └── queryDocumentation.ts # Documentation querying
-├── Defisafety-instructions/   # DeFiSafety criteria definitions
-│   ├── Q1-Contract-Addresses.txt
-│   ├── Q2-Public-Repository.txt
-│   └── ... (other questions)
-└── Scoring-Rubric.txt        # Scoring weights and interpretation
+│       ├── evaluateProtocol.ts     # Single protocol evaluation
+│       ├── compareProtocols.ts     # Multi-protocol comparison
+│       └── generateReport.ts       # Detailed report generation
+├── test/                    # Vitest test suite
+└── Dockerfile              # Container configuration
 ```
 
-## Integration with VibeKit
+## Integration
 
-This agent is designed to work within the VibeKit ecosystem. It can be accessed through:
+The agent integrates with:
 
-- **Web Interface**: http://localhost:3000 (when VibeKit is running)
-- **Direct API**: http://localhost:3008
-- **MCP SSE**: http://localhost:3008/sse
+- **MCP Server**: `defisafety-implementation` for evaluation logic
+- **Frontend**: Vibekit web interface on port 3010
+- **Docker**: Containerized deployment with docker-compose
 
-## Notes
+## Limitations & Disclaimers
 
-- The agent uses RAG (Retrieval Augmented Generation) to analyze documentation
-- Scores are based on the presence and quality of information in the documentation
-- For best results, ensure the protocol's documentation is comprehensive and well-structured
-- The agent can process multiple pages of documentation (recommended: 50-100 for full analysis)
+⚠️ **Important**: This automated evaluation provides preliminary assessment only:
+
+- Results are informational, not investment advice
+- Does not replace comprehensive security audits
+- Based on publicly available documentation only
+- Cannot assess actual smart contract code security
+- Subjective documentation quality may not be fully captured
+
+## Contributing
+
+1. Follow the existing code patterns and TypeScript strict mode
+2. Write tests for new features using Vitest
+3. Ensure Docker builds successfully
+4. Run lint and build checks before submitting
 
 ## License
 
-MIT
+This project follows the same license as the parent Arbitrum Vibekit repository.

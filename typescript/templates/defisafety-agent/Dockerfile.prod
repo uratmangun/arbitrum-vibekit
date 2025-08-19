@@ -71,7 +71,7 @@ COPY --from=builder /app/pnpm-workspace.yaml ./
 WORKDIR /app/templates/defisafety-agent
 
 # Expose port
-EXPOSE 3008
+EXPOSE 3010
 
 # Start the agent
-CMD ["node", "dist/index.js"] 
+CMD ["node", "dist/index.js"]
