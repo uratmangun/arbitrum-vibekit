@@ -1,15 +1,14 @@
 'use client';
-
+import '@getpara/react-sdk/styles.css';
 import '@rainbow-me/rainbowkit/styles.css';
-import "@getpara/react-sdk/styles.css";
 import { darkTheme, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import {
   cookieStorage,
   cookieToInitialState,
   createStorage,
-  WagmiProvider,
   createConfig,
   http,
+  WagmiProvider
 } from 'wagmi';
 import { mainnet, arbitrum } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
