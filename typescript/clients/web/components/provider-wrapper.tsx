@@ -15,6 +15,7 @@ import {
   createConfig,
   http,
   WagmiProvider
+  WagmiProvider
 } from 'wagmi';
 import { mainnet, arbitrum } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
