@@ -4,8 +4,8 @@
  */
 
 import { z } from 'zod';
-import type { VibkitToolDefinition } from 'arbitrum-vibekit-core';
-import { createSuccessTask, createErrorTask } from 'arbitrum-vibekit-core';
+import type { VibkitToolDefinition } from '@emberai/arbitrum-vibekit-core';
+import { createSuccessTask, createErrorTask } from '@emberai/arbitrum-vibekit-core';
 import type { RWAContext } from '../context/types.js';
 
 const AssessRiskParams = z.object({

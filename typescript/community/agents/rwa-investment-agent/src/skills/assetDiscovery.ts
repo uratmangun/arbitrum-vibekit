@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { defineSkill } from 'arbitrum-vibekit-core';
+import { defineSkill } from '@emberai/arbitrum-vibekit-core';
 import { discoverRWAAssetsTool } from '../tools/discoverRWAAssets.js';
 import { analyzeYieldOpportunitiesTool } from '../tools/analyzeYieldOpportunities.js';
 import { assessAssetRiskTool } from '../tools/assessAssetRisk.js';

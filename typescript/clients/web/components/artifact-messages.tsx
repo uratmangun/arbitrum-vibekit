@@ -9,11 +9,11 @@ import type { UseChatHelpers } from '@ai-sdk/react';
 
 interface ArtifactMessagesProps {
   chatId: string;
-  status: UseChatHelpers['status'];
+  status: UseChatHelpers<any>['status'];
   votes: Array<Vote> | undefined;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
-  reload: UseChatHelpers['reload'];
+  setMessages: UseChatHelpers<any>['setMessages'];
+  reload: UseChatHelpers<any>['reload'];
   isReadonly: boolean;
   artifactStatus: UIArtifact['status'];
 }

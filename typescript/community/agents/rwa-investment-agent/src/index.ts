@@ -5,7 +5,7 @@
  */
 
 import 'dotenv/config';
-import { Agent, type AgentConfig, createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { Agent, type AgentConfig, createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import { rwaAnalysisSkill, contractVerificationSkill, portfolioManagementSkill } from './skills/index.js';
 import { contextProvider } from './context/provider.js';
 import type { RWAAgentContext } from './context/types.js';

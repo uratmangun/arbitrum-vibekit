@@ -1,11 +1,9 @@
 'use client';
 
-import { useMemo, useOptimistic, startTransition } from 'react';
-//import { saveChatAgentAsCookie } from '@/app/(chat)/actions';
+import { useMemo, useOptimistic } from 'react';
 import type { Button } from '@/components/ui/button';
 import { chatAgents } from '@/agents-config';
 import { ChipToggle } from './chips';
-import { saveChatAgentAsCookie } from '@/app/(chat)/actions';
 
 export function AgentSelector({
   selectedAgentId,
@@ -33,14 +31,10 @@ export function AgentSelector({
       defaultValue={optimisticAgentId || 'all'}
       onValueChange={(value) => {
         console.log(value);
-
-        startTransition(() => {
-          setOptimisticAgentId(value);
-          saveChatAgentAsCookie(value);
-          if (onAgentChange) {
-            onAgentChange(value);
-          }
-        });
+        setOptimisticAgentId(value);
+        if (onAgentChange) {
+          onAgentChange(value);
+        }
       }}
     />
   );

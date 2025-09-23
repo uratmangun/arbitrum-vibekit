@@ -21,14 +21,18 @@ const PurePreviewMessage = ({
   setMessages,
   reload,
   isReadonly,
+  onToolApprove,
+  onToolDeny,
 }: {
   chatId: string;
   message: UIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
-  setMessages: UseChatHelpers['setMessages'];
-  reload: UseChatHelpers['reload'];
+  setMessages: UseChatHelpers<any>['setMessages'];
+  reload: UseChatHelpers<any>['reload'];
   isReadonly: boolean;
+  onToolApprove?: (approvalId: string, toolCallId: string) => void;
+  onToolDeny?: (approvalId: string, toolCallId: string) => void;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -97,6 +101,8 @@ const PurePreviewMessage = ({
                 message={message}
                 setMessages={setMessages}
                 reload={reload}
+                onToolApprove={onToolApprove}
+                onToolDeny={onToolDeny}
               />
             ))}
 

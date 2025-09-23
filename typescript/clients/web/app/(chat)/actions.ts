@@ -1,6 +1,7 @@
 'use server';
 
 import { generateText, type UIMessage as Message } from 'ai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { cookies } from 'next/headers';
 
 import {
@@ -9,7 +10,6 @@ import {
   updateChatVisiblityById,
 } from '@/lib/db/queries';
 import type { VisibilityType } from '@/components/visibility-selector';
-import { openRouterProvider } from '@/lib/ai/providers';
 
 export async function saveChatModelAsCookie(model: string) {
   const cookieStore = await cookies();
@@ -23,11 +23,32 @@ export async function saveChatAgentAsCookie(agent: string) {
 
 export async function generateTitleFromUserMessage({
   message,
+  selectedModel,
+  apiBaseUrl,
+  apiKey,
 }: {
   message: Message;
+  selectedModel?: string;
+  apiBaseUrl?: string;
+  apiKey?: string | null;
 }) {
+  // Use environment defaults
+  const effectiveApiBaseUrl = apiBaseUrl ?? process.env.DEFAULT_API_BASE_URL;
+  const effectiveApiKey = apiKey ?? process.env.DEFAULT_API_KEY ?? undefined;
+  const effectiveModel = selectedModel ?? process.env.DEFAULT_MODEL ?? 'gpt-4o-mini';
+
+  if (!effectiveApiBaseUrl) {
+    throw new Error('[ACTIONS] DEFAULT_API_BASE_URL is required');
+  }
+
+  const model = createOpenAICompatible({
+    baseURL: effectiveApiBaseUrl,
+    apiKey: effectiveApiKey,
+    name: 'custom',
+  }).chatModel(effectiveModel);
+
   const { text: title } = await generateText({
-    model: openRouterProvider.languageModel('title-model'),
+    model,
     system: `\n
     - you will generate a short title based on the first message a user begins a conversation with
     - ensure it is not more than 80 characters long
@@ -57,3 +78,4 @@ export async function updateChatVisibility({
 }) {
   await updateChatVisiblityById({ chatId, visibility });
 }
+

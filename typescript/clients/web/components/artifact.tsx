@@ -77,18 +77,18 @@ function PureArtifact({
   selectedAgentId,
 }: {
   chatId: string;
-  input: string;
+  input: UseChatHelpers['input'];
   setInput: UseChatHelpers['setInput'];
   status: UseChatHelpers['status'];
   stop: UseChatHelpers['stop'];
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
+  setMessages: UseChatHelpers<any>['setMessages'];
   votes: Array<Vote> | undefined;
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
-  reload: UseChatHelpers['reload'];
+  append: UseChatHelpers<any>['append'];
+  handleSubmit: UseChatHelpers<any>['handleSubmit'];
+  reload: UseChatHelpers<any>['reload'];
   isReadonly: boolean;
   selectedAgentId?: string;
 }) {

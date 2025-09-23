@@ -85,6 +85,15 @@
       "esbuild",
       "fsevents",
       "protobufjs"
-    ]
+    ],
+    "overrides": {
+      "@getpara/core-sdk": "2.0.0-alpha.68",
+      "@getpara/react-common": "2.0.0-alpha.68",
+      "@getpara/user-management-client": "2.0.0-alpha.68",
+      "@getpara/evm-wallet-connectors": "2.0.0-alpha.68",
+      "@getpara/react-components": "2.0.0-alpha.68",
+      "@getpara/core-components": "2.0.0-alpha.68",
+      "@walletconnect/logger>pino": "10.0.0"
+    }
   }
 }

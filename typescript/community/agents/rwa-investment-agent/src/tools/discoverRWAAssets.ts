@@ -4,8 +4,8 @@
  */
 
 import { z } from 'zod';
-import type { VibkitToolDefinition } from 'arbitrum-vibekit-core';
-import { createSuccessTask, createErrorTask } from 'arbitrum-vibekit-core';
+import type { VibkitToolDefinition } from '@emberai/arbitrum-vibekit-core';
+import { createSuccessTask, createErrorTask } from '@emberai/arbitrum-vibekit-core';
 import type { RWAContext } from '../context/types.js';
 import { AssetDiscoveryRequestSchema, AssetDiscoveryResponseSchema } from '../schemas/assets.js';
 import { RealRWADataProvider, RealRWADataSchema } from './centrifuge/client.js';

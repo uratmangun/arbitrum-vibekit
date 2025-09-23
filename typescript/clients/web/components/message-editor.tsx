@@ -16,8 +16,8 @@ import type { UseChatHelpers } from '@ai-sdk/react';
 export type MessageEditorProps = {
   message: UIMessage;
   setMode: Dispatch<SetStateAction<'view' | 'edit'>>;
-  setMessages: UseChatHelpers['setMessages'];
-  reload: UseChatHelpers['reload'];
+  setMessages: UseChatHelpers<any>['setMessages'];
+  reload: UseChatHelpers<any>['reload'];
 };
 
 export function MessageEditor({

@@ -1,7 +1,6 @@
 'use client';
 
-import { startTransition, useMemo, useOptimistic, useState } from 'react';
-import { saveChatAgentAsCookie } from '@/app/(chat)/actions';
+import { useMemo, useOptimistic, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -57,11 +56,7 @@ export function AgentSelector({
               key={id}
               onSelect={() => {
                 setOpen(false);
-
-                startTransition(() => {
-                  setOptimisticAgentId(id);
-                  saveChatAgentAsCookie(id);
-                });
+                setOptimisticAgentId(id);
               }}
               data-active={id === optimisticAgentId}
               asChild

@@ -8,7 +8,7 @@ import { chatAgents } from '../agents-config';
 
 interface SuggestedActionsProps {
   chatId: string;
-  append: UseChatHelpers['append'];
+  append: UseChatHelpers<any>['append'];
   selectedAgentId?: string;
 }
 

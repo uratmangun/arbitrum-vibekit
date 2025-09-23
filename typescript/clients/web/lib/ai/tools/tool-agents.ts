@@ -1,4 +1,4 @@
-import { tool } from 'ai';
+import { dynamicTool} from 'ai';
 import { z } from 'zod';
 import type { CoreTool } from '@/lib/ai/types';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -24,7 +24,9 @@ import type { ChatAgentId } from '../../../agents-config';
 }); */
 
 const URL_CHAT_IDS = new Map<string, ChatAgentId>();
-DEFAULT_SERVER_URLS.forEach((value, key) => URL_CHAT_IDS.set(value, key));
+if (DEFAULT_SERVER_URLS.size > 0) {
+  DEFAULT_SERVER_URLS.forEach((value, key) => URL_CHAT_IDS.set(value, key));
+}
 
 const convertToZodSchema = (schema: any): z.ZodSchema => {
   if (!schema) return z.object({});
@@ -35,22 +37,33 @@ const convertToZodSchema = (schema: any): z.ZodSchema => {
   // For an object schema, convert properties
   if (schema.type === 'object' && schema.properties) {
     const zodProperties: { [key: string]: z.ZodTypeAny } = {};
+    const requiredFields = schema.required || [];
+
     Object.entries(schema.properties).forEach(
       ([key, propSchema]: [string, any]) => {
+        let zodType: z.ZodTypeAny;
+
         switch (propSchema.type) {
           case 'string':
-            zodProperties[key] = z.string();
+            zodType = z.string().describe(propSchema.description || '');
             break;
           case 'number':
-            zodProperties[key] = z.number();
+            zodType = z.number().describe(propSchema.description || '');
             break;
           case 'boolean':
-            zodProperties[key] = z.boolean();
+            zodType = z.boolean().describe(propSchema.description || '');
             break;
           default:
             // Default to any for complex types
-            zodProperties[key] = z.any();
+            zodType = z.any();
         }
+
+        // Mark as optional if not in required list
+        if (!requiredFields.includes(key)) {
+          zodType = zodType.optional();
+        }
+
+        zodProperties[key] = zodType;
       },
     );
     return z.object(zodProperties);
@@ -60,7 +73,7 @@ const convertToZodSchema = (schema: any): z.ZodSchema => {
   return z.object({});
 };
 
-async function getTool(serverUrl: string) {
+async function getTool(serverUrl: string, selectedTools?: string[]) {
   let mcpClient = null;
 
   // Create MCP Client
@@ -96,27 +109,46 @@ async function getTool(serverUrl: string) {
     toolsResponse = { tools: [] }; // Fallback to empty tools array
   }
 
+  // Filter tools if selectedTools is provided
+  const toolsToProcess = selectedTools && selectedTools.length > 0
+    ? toolsResponse.tools.filter(tool => selectedTools.includes(tool.name))
+    : toolsResponse.tools;
+
   // Use reduce to create an object mapping tool names to AI tools
-  const toolObject = toolsResponse.tools.reduce(
+  const toolObject = toolsToProcess.reduce(
     (acc, mcptool) => {
+      // Log the MCP tool schema for debugging
+      console.log(`[getTool] Processing MCP tool: ${mcptool.name}`);
+      console.log(`[getTool] Tool description:`, mcptool.description);
+      console.log(`[getTool] Tool input schema:`, JSON.stringify(mcptool.inputSchema, null, 2));
+
       // Convert MCP tool schema to Zod schema
-      const aiTool = tool({
+      const zodSchema = convertToZodSchema(mcptool.inputSchema);
+      console.log(`[getTool] Converted Zod schema for ${mcptool.name}:`, zodSchema);
+
+      const aiTool = dynamicTool({
         description: mcptool.description,
-        parameters: convertToZodSchema(mcptool.inputSchema),
-        // @ts-ignore - AI SDK v5 tool types have compatibility issues with parameter inference
+        parameters: zodSchema,
+        // Enable approval for all MCP tools to ensure user consent before execution
+        needsApproval: false,
+        // @ts-ignore - AI SDK v6 tool types have compatibility issues with parameter inference
         execute: async (args: Record<string, unknown>) => {
-          console.log('Executing tool:', mcptool.name);
-          console.log('Arguments:', args);
-          console.log('MCP Client:', mcpClient);
-          const result = await mcpClient.callTool({
-            name: mcptool.name,
-            arguments: args,
-          });
-          //const result = 'chat lending USDC successfully';
-          console.log('RUNNING TOOL:', mcptool.name);
-          console.log(result);
-          const toolResult = { status: 'completed', result: result };
-          return toolResult;
+          console.log(`[getTool] ========== EXECUTING TOOL: ${mcptool.name} ==========`);
+          console.log(`[getTool] Arguments received:`, JSON.stringify(args, null, 2));
+          console.log(`[getTool] MCP Client available:`, !!mcpClient);
+
+          try {
+            const result = await mcpClient.callTool({
+              name: mcptool.name,
+              arguments: args,
+            });
+            console.log(`[getTool] Tool result for ${mcptool.name}:`, JSON.stringify(result));
+            const toolResult = { status: 'completed', result: result };
+            return toolResult;
+          } catch (error) {
+            console.error(`[getTool] Error executing tool ${mcptool.name}:`, error);
+            throw error;
+          }
         },
       }) as any;
       // Add the tool to the accumulator object, using its name as the key
@@ -131,8 +163,21 @@ async function getTool(serverUrl: string) {
   return toolObject;
 }
 
-export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
+export const getTools = async (
+  serverMap?: Map<string, string>,
+  serverToolsMap?: Map<string, string[]>
+): Promise<{ [key: string]: CoreTool }> => {
   console.log('Initializing MCP client...');
+
+  // Use provided serverMap or fall back to DEFAULT_SERVER_URLS
+  const SERVER_URLS = serverMap || DEFAULT_SERVER_URLS;
+
+  console.log('[getTools] Using MCP servers:', Array.from(SERVER_URLS.entries()));
+
+  if (SERVER_URLS.size === 0) {
+    console.log('[getTools] No MCP servers configured, returning empty tools');
+    return {};
+  }
 
   const cookieStore = await cookies();
   const rawAgentId = cookieStore.get('agent')?.value;
@@ -141,14 +186,21 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
 
   // helper that chooses override first, then config file
   const resolveUrl = (id: ChatAgentId) =>
-    overrideUrl ?? DEFAULT_SERVER_URLS.get(id) ?? '';
+    overrideUrl ?? SERVER_URLS.get(id) ?? '';
 
   // "all" agents: fan-out to every URL
   if (!agentId || agentId === 'all') {
-    const urls = Array.from(DEFAULT_SERVER_URLS.keys()).map((id) =>
+    const urls = Array.from(SERVER_URLS.keys()).map((id) =>
       resolveUrl(id),
     );
-    const toolsByAgent = await Promise.all(urls.map(getTool));
+    console.log('[getTools] Loading tools from all servers:', urls);
+    const toolsByAgent = await Promise.all(
+      urls.map((url, idx) => {
+        const serverId = Array.from(SERVER_URLS.keys())[idx];
+        const selectedTools = serverToolsMap?.get(serverId);
+        return getTool(url, selectedTools);
+      })
+    );
     // flatten and prefix so you don't get name collisions
     return toolsByAgent.reduce(
       (
@@ -156,7 +208,7 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
         tools: { [key: string]: CoreTool },
         idx: number,
       ) => {
-        const id = Array.from(DEFAULT_SERVER_URLS.keys())[idx];
+        const id = Array.from(SERVER_URLS.keys())[idx];
         Object.entries(tools).forEach(([toolName, tool]) => {
           all[`${id}-${toolName}`] = tool; // Changed to dash for clarity
         });
@@ -175,5 +227,7 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
     console.error(`No server URL configured for agent "${agentId}"`);
     return {};
   }
-  return getTool(serverUrl);
+  console.log('[getTools] Loading tools from single server:', serverUrl);
+  const selectedTools = serverToolsMap?.get(agentId);
+  return getTool(serverUrl, selectedTools);
 };

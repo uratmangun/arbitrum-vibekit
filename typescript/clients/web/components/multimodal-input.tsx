@@ -49,16 +49,16 @@ function PureMultimodalInput({
   onAgentChange,
 }: {
   chatId: string;
-  input: UseChatHelpers['input'];
-  setInput: UseChatHelpers['setInput'];
-  status: UseChatHelpers['status'];
+  input: UseChatHelpers<any>['input'];
+  setInput: UseChatHelpers<any>['setInput'];
+  status: UseChatHelpers<any>['status'];
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
+  setMessages: UseChatHelpers<any>['setMessages'];
+  append: UseChatHelpers<any>['append'];
+  handleSubmit: UseChatHelpers<any>['handleSubmit'];
   className?: string;
   selectedAgentId: string;
   onAgentChange?: (agentId: string) => void;
@@ -94,7 +94,7 @@ function PureMultimodalInput({
   );
 
   useEffect(() => {
-    if (textareaRef.current) {
+    if (textareaRef.current && setInput) {
       const domValue = textareaRef.current.value;
       // Prefer DOM value over localStorage to handle hydration
       const finalValue = domValue || localStorageInput || '';
@@ -110,7 +110,9 @@ function PureMultimodalInput({
   }, [input, setLocalStorageInput]);
 
   const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(event.target.value);
+    if (setInput) {
+      setInput(event.target.value);
+    }
     adjustHeight();
   };
 
@@ -307,7 +309,7 @@ function PureAttachmentsButton({
   status,
 }: {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers['status'];
+  status: UseChatHelpers<any>['status'];
 }) {
   return (
     <Button
@@ -332,7 +334,7 @@ function PureStopButton({
   setMessages,
 }: {
   stop: () => void;
-  setMessages: UseChatHelpers['setMessages'];
+  setMessages: UseChatHelpers<any>['setMessages'];
 }) {
   return (
     <Button
@@ -368,7 +370,7 @@ function PureSendButton({
         event.preventDefault();
         submitForm();
       }}
-      disabled={input.length === 0 || uploadQueue.length > 0}
+      disabled={!input || input.length === 0 || uploadQueue.length > 0}
     >
       <ArrowUpIcon size={14} />
     </Button>

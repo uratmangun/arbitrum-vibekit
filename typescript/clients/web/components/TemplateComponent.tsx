@@ -21,7 +21,7 @@ export function TemplateComponent({
 }) {
   console.log('[Liquidity Component] Received txPreview:', txPreview);
   console.log('[Liquidity Component] Received txPlan:', txPlan);
-
+console.log("[JSON object]",jsonObject)
   // --- Wagmi hooks ---
   const { address, isConnected, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();

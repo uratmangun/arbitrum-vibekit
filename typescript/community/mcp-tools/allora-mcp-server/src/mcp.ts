@@ -1,7 +1,7 @@
-import { AlloraAPIClient } from '@alloralabs/allora-sdk'
+import type { AlloraAPIClient } from '@alloralabs/allora-sdk'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { z } from 'zod'
 import pRetry, { AbortError } from 'p-retry'
+import { z } from 'zod'
 
 // Retry configuration for rate limiting
 const RETRY_CONFIG = {
@@ -30,7 +30,8 @@ async function getAllTopicsWithRetry(alloraClient: AlloraAPIClient) {
                 return await alloraClient.getAllTopics()
             } catch (error) {
                 if (isRateLimitError(error)) {
-                    console.log(`Rate limit hit, retrying... Error: ${error}`)
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error(`Rate limit hit, retrying... Error: ${errorMessage}`)
                     throw error // This will trigger a retry
                 }
                 // For non-rate-limit errors, don't retry
@@ -40,7 +41,7 @@ async function getAllTopicsWithRetry(alloraClient: AlloraAPIClient) {
         {
             ...RETRY_CONFIG,
             onFailedAttempt: (error) => {
-                console.log(
+                console.error(
                     `getAllTopics attempt ${error.attemptNumber} failed (${error.retriesLeft} retries left): ${error.message}`
                 )
             },
@@ -55,7 +56,8 @@ async function getInferenceByTopicIDWithRetry(alloraClient: AlloraAPIClient, top
                 return await alloraClient.getInferenceByTopicID(topicID)
             } catch (error) {
                 if (isRateLimitError(error)) {
-                    console.log(`Rate limit hit for topic ${topicID}, retrying... Error: ${error}`)
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error(`Rate limit hit for topic ${topicID}, retrying... Error: ${errorMessage}`)
                     throw error // This will trigger a retry
                 }
                 // For non-rate-limit errors, don't retry
@@ -65,7 +67,7 @@ async function getInferenceByTopicIDWithRetry(alloraClient: AlloraAPIClient, top
         {
             ...RETRY_CONFIG,
             onFailedAttempt: (error) => {
-                console.log(
+                console.error(
                     `getInferenceByTopicID(${topicID}) attempt ${error.attemptNumber} failed (${error.retriesLeft} retries left): ${error.message}`
                 )
             },
@@ -73,7 +75,7 @@ async function getInferenceByTopicIDWithRetry(alloraClient: AlloraAPIClient, top
     )
 }
 
-export async function createServer(alloraClient: AlloraAPIClient) {
+export function createServer(alloraClient: AlloraAPIClient) {
     const server = new McpServer({
         name: 'allora-mcp-server',
         version: '1.0.0'
@@ -115,9 +117,9 @@ export async function createServer(alloraClient: AlloraAPIClient) {
         'get_inference_by_topic_id',
         'Fetch prediction/inference data for a specific Allora topic ID',
         GetInferenceByTopicIDSchema.shape,
-        async ({ topicID }) => {
+        async ({ topicID }: { topicID: number }) => {
             try {
-                const inference = await getInferenceByTopicIDWithRetry(alloraClient, topicID)
+                const inference = await getInferenceByTopicIDWithRetry(alloraClient, Number(topicID))
                 return {
                     content: [
                         {

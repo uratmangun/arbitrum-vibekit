@@ -9,13 +9,15 @@ import type { UseChatHelpers } from '@ai-sdk/react';
 
 interface MessagesProps {
   chatId: string;
-  status: UseChatHelpers['status'];
+  status: UseChatHelpers<any>['status'];
   votes: Array<Vote> | undefined;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
-  reload: UseChatHelpers['reload'];
+  setMessages: UseChatHelpers<any>['setMessages'];
+  reload: UseChatHelpers<any>['reload'];
   isReadonly: boolean;
   isArtifactVisible: boolean;
+  onToolApprove?: (approvalId: string, toolCallId: string) => void;
+  onToolDeny?: (approvalId: string, toolCallId: string) => void;
 }
 
 function PureMessages({
@@ -26,9 +28,14 @@ function PureMessages({
   setMessages,
   reload,
   isReadonly,
+  onToolApprove,
+  onToolDeny,
 }: MessagesProps) {
   const [messagesContainerRef, messagesEndRef] =
     useScrollToBottom<HTMLDivElement>();
+
+  // Debug: Log messages to see what's being received
+
 
   return (
     <div
@@ -51,6 +58,8 @@ function PureMessages({
           setMessages={setMessages}
           reload={reload}
           isReadonly={isReadonly}
+          onToolApprove={onToolApprove}
+          onToolDeny={onToolDeny}
         />
       ))}
 

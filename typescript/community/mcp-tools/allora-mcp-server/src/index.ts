@@ -14,7 +14,7 @@ async function main() {
   const app = express();
 
   app.use(function (req, _res, next) {
-    console.log(`${req.method} ${req.url}`);
+    console.error(`${req.method} ${req.url}`);
     next();
   });
 
@@ -28,12 +28,12 @@ async function main() {
     chainSlug: ChainSlug.TESTNET,
     apiKey,
   });
-  const server = await createServer(alloraClient);
+  const server = createServer(alloraClient);
 
   const transports: { [sessionId: string]: SSEServerTransport } = {};
 
   app.get('/sse', async (_req, res) => {
-    console.log('Received connection');
+    console.error('Received connection');
 
     const transport = new SSEServerTransport('/messages', res);
     transports[transport.sessionId] = transport;
@@ -43,7 +43,7 @@ async function main() {
 
   app.post('/messages', async (_req, res) => {
     const sessionId = _req.query['sessionId'] as string;
-    console.log(`Received message for session: ${sessionId}`);
+    console.error(`Received message for session: ${sessionId}`);
 
     let bodyBuffer = Buffer.alloc(0);
 
@@ -51,14 +51,15 @@ async function main() {
       bodyBuffer = Buffer.concat([bodyBuffer, chunk]);
     });
 
-    _req.on('end', async () => {
+    _req.on('end', () => {
       try {
         // Parse the body
         const bodyStr = bodyBuffer.toString('utf8');
-        const bodyObj = JSON.parse(bodyStr);
-        console.log(`${JSON.stringify(bodyObj, null, 4)}`);
+        const bodyObj = JSON.parse(bodyStr) as unknown;
+        console.error(`${JSON.stringify(bodyObj, null, 4)}`);
       } catch (error) {
-        console.error(`Error handling request: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`Error handling request: ${errorMessage}`);
       }
     });
     const transport = transports[sessionId];
@@ -71,7 +72,7 @@ async function main() {
 
   const PORT = process.env['PORT'] || 3001;
   app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.error(`Server is running on port ${PORT}`);
   });
 
   // Start stdio transport

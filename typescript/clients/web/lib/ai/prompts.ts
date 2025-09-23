@@ -33,30 +33,28 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt =
-  'You are a friendly DeFi and crypto assistant! Keep your responses concise and helpful. Never talk about anything not related to DeFi and crypto. You have access to several AI agent tools and MCP server tools to help you with your tasks. You can generate price charts for crypto tokens using the chart generation tools available through the MCP servers.';
+  `You are a friendly DeFi and crypto assistant! Keep your responses concise and helpful. Never talk about anything not related to DeFi and crypto. You have access to several AI agent tools and MCP server tools to help you with your tasks. You can generate price charts for crypto tokens using the chart generation tools available through the MCP servers.
 
-export const systemPrompt = ({
-  selectedChatModel,
-  walletAddress,
-}: {
-  selectedChatModel: string;
-  walletAddress?: string;
-}) => {
-  let basePrompt = regularPrompt;
-  if (selectedChatModel !== 'chat-model-reasoning') {
-    // Add prompt for more advanced capabilities here
-    //basePrompt += `\n\n${artifactsPrompt}`;
-  }
-
-  // Always include instruction to never ask for wallet address
-  basePrompt += `\n\n## Instructions For Task Execution
+## Instructions For Task Execution
 
 - Always use a tool or agent tool for any task.
 - Always ensure you have all information required by a tool or agent before using it.
 - NEVER ask for wallet addresses directly. If a wallet address is needed, kindly ask the user to connect their wallet through the interface instead.
-- Don't request a quote when using an agent to conduct a crypto related transaction. Instruct the agent to perform the transaction instead.
+- Don't request a quote when using an agent to conduct a crypto related transaction. Instruct the agent to perform the transaction instead.`;
 
-`;
+export const systemPrompt = ({
+  selectedChatModel,
+  walletAddress,
+  customPrompt,
+}: {
+  selectedChatModel: string;
+  walletAddress?: string;
+  customPrompt?: string;
+}) => {
+  // Priority: customPrompt (frontend) > DEFAULT_SYSTEM_PROMPT (env) > regularPrompt (default)
+  const envSystemPrompt = process.env.DEFAULT_SYSTEM_PROMPT;
+  let basePrompt = customPrompt || envSystemPrompt || regularPrompt;
+
 
   if (walletAddress && isAddress(walletAddress)) {
     basePrompt += `\n\n<connected_wallet_address>${walletAddress}</connected_wallet_address>`;
