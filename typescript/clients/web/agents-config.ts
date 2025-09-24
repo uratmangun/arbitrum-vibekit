@@ -73,6 +73,28 @@ export const chatAgents = [
       },
     ],
   },
+  {
+    id: 'coingecko' as const,
+    name: 'Price Charts',
+    description: 'Cryptocurrency price data and charts',
+    suggestedActions: [
+      {
+        title: 'Generate BTC',
+        label: 'price chart',
+        action: 'Generate a price chart for BTC over 7 days',
+      },
+      {
+        title: 'Show supported',
+        label: 'tokens',
+        action: 'What cryptocurrency tokens are supported?',
+      },
+      {
+        title: 'Generate ETH',
+        label: 'price chart',
+        action: 'Generate a price chart for ETH over 30 days',
+      },
+    ],
+  },
   // {
   //   id: 'langgraph-workflow' as const,
   //   name: 'Greeting Optimizer',
@@ -181,6 +203,12 @@ export const DEFAULT_SERVER_URLS = new Map<ChatAgentId, string>([
   ['ember-camelot', 'http://swapping-agent-no-wallet:3005/sse'],
   ['ember-docs', 'http://doc-rag-agent:3008/sse'],
   ['defisafety-agent', 'http://defisafety-agent:3010/sse'],
+  ['coingecko', 'http://coingecko-mcp-server:3011/mcp'], // CoinGecko MCP server
+  // ['langgraph-workflow', 'http://langgraph-workflow-agent:3009/sse'],
+  // ['quickstart-agent-template', 'http://quickstart-agent-template:3007/sse'],
+  // ['allora-price-prediction-agent', 'http://allora-price-prediction-agent:3008/sse'],
+  // ["ember-lp", "http://liquidity-agent-no-wallet:3002/sse"],
+  // ["ember-pendle", "http://pendle-agent:3003/sse"],
 ]);
 
 export type ChatAgentId = (typeof chatAgents)[number]['id'];

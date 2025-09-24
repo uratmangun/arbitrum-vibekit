@@ -1,11 +1,10 @@
-import { tool, type CoreTool } from "ai";
-import { z } from "zod";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { cookies } from "next/headers";
-import { DEFAULT_SERVER_URLS } from "../../../agents-config";
-import type { ChatAgentId } from "../../../agents-config";
+import { tool, type CoreTool } from 'ai';
+import { z } from 'zod';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { cookies } from 'next/headers';
+import { DEFAULT_SERVER_URLS } from '../../../agents-config';
+import type { ChatAgentId } from '../../../agents-config';
 
 /*export const getEmberLending = tool({
   description: 'Get the current weather at a location',
@@ -33,25 +32,25 @@ const convertToZodSchema = (schema: any): z.ZodSchema => {
   if (schema._def !== undefined) return schema;
 
   // For an object schema, convert properties
-  if (schema.type === "object" && schema.properties) {
+  if (schema.type === 'object' && schema.properties) {
     const zodProperties: { [key: string]: z.ZodTypeAny } = {};
     Object.entries(schema.properties).forEach(
       ([key, propSchema]: [string, any]) => {
         switch (propSchema.type) {
-          case "string":
+          case 'string':
             zodProperties[key] = z.string();
             break;
-          case "number":
+          case 'number':
             zodProperties[key] = z.number();
             break;
-          case "boolean":
+          case 'boolean':
             zodProperties[key] = z.boolean();
             break;
           default:
             // Default to any for complex types
             zodProperties[key] = z.any();
         }
-      }
+      },
     );
     return z.object(zodProperties);
   }
@@ -65,92 +64,87 @@ async function getTool(serverUrl: string) {
 
   // Create MCP Client
   mcpClient = new Client(
-    { name: "TestClient", version: "1.0.0" },
-    { capabilities: { tools: {}, resources: {}, prompts: {} } }
+    { name: 'TestClient', version: '1.0.0' },
+    { capabilities: { tools: {}, resources: {}, prompts: {} } },
   );
 
-  // Create transport with fallback strategy
+  // Create StreamableHTTP transport
   let transport = null;
   if (serverUrl) {
-    try {
-      // Use SSE transport for better handling of long-running operations
-      transport = new SSEClientTransport(new URL(serverUrl));
-      await mcpClient.connect(transport);
-      console.log("MCP client initialized with SSE transport!");
-    } catch (sseError) {
-      console.log("SSE transport failed, trying StreamableHTTP:", sseError);
-      try {
-        // Fallback to StreamableHTTP transport 
-        const httpUrl = serverUrl.replace('/sse', '/messages');
-        transport = new StreamableHTTPClientTransport(new URL(httpUrl));
-        await mcpClient.connect(transport);
-        console.log("MCP client initialized with StreamableHTTP transport!");
-      } catch (httpError) {
-        console.error("Both SSE and StreamableHTTP transports failed:", { sseError, httpError });
-        throw new Error("Failed to initialize MCP client with any transport");
-      }
-    }
+    transport = new StreamableHTTPClientTransport(
+      new URL(serverUrl),
+      {} // headers - empty for now
+    );
+  }
+
+  // Connect to the server
+  if (transport) {
+    await mcpClient.connect(transport);
+    console.log('MCP client initialized successfully!');
   }
 
   // Try to discover tools
-  console.log("Attempting to discover tools via MCP client...");
+  console.log('Attempting to discover tools via MCP client...');
   // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
   let toolsResponse;
   try {
     toolsResponse = await mcpClient.listTools();
     console.log(toolsResponse);
   } catch (error) {
-    console.error("Error discovering tools:", error);
+    console.error('Error discovering tools:', error);
     toolsResponse = { tools: [] }; // Fallback to empty tools array
   }
 
   // Use reduce to create an object mapping tool names to AI tools
-  const toolObject = toolsResponse.tools.reduce((acc, mcptool) => {
-    // Convert MCP tool schema to Zod schema
-    const aiTool = tool({
-      description: mcptool.description,
-      parameters: convertToZodSchema(mcptool.inputSchema),
-      execute: async (args) => {
-        console.log("Executing tool:", mcptool.name);
-        console.log("Arguments:", args);
-        console.log("MCP Client:", mcpClient);
-        const result = await mcpClient.callTool({
-          name: mcptool.name,
-          arguments: args,
-        });
-        //const result = 'chat lending USDC successfully';
-        console.log("RUNNING TOOL:", mcptool.name);
-        console.log(result);
-        const toolResult = { status: "completed", result: result };
-        return toolResult;
-      },
-    });
-    // Add the tool to the accumulator object, using its name as the key
-    acc[mcptool.name] = aiTool;
-    return acc;
-  }, {} as { [key: string]: CoreTool }); // Initialize with the correct type
+  const toolObject = toolsResponse.tools.reduce(
+    (acc, mcptool) => {
+      // Convert MCP tool schema to Zod schema
+      const aiTool = tool({
+        description: mcptool.description,
+        parameters: convertToZodSchema(mcptool.inputSchema),
+        execute: async (args) => {
+          console.log('Executing tool:', mcptool.name);
+          console.log('Arguments:', args);
+          console.log('MCP Client:', mcpClient);
+          const result = await mcpClient.callTool({
+            name: mcptool.name,
+            arguments: args,
+          });
+          //const result = 'chat lending USDC successfully';
+          console.log('RUNNING TOOL:', mcptool.name);
+          console.log(result);
+          const toolResult = { status: 'completed', result: result };
+          return toolResult;
+        },
+      });
+      // Add the tool to the accumulator object, using its name as the key
+      acc[mcptool.name] = aiTool;
+      return acc;
+    },
+    {} as { [key: string]: CoreTool },
+  ); // Initialize with the correct type
 
   // Return the object of tools
-  console.log("toolObject =", toolObject);
+  console.log('toolObject =', toolObject);
   return toolObject;
 }
 
 export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
-  console.log("Initializing MCP client...");
+  console.log('Initializing MCP client...');
 
   const cookieStore = await cookies();
-  const rawAgentId = cookieStore.get("agent")?.value;
+  const rawAgentId = cookieStore.get('agent')?.value;
   const agentId = rawAgentId as ChatAgentId | undefined;
   const overrideUrl = process.env.MCP_SERVER_URL; // optional env override
 
   // helper that chooses override first, then config file
   const resolveUrl = (id: ChatAgentId) =>
-    overrideUrl ?? DEFAULT_SERVER_URLS.get(id) ?? "";
+    overrideUrl ?? DEFAULT_SERVER_URLS.get(id) ?? '';
 
   // "all" agents: fan-out to every URL
-  if (!agentId || agentId === "all") {
+  if (!agentId || agentId === 'all') {
     const urls = Array.from(DEFAULT_SERVER_URLS.keys()).map((id) =>
-      resolveUrl(id)
+      resolveUrl(id),
     );
     const toolsByAgent = await Promise.all(urls.map(getTool));
     // flatten and prefix so you don't get name collisions
@@ -158,7 +152,7 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
       (
         all: Record<string, CoreTool>,
         tools: { [key: string]: CoreTool },
-        idx: number
+        idx: number,
       ) => {
         const id = Array.from(DEFAULT_SERVER_URLS.keys())[idx];
         Object.entries(tools).forEach(([toolName, tool]) => {
@@ -166,7 +160,7 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
         });
         return all;
       },
-      {} as Record<string, CoreTool>
+      {} as Record<string, CoreTool>,
     );
   }
 
