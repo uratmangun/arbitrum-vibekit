@@ -154,7 +154,7 @@ async function handleIndexDocumentation(params: IndexDocumentationParams) {
     // Generate embeddings if OpenAI API key is available
     let embeddingStats = { chunksCreated: 0, embeddingsGenerated: 0, estimatedCost: 0 };
 
-    const apiKeyAvailable = embeddingsGenerator.initialize();
+    const apiKeyAvailable = await embeddingsGenerator.initialize();
 
     if (apiKeyAvailable) {
       try {
@@ -230,7 +230,8 @@ async function handleIndexDocumentation(params: IndexDocumentationParams) {
 async function handleQueryDocumentation(params: QueryDocumentationParams) {
   try {
     // Check if OpenAI API key is available
-    if (!embeddingsGenerator.initialize()) {
+    const initialized = await embeddingsGenerator.initialize();
+    if (!initialized) {
       return {
         content: [
           {

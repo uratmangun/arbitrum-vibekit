@@ -39,20 +39,6 @@ services:
       - 3011:3011
     restart: unless-stopped
 
-  doc-rag-agent:
-    build:
-      context: ./
-      dockerfile: templates/scraper-agent/Dockerfile
-    container_name: vibekit-doc-rag-agent
-    env_file:
-      - path: .env
-        required: true
-      - path: templates/scraper-agent/.env
-        required: false
-    ports:
-      - 3008:3008
-    restart: unless-stopped
-
   defisafety-agent:
     build:
       context: ./

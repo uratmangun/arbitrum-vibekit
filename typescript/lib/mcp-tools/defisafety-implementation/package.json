@@ -24,6 +24,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.9.0",
     "abort-controller": "^3.0.0",
+    "ai": "catalog:",
+    "arbitrum-vibekit-core": "workspace:*",
     "cheerio": "^1.0.0",
     "dotenv": "^16.3.1",
     "node-fetch": "^3.3.2",

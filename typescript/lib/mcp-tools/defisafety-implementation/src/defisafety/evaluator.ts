@@ -1,7 +1,9 @@
 import { loadQuestions, type Question } from './questionLoader.js';
 import type { VectorStore } from '../embeddings/vectorStore.js';
 import type { EmbeddingsGenerator } from '../embeddings/embeddings.js';
-import OpenAI from 'openai';
+import { generateText } from 'ai';
+import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import type { LanguageModelV1 } from 'ai';
 
 export interface QuestionResult {
   questionId: string;
@@ -34,10 +36,34 @@ export interface DefiSafetyReport {
 
 export async function evaluateQuestions(
   questions: Question[],
-  queryFunction: (query: string) => Promise<any>,
-  openaiApiKey: string
+  queryFunction: (query: string) => Promise<any>
 ): Promise<QuestionResult[]> {
-  const openai = new OpenAI({ apiKey: openaiApiKey });
+  // Create provider selector with available API keys
+  const providers = createProviderSelector({
+    openRouterApiKey: process.env.OPENROUTER_API_KEY,
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    xaiApiKey: process.env.XAI_API_KEY,
+    hyperbolicApiKey: process.env.HYPERBOLIC_API_KEY,
+  });
+
+  // Get available providers and select one
+  const availableProviders = getAvailableProviders(providers);
+  if (availableProviders.length === 0) {
+    throw new Error('No AI providers configured. Please set at least one provider API key (OPENROUTER_API_KEY, OPENAI_API_KEY, XAI_API_KEY, or HYPERBOLIC_API_KEY).');
+  }
+
+  // Use AI_PROVIDER env var or fallback to first available
+  const preferredProvider = process.env.AI_PROVIDER || availableProviders[0]!;
+  const selectedProvider = providers[preferredProvider as keyof typeof providers];
+  if (!selectedProvider) {
+    throw new Error(`Preferred provider '${preferredProvider}' not available. Available providers: ${availableProviders.join(', ')}`);
+  }
+
+  // Get the model instance - use fast model for evaluations
+  const modelOverride = process.env.AI_MODEL;
+  const model: LanguageModelV1 = modelOverride 
+    ? selectedProvider(modelOverride) 
+    : selectedProvider('gpt-5'); // Default to fast model
   
   // Process questions in parallel for massive speed improvement
   const evaluationPromises = questions.map(async (question) => {
@@ -55,12 +81,11 @@ export async function evaluateQuestions(
       
       console.error(`Found ${relevantChunks.length} relevant documentation chunks`);
       
-      // Optimized prompt for faster processing
-      const systemMessage = `You are a DeFiSafety auditor. Analyze the documentation and provide a score (0%, 40%, 70%, or 100%) with brief justification.
-Format: "Score: X%" followed by justification.`;
+      // Combined prompt for evaluation
+      const prompt = `You are a DeFiSafety auditor. Analyze the documentation and provide a score (0%, 40%, 70%, or 100%) with brief justification.
+Format: "Score: X%" followed by justification.
 
-      // Compressed user message for faster processing
-      const userMessage = `Question: ${question.question}
+Question: ${question.question}
       
 Scoring: 100% = ${question.scoringCriteria['100'] || 'Fully documented'}
 40% = ${question.scoringCriteria['40'] || 'Partially documented'} 
@@ -71,18 +96,13 @@ ${documentationFound.length > 0 ? documentationFound.slice(0, 3).join('\n\n') : 
 
 Provide score and justification:`;
 
-      // Use faster model (GPT-4o-mini) instead of gpt-4-turbo-preview
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: userMessage }
-        ],
+      // Use generateText with the selected model
+      const { text: llmResponse } = await generateText({
+        model,
+        prompt,
         temperature: 0.1, // Lower temperature for consistent scoring
-        max_tokens: 300 // Reduced tokens for faster response
+        maxTokens: 300 // Reduced tokens for faster response
       });
-
-      const llmResponse = completion.choices[0]?.message?.content || '';
       console.error(`LLM Response: ${llmResponse}`);
       
       // Extract score from LLM response
@@ -223,11 +243,6 @@ export async function handleEvaluateDefiSafety(
     embeddings: { chunksCreated: number; embeddingsGenerated: number };
   }>
 ): Promise<{report: DefiSafetyReport; indexingStats: any}> {
-  // Check for OpenAI API key
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY environment variable is required for evaluation');
-  }
   
   // 1. Clear any existing index for a fresh evaluation
   vectorStore.clear();
@@ -261,7 +276,7 @@ export async function handleEvaluateDefiSafety(
         score: r.score
       }))
     };
-  }, apiKey);
+  });
   
   // 6. Generate report
   const report = generateReport(params.projectName, results, questions);

@@ -1,12 +1,14 @@
 /**
- * Embeddings generator using OpenAI API
+ * Embeddings generator using provider selector utility
  */
 
-import OpenAI from 'openai';
+import { embedMany, embed } from 'ai';
+import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import type { LanguageModelV1, EmbeddingModel } from 'ai';
 import type { DocumentChunk, EmbeddingOptions } from './types.js';
 
 export class EmbeddingsGenerator {
-  private openai: OpenAI | null = null;
+  private embeddingModel: EmbeddingModel<string> | null = null;
   private options: Required<EmbeddingOptions>;
 
   constructor(options?: EmbeddingOptions) {
@@ -17,25 +19,65 @@ export class EmbeddingsGenerator {
   }
 
   /**
-   * Initialize the OpenAI client
-   * Returns true if successful, false if API key is not available
+   * Initialize the embedding model using provider selector
+   * Returns true if successful, false if no providers are available
    */
-  initialize(): boolean {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      console.warn('OPENAI_API_KEY not found in environment variables');
+  async initialize(): Promise<boolean> {
+    // Create provider selector with available API keys
+    const providers = createProviderSelector({
+      openRouterApiKey: process.env.OPENROUTER_API_KEY,
+      openaiApiKey: process.env.OPENAI_API_KEY,
+      xaiApiKey: process.env.XAI_API_KEY,
+      hyperbolicApiKey: process.env.HYPERBOLIC_API_KEY,
+    });
+
+    // Get available providers
+    const availableProviders = getAvailableProviders(providers);
+    if (availableProviders.length === 0) {
+      console.warn('No AI providers configured. Please set at least one provider API key.');
       return false;
     }
 
-    this.openai = new OpenAI({ apiKey });
-    return true;
+    // Use AI_PROVIDER env var or fallback to first available
+    const preferredProvider = process.env.AI_PROVIDER || availableProviders[0]!;
+    const selectedProvider = providers[preferredProvider as keyof typeof providers];
+    if (!selectedProvider) {
+      console.warn(`Preferred provider '${preferredProvider}' not available.`);
+      return false;
+    }
+
+    // Get embedding model - OpenAI provider has embedding support
+    // For now, we'll use the text generation model as a fallback
+    // In production, you'd want to use a proper embedding model
+    const modelOverride = process.env.AI_EMBEDDING_MODEL || this.options.model;
+    
+    // Note: The AI SDK's embedding functionality requires specific embedding models
+    // For now, we'll need to use OpenAI directly for embeddings
+    // This is a temporary limitation until provider selector supports embeddings
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        // Dynamic import for OpenAI SDK
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        this.embeddingModel = openai.embedding(modelOverride) as EmbeddingModel<string>;
+        return true;
+      } catch (error) {
+        console.error('Failed to create OpenAI embedding model:', error);
+        console.warn('Note: Make sure @ai-sdk/openai is installed for embedding support.');
+        return false;
+      }
+    } else {
+      console.warn('Embedding models currently require OPENAI_API_KEY.');
+      console.warn('Please set OPENAI_API_KEY to use embeddings.');
+      return false;
+    }
   }
 
   /**
    * Generate embeddings for a batch of document chunks
    */
   async generateEmbeddings(chunks: DocumentChunk[]): Promise<Map<string, number[]>> {
-    if (!this.openai) {
+    if (!this.embeddingModel) {
       throw new Error('EmbeddingsGenerator not initialized. Call initialize() first.');
     }
 
@@ -46,14 +88,15 @@ export class EmbeddingsGenerator {
       const batch = chunks.slice(i, i + this.options.batchSize);
 
       try {
-        const response = await this.openai.embeddings.create({
-          model: this.options.model,
-          input: batch.map(chunk => chunk.content),
+        // Use embedMany from the AI SDK
+        const { embeddings: batchEmbeddings } = await embedMany({
+          model: this.embeddingModel,
+          values: batch.map(chunk => chunk.content),
         });
 
         // Map embeddings back to chunk IDs
         batch.forEach((chunk, index) => {
-          const embedding = response.data[index]?.embedding;
+          const embedding = batchEmbeddings[index];
           if (embedding) {
             embeddings.set(chunk.id, embedding);
           }
@@ -80,17 +123,18 @@ export class EmbeddingsGenerator {
    * Generate embedding for a single text (typically a query)
    */
   async generateSingleEmbedding(text: string): Promise<number[] | null> {
-    if (!this.openai) {
+    if (!this.embeddingModel) {
       throw new Error('EmbeddingsGenerator not initialized. Call initialize() first.');
     }
 
     try {
-      const response = await this.openai.embeddings.create({
-        model: this.options.model,
-        input: text,
+      // Use embed from the AI SDK
+      const { embedding } = await embed({
+        model: this.embeddingModel,
+        value: text,
       });
 
-      return response.data[0]?.embedding || null;
+      return embedding || null;
     } catch (error) {
       // Log to stderr for debugging (won't contaminate MCP protocol)
       console.error(
