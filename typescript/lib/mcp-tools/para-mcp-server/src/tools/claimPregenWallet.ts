@@ -26,12 +26,17 @@ export const claimPregenWalletTool: VibkitToolDefinition<typeof ClaimPregenWalle
       );
     }
 
- 
+
 
     const payload = {
       identifierKey: entry.identifierKey,
       identifierValue: entry.identifierValue,
-    userShare: entry.userShareJson
+      address: entry.address,
+      isClaimed: Boolean(entry.isClaimed),
+      note:
+        entry.isClaimed
+          ? 'This pregenerated wallet has already been claimed.'
+          : 'This pregenerated wallet is not claimed. You can claim it from the frontend using the Claim button.',
     };
 
     const artifact = createArtifact(
@@ -43,7 +48,7 @@ export const claimPregenWalletTool: VibkitToolDefinition<typeof ClaimPregenWalle
     return createSuccessTask(
       'pregen-wallet',
       [artifact],
-      `Claimed pregenerated wallet details for ${entry.identifierKey}:${entry.identifierValue}`,
+      `pregenerated wallet details for ${entry.identifierKey}:${entry.identifierValue}`,
     );
   },
 };

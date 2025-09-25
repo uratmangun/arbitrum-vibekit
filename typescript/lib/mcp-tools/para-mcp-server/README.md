@@ -1,285 +1,155 @@
-# CoinGecko MCP Server
+# Para MCP Server
 
-A Model Context Protocol (MCP) server that provides cryptocurrency price data and chart generation using the CoinGecko API.
+A Model Context Protocol (MCP) server that wraps the [Para Server SDK](https://docs.getpara.com/server-sdk) to manage pregenerated wallets for Arbitrum VibeKit agents. The server exposes tools that cover the full lifecycle of a pregenerated wallet—creation, discovery, claiming, and transaction signing—while caching state locally for rapid agent development.
 
 ## 🚀 Features
-
-- **Price Chart Generation**: Create interactive price charts for supported cryptocurrencies
-- **Multi-timeframe Support**: Historical data from 1-365 days
-- **Token Discovery**: Get list of supported cryptocurrency tokens
-- **Rate Limit Handling**: Built-in retry mechanism with exponential backoff
-- **Dual Transport**: HTTP endpoints + stdio transport support
+- **Pregenerated wallet lifecycle tooling**: Create, list, claim, mark as claimed, and sign transactions against Para-managed wallets.
+- **In-memory cache**: Stores pregenerated wallet metadata and user shares locally so repeated tool calls are instant during a session.
+- **Dual transport support**: Streamable HTTP endpoint (`/mcp`) and stdio transport for local MCP inspectors/devtools.
+- **Robust Para integration**: Graceful fallbacks when the SDK shape changes, plus actionable `VibkitError` messages for missing configuration.
+- **Test-friendly design**: Injectable Para SDK/client mocks so the included test suite can run without network calls.
 
 ## 🛠 Architecture
 
 ### Transport Layer
-- **StreamableHTTP**: Modern HTTP transport with session management
-- **Stdio**: Command-line interface support
-- **Endpoints**: `/mcp` (POST/GET/DELETE)
+- **StreamableHTTPServerTransport** served via Hono + Node HTTP server (`/mcp` route with POST/GET/DELETE semantics).
+- **StdioServerTransport** for CLI-based MCP tooling and automated tests.
 
-### Tools Available
+### Supporting Modules
+- `store/pregenWalletStore.ts`: In-memory registry for pregenerated wallets and their user shares.
+- `utils/paraServer.ts`: Lazy Para SDK loader with override hooks used by tests; enforces presence of `PARA_API_KEY`.
+- `tools/*.ts`: Individual tool implementations leveraging the store and Para client.
 
-#### 1. `generate_chart`
-Generate price charts for cryptocurrencies using CoinGecko API.
+## 🧰 Tools Available
 
-**Parameters:**
-- `token` (string): Token symbol (BTC, ETH, USDC, etc.)
-- `days` (number): Historical data range (1-365 days)
+### `create_pregen_wallet`
+Create (or cache) a pregenerated wallet for the supplied identifier. If Para already has a wallet, the tool seeds a placeholder entry locally.
 
-**Response:**
+**Parameters**
+- `identifier` *(string, required)* – Unique identifier value (email, phone, etc.).
+- `identifierType` *(enum, default `email`)* – One of `email`, `phone`, `username`, `id`, `custom`.
+- `walletType` *(enum, default `EVM`)* – One of `EVM`, `SOLANA`, `COSMOS`.
+
+**Response Artifact (text JSON)**
 ```json
 {
-  "prices": [[timestamp, price], ...],
-  "token": "BTC",
-  "tokenId": "bitcoin",
-  "days": 7,
-  "timestamp": "2025-01-01T12:00:00.000Z"
+  "walletId": "mock-wallet-id",
+  "identifierKey": "email",
+  "identifierValue": "user@example.com",
+  "walletType": "EVM",
+  "userShareJson": "{\"share\":\"...\"}",
+  "createdAt": "2025-09-23T12:34:56.000Z"
 }
 ```
 
-#### 2. `get_supported_tokens`
-Get list of all supported cryptocurrency tokens.
+### `list_pregen_wallets`
+Return the entire in-memory cache of pregenerated wallets.
 
-**Parameters:** None
+**Parameters**: none
 
-**Response:**
+**Response Artifact (text JSON)** – Array of the cached wallet records.
+
+### `claim_pregen_wallet`
+Fetch a cached wallet’s identifier metadata and user share for client-side claiming flows.
+
+**Parameters**
+- `identifier` *(string, required)*
+- `identifierType` *(enum, default `email`)*
+
+**Response Artifact (text JSON)**
 ```json
 {
-  "supportedTokens": [
-    {"symbol": "BTC", "id": "bitcoin", "name": "Bitcoin"},
-    {"symbol": "ETH", "id": "ethereum", "name": "Ethereum"}
-  ],
-  "count": 10
+  "identifierKey": "email",
+  "identifierValue": "user@example.com",
+  "userShare": "{\"share\":\"...\"}"
 }
 ```
 
-## 💰 Supported Tokens
+### `sign_pregen_transaction`
+Sign or execute a raw transaction with the cached user share via the Para SDK. Supports EVM, Solana, and Cosmos helpers depending on SDK version.
 
-| Symbol | CoinGecko ID | Name |
-|--------|--------------|------|
-| BTC | bitcoin | Bitcoin |
-| ETH | ethereum | Ethereum |
-| USDC | usd-coin | USD Coin |
-| USDT | tether | Tether |
-| DAI | dai | Dai |
-| WBTC | wrapped-bitcoin | Wrapped Bitcoin |
-| WETH | weth | Wrapped Ether |
-| ARB | arbitrum | Arbitrum |
-| BASE | base | Base |
-| MATIC | matic-network | Polygon |
-| OP | optimism | Optimism |
+**Parameters**
+- `identifier` *(string, required)*
+- `identifierType` *(enum, default `email`)*
+- `walletType` *(enum, default `EVM`)*
+- `rawTransaction` *(string, required)* – Hex/Base64 serialized transaction.
+- `chainId` *(string, optional)* – Used for EVM payloads.
+- `broadcast` *(boolean, default `false`)* – Attempt to broadcast if the SDK supports it.
+
+**Response Artifact (text JSON)** – Contains the request payload, Para SDK result, and wallet type used.
 
 ## 🔧 Configuration
 
 ### Environment Variables
-- `PORT`: Server port (default: 3011)
+- `PARA_API_KEY` *(required)* – Server-side Para API key used to instantiate the SDK client.
+- `PARA_ENVIRONMENT` *(optional)* – `BETA` (default) or `PRODUCTION`; mapped to `Environment` enum in the SDK.
+- `PORT` *(optional)* – HTTP server port (defaults to `3012`).
 
-### Endpoints
-- **HTTP**: `http://localhost:3011/mcp` (POST/GET/DELETE)
-- **Health**: Server logs indicate ready state
-
-## 📊 Frontend Integration
-
-### Message Renderer Integration
-The frontend automatically detects chart generation tools:
-
-```typescript
-// Detects these tool patterns:
-- toolName.endsWith('generate_chart')
-- toolName === 'coingecko-generate_chart'
-
-// Renders with PriceChart component
-<PriceChart data={chartData} />
-```
-
-### Chart Component Features
-- **Interactive tooltips** with price and timestamp
-- **Responsive design** with hover effects
-- **SVG-based rendering** for crisp visuals
-- **Gradient styling** with professional appearance
-
-## 🏗 Development
-
-### Installation
+### Installing & Building
 ```bash
-cd arbitrum-vibekit/typescript/lib/mcp-tools/coingecko-mcp-server
+cd arbitrum-vibekit/typescript/lib/mcp-tools/para-mcp-server
 pnpm install
 pnpm build
 ```
 
-### Build Commands
+### Running Locally
 ```bash
-# Build TypeScript
-pnpm build
-
-# Development mode
+# Development (tsx + hot reload)
 pnpm dev
 
-# Production mode
+# Production build + run
+pnpm build
 pnpm start
 
-# Watch mode
+# Watch mode (nodemon)
 pnpm watch
 ```
 
-### File Structure
+The HTTP transport listens on `http://localhost:PORT/mcp`; stdio transport is started automatically for direct MCP inspectors.
+
+## ✅ Testing
+
+A dedicated test runner exercises every tool using mocked Para SDK clients:
+```bash
+pnpm --filter @arbitrum-vibekit/para-mcp-server test
 ```
-src/
-├── mcp.ts           # MCP server core & tools
-├── index.ts         # Main entry point (HTTP + stdio)
-├── http-server.ts   # HTTP-only server
-└── package.json     # Dependencies & scripts
-```
+The suite injects in-memory mocks (via `__setParaModuleForTesting` / `__setParaClientFactoryForTesting`) so no real Para calls are made.
 
-## 🔄 Recent Updates
+## 🧩 Frontend Integration Highlights
 
-### v2.0 - StreamableHTTP Migration
-- **Migrated from SSE to StreamableHTTP** transport
-- **Added session management** for better reliability
-- **Enhanced error handling** with JSON-RPC responses
-- **Improved rate limiting** with p-retry integration
-
-### Transport Changes
-- **Before**: `/sse` endpoint with SSEServerTransport
-- **After**: `/mcp` endpoint with StreamableHTTPServerTransport
-- **Benefits**: Better session handling, resumability, unified endpoints
-
-## 🔌 Client Integration
-
-### Frontend Configuration
-```typescript
-// agents-config.ts
-['coingecko', 'http://coingecko-mcp-server:3011/mcp']
-
-// tool-agents.ts
-const transport = new StreamableHTTPClientTransport(
-  new URL(serverUrl),
-  {} // headers
-);
-```
-
-### Usage Examples
-
-**Generate BTC Chart:**
-```
-User: "Generate a BTC price chart for 7 days"
-AI: Calls coingecko-generate_chart(token="BTC", days=7)
-Frontend: Renders interactive price chart
-```
-
-**List Supported Tokens:**
-```
-User: "What cryptocurrency tokens are supported?"
-AI: Calls coingecko-get_supported_tokens()
-Response: List of 11 supported tokens
-```
+- Configure an MCP transport entry pointing to the `/mcp` endpoint (Streamable HTTP or stdio process).
+- Agents should request tools by the names listed above (e.g., `create_pregen_wallet`).
+- Returned artifacts contain JSON strings; UI components typically `JSON.parse` the first artifact part for rendering.
+- Since the wallet store is in-memory, seed data with `create_pregen_wallet` at session start for deterministic flows.
 
 ## 🚨 Error Handling
 
-### Rate Limiting
-- **Automatic retry** with exponential backoff
-- **Max retries**: 5 attempts
-- **Backoff**: 1s → 2s → 4s → 8s → 16s
+The tools surface `VibkitError` codes to simplify diagnosis:
+- `MissingParaApiKey` (code `-32602`) – `PARA_API_KEY` not set.
+- `ParaSdkNotAvailable` (code `-32001`) – SDK module failed to load (install dependency or enable network).
+- `PregenWalletNotFound`, `MissingUserShare`, `Para*Unsupported` – Intended for downstream UX messaging.
 
-### Common Errors
-- **Unsupported token**: Returns available token list
-- **API failure**: JSON error response with details
-- **Invalid timeframe**: Validates 1-365 day range
+All tool failures return error tasks that include structured metadata for logging.
 
-## 📈 Performance
-
-### API Efficiency
-- **Direct CoinGecko integration** (no intermediary)
-- **Minimal data transformation** 
-- **Efficient JSON parsing** and response formatting
-
-### Resource Usage
-- **Memory**: Low footprint, stateless design
-- **Network**: Only outbound CoinGecko API calls
-- **CPU**: Light JSON processing overhead
-
-## 🔍 Monitoring & Debugging
-
-### Server Logs
-```bash
-# Connection logs
-CoinGecko MCP Server is running on port 3011
-MCP endpoint available at http://localhost:3011/mcp
-
-# Tool execution logs  
-🔍 [MCP] Fetching chart data for BTC (bitcoin) over 7 days
-🔍 [MCP] Chart data received: 168 data points
+## 📦 File Structure
+```
+src/
+├── index.ts             # Combined HTTP + stdio bootstrap
+├── mcp.ts               # MCP server + tool registration
+├── store/
+│   └── pregenWalletStore.ts
+├── tools/
+│   ├── claimPregenWallet.ts
+│   ├── createPregenWallet.ts
+│   ├── listPregenWallets.ts
+│   └── signPregenTransaction.ts
+└── utils/
+    └── paraServer.ts    # Para SDK helpers and test overrides
 ```
 
-### Frontend Debugging
-```bash
-# Browser console
-🔍 [MCP Chart] Parsed chart data: {prices: Array(168), token: "BTC"}
-```
+## 🔄 Recent Updates
+- Migrated from CoinGecko tooling to Para pregenerated wallet workflows.
+- Added injectable Para SDK/client overrides to enable deterministic testing.
+- Expanded test runner to cover every tool end-to-end via mocked interactions.
 
-## 🚀 Deployment
-
-### Docker Integration
-```yaml
-# compose.yml
-coingecko-mcp-server:
-  build: ./lib/mcp-tools/coingecko-mcp-server
-  ports:
-    - "3011:3011"
-  environment:
-    - PORT=3011
-```
-
-
-## 🔧 Adding New Tokens
-
-To add support for new tokens, update the `tokenMap` in `src/mcp.ts`:
-
-```typescript
-const tokenMap: Record<string, string> = {
-  // ... existing tokens
-  NEW_TOKEN: 'new-token-coingecko-id', // Add new token here
-};
-```
-
-## 🧪 Testing
-
-### Using with Claude Desktop
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "coingecko": {
-      "command": "node",
-      "args": ["/path/to/coingecko-mcp-server/dist/index.js"],
-      "env": {}
-    }
-  }
-}
-```
-
-### Direct HTTP Testing
-```bash
-# Test tool discovery
-curl -X POST http://localhost:3011/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
-
-# Test chart generation
-curl -X POST http://localhost:3011/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0", 
-    "method": "tools/call",
-    "params": {
-      "name": "generate_chart",
-      "arguments": {"token": "BTC", "days": 7}
-    },
-    "id": 2
-  }'
-```
-
----
-
-*This server provides reliable cryptocurrency data integration for the Arbitrum Vibekit ecosystem.*
+This server is the reference implementation for Para wallet orchestration inside the Arbitrum VibeKit agent ecosystem.

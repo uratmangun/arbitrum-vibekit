@@ -16,7 +16,10 @@
     "dev": "tsx src/index.ts",
     "watch": "nodemon --watch 'src/**/*.ts' --exec 'tsx' src/index.ts",
     "test": "tsx test-mcp.ts",
-    "test:mcp": "pnpm build && tsx test-mcp.ts"
+    "test:mcp": "pnpm build && tsx test-mcp.ts",
+    "pregen:create": "tsx scripts/create-pregen-wallet.ts",
+    "eth:balance": "tsx scripts/check-eth-balance.ts",
+    "coin:create": "tsx scripts/create-coin-with-paymaster.ts"
   },
   "keywords": [
     "mcp",
@@ -28,21 +31,24 @@
   "license": "ISC",
   "description": "Para MCP Server providing wallet tooling (create/list/sign) via MCP",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:",
     "@getpara/server-sdk": "^1.18.1",
+    "@getpara/viem-v2-integration": "alpha",
     "@google-a2a/types": "workspace:*",
-    "arbitrum-vibekit-core": "workspace:*",
     "@hono/node-server": "^1.13.2",
-    "hono": "^4.6.11",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@types/express": "^5.0.1",
     "@types/node": "catalog:",
+    "@zoralabs/coins-sdk": "^0.3.1",
+    "arbitrum-vibekit-core": "workspace:*",
     "dotenv": "catalog:",
     "express": "catalog:",
+    "hono": "^4.6.11",
     "nodemon": "^3.1.9",
     "p-retry": "^6.2.1",
     "raw-body": "^3.0.0",
     "tee": "^0.2.0",
     "typescript": "catalog:",
+    "viem": "catalog:",
     "zod": "catalog:"
   },
   "engines": {
@@ -51,4 +57,4 @@
   "devDependencies": {
     "tsx": "catalog:"
   }
-} 
+}

@@ -1,207 +1,239 @@
 #!/usr/bin/env node
 
-// Simple test script for the CoinGecko MCP server
-// This script tests the stdio transport directly
+import type { Task } from '@google-a2a/types';
+import { TaskState } from '@google-a2a/types';
+import { claimPregenWalletTool } from './src/tools/claimPregenWallet.js';
+import { createPregenWalletTool } from './src/tools/createPregenWallet.js';
+import { listPregenWalletsTool } from './src/tools/listPregenWallets.js';
+import { signPregenTransactionTool } from './src/tools/signPregenTransaction.js';
+import { findPregenWallet, listPregenWallets } from './src/store/pregenWalletStore.js';
+import {
+  __resetParaTestingOverrides,
+  __setParaClientFactoryForTesting,
+  __setParaModuleForTesting,
+} from './src/utils/paraServer.js';
 
-import { spawn, ChildProcess } from 'child_process';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-interface TestResult {
+type TestResult = {
   name: string;
   status: 'PASS' | 'FAIL';
+  error?: string;
+};
+
+const identifier = 'user@example.com';
+const identifierType = 'email';
+const mockUserShare = { share: 'mock-user-share' };
+const mockSignResult = { txHash: '0xsigned', status: 'ok' };
+
+class MockParaClient {
+  public hasPregenWalletCallCount = 0;
+  public createPregenWalletCallCount = 0;
+  public getUserShareCallCount = 0;
+  public setUserShareCallCount = 0;
+  public signEvmTransactionCallCount = 0;
+  public clearUserShareCallCount = 0;
+  public lastHasPregenWalletPayload: Record<string, unknown> | undefined;
+  public lastCreatePregenWalletPayload: Record<string, unknown> | undefined;
+  public lastSetUserShare: unknown;
+  public lastSignPayload: Record<string, unknown> | undefined;
+
+  async hasPregenWallet(payload: Record<string, unknown>) {
+    this.hasPregenWalletCallCount += 1;
+    this.lastHasPregenWalletPayload = payload;
+    return false;
+  }
+
+  async createPregenWallet(payload: Record<string, unknown>) {
+    this.createPregenWalletCallCount += 1;
+    this.lastCreatePregenWalletPayload = payload;
+    return { id: 'mock-wallet-id', address: '0xMockAddress' };
+  }
+
+  async getUserShare() {
+    this.getUserShareCallCount += 1;
+    return mockUserShare;
+  }
+
+  async setUserShare(share: unknown) {
+    this.setUserShareCallCount += 1;
+    this.lastSetUserShare = share;
+  }
+
+  async signEvmTransaction(payload: Record<string, unknown>) {
+    this.signEvmTransactionCallCount += 1;
+    this.lastSignPayload = payload;
+    return mockSignResult;
+  }
+
+  async clearUserShare() {
+    this.clearUserShareCallCount += 1;
+  }
 }
 
-interface McpRequest {
-  jsonrpc: '2.0';
-  id: number;
-  method: string;
-  params: Record<string, any>;
+const mockParaClient = new MockParaClient();
+const testResults: TestResult[] = [];
+
+function setupParaMocks(): void {
+  const walletType = { EVM: 'EVM', SOLANA: 'SOLANA', COSMOS: 'COSMOS' } as const;
+  const environment = { BETA: 'BETA', PRODUCTION: 'PRODUCTION' } as const;
+
+  __setParaModuleForTesting({
+    WalletType: walletType,
+    Environment: environment,
+    Para: class MockParaConstructor {},
+  } as unknown as typeof import('@getpara/server-sdk'));
+
+  __setParaClientFactoryForTesting(async () => mockParaClient);
 }
 
-interface McpResponse {
-  jsonrpc: '2.0';
-  id: number;
-  result?: any;
-  error?: any;
+function expect(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
 }
 
-async function testMcpServer(): Promise<void> {
-  console.log('ℹ️  Starting CoinGecko MCP Server...\n');
+function ensureTaskCompleted(task: Task, name: string): void {
+  expect(task.status?.state === TaskState.Completed, `Expected task "${name}" to complete successfully`);
+  const messagePart = task.status?.message?.parts?.find((part) => part.kind === 'text');
+  expect(messagePart && typeof messagePart.text === 'string', `Task "${name}" did not include a status message`);
+}
 
-  // Start the MCP server (stdio-only version)
-  const serverProcess = spawn('node', [join(__dirname, 'dist/stdio-server.js')], {
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
+function parseFirstArtifactJson(task: Task, name: string): any {
+  const artifacts = task.artifacts ?? [];
+  expect(artifacts.length > 0, `Task "${name}" did not include artifacts`);
+  const textPart = artifacts[0].parts.find(
+    (part) => part.kind === 'text' && typeof (part as { text?: unknown }).text === 'string',
+  ) as { text: string } | undefined;
+  expect(textPart, `Task "${name}" artifact missing text content`);
+  return JSON.parse(textPart.text);
+}
 
-  let serverReady = false;
-  const testResults: TestResult[] = [];
+async function runTest(name: string, fn: () => Promise<void>): Promise<void> {
+  console.log(`▶️  ${name}`);
+  try {
+    await fn();
+    testResults.push({ name, status: 'PASS' });
+    console.log(`✅ ${name}\n`);
+  } catch (error) {
+    const message = (error as Error).message || 'Unknown error';
+    testResults.push({ name, status: 'FAIL', error: message });
+    console.error(`❌ ${name}: ${message}\n`);
+  }
+}
 
-  // Add timeout for server startup
-  const startupTimeout = setTimeout(() => {
-    if (!serverReady) {
-      console.error('❌ Test failed: Server failed to start within 10 seconds');
-      serverProcess.kill();
-      process.exit(1);
-    }
-  }, 10000);
-
-  // Listen for server output
-  serverProcess.stderr?.on('data', (data: Buffer) => {
-    const output = data.toString();
-    console.log('Server:', output.trim());
-    
-    if (output.includes('CoinGecko MCP stdio server started and connected')) {
-      serverReady = true;
-      clearTimeout(startupTimeout);
-      console.log('✅ Server is ready!\n');
-      runTests();
-    }
-  });
-
-  // Listen for server errors
-  serverProcess.on('error', (error: Error) => {
-    console.error('❌ Server error:', error);
-    process.exit(1);
-  });
-
-  async function runTests(): Promise<void> {
-    try {
-      // Test 1: Get supported tokens
-      console.log('📋 Test 1: Getting supported tokens...');
-      const tokensResult = await sendMcpRequest({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: {
-          name: 'get_supported_tokens',
-          arguments: {}
-        }
-      });
-      
-      if (tokensResult.result) {
-        const tokens = JSON.parse(tokensResult.result.content[0].text);
-        console.log(`✅ Found ${tokens.count} supported tokens`);
-        testResults.push({ name: 'get_supported_tokens', status: 'PASS' });
-      } else {
-        console.log('❌ Failed to get supported tokens');
-        testResults.push({ name: 'get_supported_tokens', status: 'FAIL' });
-      }
-
-      // Test 2: Generate chart for BTC
-      console.log('\n📊 Test 2: Generating BTC price chart...');
-      const chartResult = await sendMcpRequest({
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/call',
-        params: {
-          name: 'generate_chart',
-          arguments: {
-            token: 'BTC',
-            days: 7
-          }
-        }
-      });
-      
-      if (chartResult.result) {
-        const chartData = JSON.parse(chartResult.result.content[0].text);
-        if (chartData.prices && chartData.prices.length > 0) {
-          console.log(`✅ Generated chart with ${chartData.prices.length} data points`);
-          testResults.push({ name: 'generate_chart', status: 'PASS' });
-        } else {
-          console.log('❌ Chart data is empty');
-          testResults.push({ name: 'generate_chart', status: 'FAIL' });
-        }
-      } else {
-        console.log('❌ Failed to generate chart');
-        testResults.push({ name: 'generate_chart', status: 'FAIL' });
-      }
-
-      // Test 3: Test invalid token
-      console.log('\n🚫 Test 3: Testing invalid token...');
-      const invalidResult = await sendMcpRequest({
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'tools/call',
-        params: {
-          name: 'generate_chart',
-          arguments: {
-            token: 'INVALID',
-            days: 7
-          }
-        }
-      });
-      
-      if (invalidResult.result) {
-        const errorData = JSON.parse(invalidResult.result.content[0].text);
-        if (errorData.error && errorData.error.includes('not supported')) {
-          console.log('✅ Correctly handled invalid token');
-          testResults.push({ name: 'invalid_token', status: 'PASS' });
-        } else {
-          console.log('❌ Did not handle invalid token correctly');
-          testResults.push({ name: 'invalid_token', status: 'FAIL' });
-        }
-      } else {
-        console.log('❌ Failed to test invalid token');
-        testResults.push({ name: 'invalid_token', status: 'FAIL' });
-      }
-
-      // Print test summary
-      console.log('\n📊 Test Summary:');
-      testResults.forEach(result => {
-        console.log(`${result.status === 'PASS' ? '✅' : '❌'} ${result.name}`);
-      });
-
-      const passedTests = testResults.filter(r => r.status === 'PASS').length;
-      const totalTests = testResults.length;
-      console.log(`\n🎯 Results: ${passedTests}/${totalTests} tests passed`);
-
-    } catch (error) {
-      console.error('❌ Test error:', error);
-    } finally {
-      // Clean up
-      serverProcess.kill();
-      process.exit(0);
+function printSummary(): void {
+  console.log('\n📊 Test Summary:');
+  for (const result of testResults) {
+    if (result.status === 'PASS') {
+      console.log(`✅ ${result.name}`);
+    } else {
+      console.log(`❌ ${result.name} — ${result.error}`);
     }
   }
 
-  async function sendMcpRequest(request: McpRequest): Promise<McpResponse> {
-    return new Promise((resolve, reject) => {
-      const requestStr = JSON.stringify(request) + '\n';
-      
-      // Send request to server
-      serverProcess.stdin?.write(requestStr);
-      
-      // Listen for response
-      const timeout = setTimeout(() => {
-        reject(new Error('Request timeout'));
-      }, 10000);
+  if (testResults.length > 0) {
+    const passed = testResults.filter((result) => result.status === 'PASS').length;
+    console.log(`\n🎯 Results: ${passed}/${testResults.length} tests passed`);
+  } else {
+    console.log('\n⚠️  No tests were executed.');
+  }
+}
 
-      serverProcess.stdout?.once('data', (data: Buffer) => {
-        clearTimeout(timeout);
-        try {
-          const response = JSON.parse(data.toString().trim()) as McpResponse;
-          resolve(response);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
+async function main() {
+  setupParaMocks();
+
+  if (!process.env.PARA_API_KEY) {
+    process.env.PARA_API_KEY = 'test-api-key';
+  }
+  if (!process.env.PARA_ENVIRONMENT) {
+    process.env.PARA_ENVIRONMENT = 'BETA';
   }
 
-  // Handle process cleanup
-  process.on('SIGINT', () => {
-    console.log('\n🛑 Shutting down...');
-    serverProcess.kill();
-    process.exit(0);
+  expect(listPregenWallets().length === 0, 'Expected pregenerated wallet store to start empty');
+
+  await runTest('create_pregen_wallet tool', async () => {
+    const task = await createPregenWalletTool.execute({
+      identifier,
+      identifierType,
+      walletType: 'EVM',
+    }, { custom: {} });
+
+    ensureTaskCompleted(task, 'create_pregen_wallet tool');
+    const storedWallet = parseFirstArtifactJson(task, 'create_pregen_wallet tool');
+
+    expect(storedWallet.walletId === 'mock-wallet-id', 'Stored wallet ID should come from mock response');
+    expect(storedWallet.identifierKey === identifierType, 'Stored wallet identifier key mismatch');
+    expect(storedWallet.identifierValue === identifier, 'Stored wallet identifier value mismatch');
+    expect(storedWallet.userShareJson === JSON.stringify(mockUserShare), 'Stored wallet user share mismatch');
+
+    expect(mockParaClient.hasPregenWalletCallCount === 1, 'Expected hasPregenWallet to be called exactly once');
+    expect(mockParaClient.createPregenWalletCallCount === 1, 'Expected createPregenWallet to be called exactly once');
+    expect(mockParaClient.getUserShareCallCount === 1, 'Expected getUserShare to be called exactly once');
+    expect(listPregenWallets().length === 1, 'Expected pregenerated wallet store to contain one entry after creation');
+  });
+
+  await runTest('list_pregen_wallets tool', async () => {
+    const task = await listPregenWalletsTool.execute({}, { custom: {} });
+    ensureTaskCompleted(task, 'list_pregen_wallets tool');
+    const wallets = parseFirstArtifactJson(task, 'list_pregen_wallets tool');
+    expect(Array.isArray(wallets), 'Expected list_pregen_wallets to return an array');
+    expect(wallets.length === 1, 'Expected one wallet in the pregenerated wallet list');
+    expect(wallets[0].walletId === 'mock-wallet-id', 'Listed wallet ID mismatch');
+  });
+
+  await runTest('claim_pregen_wallet tool', async () => {
+    const task = await claimPregenWalletTool.execute({
+      identifier,
+      identifierType,
+    }, { custom: {} });
+
+    ensureTaskCompleted(task, 'claim_pregen_wallet tool');
+    const payload = parseFirstArtifactJson(task, 'claim_pregen_wallet tool');
+
+    expect(payload.identifierKey === identifierType, 'Claim payload identifier key mismatch');
+    expect(payload.identifierValue === identifier, 'Claim payload identifier value mismatch');
+    expect(payload.userShare === JSON.stringify(mockUserShare), 'Claim payload user share mismatch');
+  });
+
+  // mark_pregen_wallet_claimed tool removed; skipping related test
+
+  await runTest('sign_pregen_transaction tool', async () => {
+    const rawTransaction = '0xdeadbeef';
+    const task = await signPregenTransactionTool.execute({
+      identifier,
+      identifierType,
+      walletType: 'EVM',
+      chainId: '1',
+      rawTransaction,
+      broadcast: false,
+    }, { custom: {} });
+
+    ensureTaskCompleted(task, 'sign_pregen_transaction tool');
+    const payload = parseFirstArtifactJson(task, 'sign_pregen_transaction tool');
+
+    expect(payload.walletType === 'EVM', 'Returned payload wallet type mismatch');
+    expect(payload.executionResult.txHash === mockSignResult.txHash, 'Execution result hash mismatch');
+    expect(mockParaClient.setUserShareCallCount === 1, 'Expected setUserShare to be called exactly once');
+    expect(mockParaClient.signEvmTransactionCallCount === 1, 'Expected signEvmTransaction to be called exactly once');
+    expect(mockParaClient.clearUserShareCallCount === 1, 'Expected clearUserShare to be called exactly once');
+    expect(mockParaClient.lastSignPayload?.walletId === 'mock-wallet-id', 'Sign payload should include wallet ID');
+    expect(mockParaClient.lastSignPayload?.rawTransaction === rawTransaction, 'Sign payload raw transaction mismatch');
+    expect(JSON.stringify(mockParaClient.lastSetUserShare) === JSON.stringify(mockUserShare), 'setUserShare received unexpected data');
+
+    const stored = findPregenWallet(identifierType, identifier);
+    expect(stored?.lastOperation === 'sign-evm', 'Stored wallet lastOperation was not updated after sign');
+    expect(typeof stored?.lastUsedAt === 'string' && stored?.lastUsedAt.length > 0, 'Stored wallet lastUsedAt was not updated after sign');
   });
 }
 
-// Run the test
-testMcpServer().catch(error => {
-  console.error('❌ Test failed:', error);
-  process.exit(1);
-});
+await main()
+  .catch((error) => {
+    const message = (error as Error).message || 'Unknown error';
+    console.error(`❌ Test runner failure: ${message}`);
+    testResults.push({ name: 'test-runner', status: 'FAIL', error: message });
+  })
+  .finally(() => {
+    __resetParaTestingOverrides();
+    printSummary();
+    const allPassed = testResults.length > 0 && testResults.every((result) => result.status === 'PASS');
+    process.exit(allPassed ? 0 : 1);
+  });

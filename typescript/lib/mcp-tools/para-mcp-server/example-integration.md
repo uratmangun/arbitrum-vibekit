@@ -1,188 +1,121 @@
-# CoinGecko MCP Server Integration Example
+# Para MCP Server Integration Example
 
-This document shows how to integrate the CoinGecko MCP server with the existing Arbitrum VibeKit web client.
+This guide walks through connecting the Para MCP server to the Arbitrum VibeKit web client so agents can manage pregenerated wallets and sign transactions during conversations.
 
-## 1. Building the MCP Server
-
-First, build the CoinGecko MCP server:
+## 1. Build the MCP Server
 
 ```bash
-cd arbitrum-vibekit/typescript/lib/mcp-tools/coingecko-mcp-server
+cd arbitrum-vibekit/typescript/lib/mcp-tools/para-mcp-server
 pnpm install
 pnpm build
 ```
 
-## 2. Running the MCP Server
+The build step compiles the TypeScript sources located in `src/` into the `dist/` directory that is used by the HTTP and stdio entrypoints.
 
-Start the CoinGecko MCP server:
+## 2. Configure Environment Variables
+
+Create a `.env` file in the Para MCP server directory with your Para credentials:
+
+```env
+PARA_API_KEY=pk_live_or_test_value
+PARA_ENVIRONMENT=BETA        # or PRODUCTION
+PORT=3011                    # optional; defaults to 3011
+```
+
+> The server throws a `MissingParaApiKey` error if `PARA_API_KEY` is absent, so make sure the value is injected in development and production environments.
+
+## 3. Run the Server
 
 ```bash
-# Development mode
+# Development (tsx hot reload)
 pnpm dev
 
-# Or production mode
+# Production build + serve
 pnpm start
 ```
 
-The server will start on port 3011 and also provide stdio transport.
+You should see console output similar to:
+```
+Para MCP Server (Hono + Node) is running on port 3011
+MCP endpoint available at http://localhost:3011/mcp
+Para MCP stdio server started and connected.
+```
 
-## 3. Integration with Web Client
+At this point both transports are active:
+- **HTTP**: `POST/GET/DELETE http://localhost:3011/mcp`
+- **stdio**: Communicates over the spawned process stdout/stdin
 
-### Option A: Using HTTP/SSE Transport
+## 4. Register the Server with the Web Client
 
-Update the web client's MCP configuration to include the CoinGecko server:
+Update the VibeKit agent configuration so the UI can reach the Para tools.
 
 ```typescript
-// In your MCP client configuration
-const mcpServers = [
+// clients/web/agents-config.ts
+export const MCP_SERVERS = [
+  // ...other entries
   {
-    name: 'coingecko',
-    url: 'http://localhost:3011/sse',
-    tools: ['generate_chart', 'get_supported_tokens']
-  }
+    name: 'para',
+    url: 'http://localhost:3011/mcp',
+    description: 'Para pregenerated wallet tools',
+  },
 ];
 ```
 
-### Option B: Using stdio Transport
-
-For direct integration, you can modify the web client to use the stdio transport:
+The Streamable HTTP transport is the recommended option in the web client. If you prefer stdio during local development, spawn the compiled server binary and pass the process to `StdioClientTransport`.
 
 ```typescript
-// Example: Direct stdio integration
-import { spawn } from 'child_process';
+import { spawn } from 'node:child_process';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const coingeckoProcess = spawn('node', [
-  'path/to/coingecko-mcp-server/dist/index.js'
-]);
+const paraProcess = spawn('node', [
+  'lib/mcp-tools/para-mcp-server/dist/index.js',
+], {
+  env: process.env,
+});
 
-const transport = new StdioClientTransport(coingeckoProcess);
-await mcpClient.connect(transport);
+const transport = new StdioClientTransport(paraProcess);
+await client.connect(transport);
 ```
 
-## 4. Updating the Web Client
+## 5. Tool Usage Flow in the UI
 
-### Modify the Tool Agents
+A typical wallet onboarding conversation calls tools in this order:
 
-Update `arbitrum-vibekit/typescript/clients/web/lib/ai/tools/tool-agents.ts` to include the CoinGecko MCP server:
+1. **`create_pregen_wallet`** – Seeds the in-memory cache and retrieves the user share from Para.
+2. **`list_pregen_wallets`** *(optional)* – Shows the operator the current cache contents.
+3. **`claim_pregen_wallet`** – Returns the user share for the frontend to complete a client-side claim.
+4. **`sign_pregen_transaction`** – Signs or executes a transaction once the wallet is ready.
 
-```typescript
-// Add CoinGecko MCP server to the list of servers
-const mcpServers = [
-  // ... existing servers
-  {
-    name: 'coingecko',
-    url: 'http://localhost:3011/sse',
-    description: 'Cryptocurrency price data from CoinGecko'
-  }
-];
+Each tool returns an artifact whose first part is JSON text. The web client typically uses `JSON.parse` to render or store the results. See `clients/web/components/ClaimPregenWallet.tsx` and related components for usage patterns. Claim status is now inferred remotely via Para SDK (no local mark step).
+
+### Example Conversation Snippets
+```
+User: "Create a pregenerated wallet for alice@example.com"
+Agent: (calls para:create_pregen_wallet)
+UI: Shows the stored wallet record returned in the artifact.
 ```
 
-### Update Message Renderer
-
-The existing `PriceChart` component should work with the MCP server response. The MCP server returns data in the same format as the original tool:
-
-```typescript
-// In message.renderer.tsx, the existing code should work:
-if (toolName.endsWith('generate_chart')) {
-  // Parse the MCP response
-  const mcpResult = JSON.parse(result?.result?.content?.[0]?.text || '{}');
-  return <PriceChart data={mcpResult} />;
-}
+```
+User: "Sign this transaction with the wallet you just created"
+Agent: (calls para:sign_pregen_transaction with rawTransaction + chainId)
+UI: Displays the execution result JSON, including the Para SDK response.
 ```
 
-## 5. Testing the Integration
+## 6. Testing Locally
 
-### Test with Chat Interface
-
-1. Start the CoinGecko MCP server
-2. Start the web client
-3. Send a message like: "Generate a price chart for BTC over 30 days"
-
-### Expected Response
-
-The MCP server will return data in this format:
-
-```json
-{
-  "prices": [[1703980800000, 42000], [1703984400000, 42100], ...],
-  "token": "BTC",
-  "tokenId": "bitcoin",
-  "days": 30,
-  "timestamp": "2024-01-01T00:00:00.000Z"
-}
-```
-
-## 6. Environment Configuration
-
-Create a `.env` file in the CoinGecko MCP server directory:
-
-```env
-PORT=3011
-NODE_ENV=development
-```
-
-## 7. Docker Integration (Optional)
-
-Create a `Dockerfile` for the CoinGecko MCP server:
-
-```dockerfile
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY . .
-RUN npm run build
-
-EXPOSE 3011
-
-CMD ["npm", "start"]
-```
-
-## 8. Production Deployment
-
-For production, you can:
-
-1. Build the MCP server as a Docker container
-2. Deploy it alongside your web client
-3. Configure the web client to connect to the deployed MCP server
-
-## 9. Monitoring and Logging
-
-The MCP server includes console logging for debugging:
+The repository includes a node-based test runner that mocks the Para SDK. Run it after local changes to ensure the entire toolchain still succeeds:
 
 ```bash
-# Watch the server logs
-tail -f coingecko-mcp-server.log
-
-# Or use the built-in logging
-pnpm dev 2>&1 | tee server.log
+pnpm --filter @arbitrum-vibekit/para-mcp-server test
 ```
 
-## 10. Error Handling
+All tests should pass before shipping configuration or server changes.
 
-The integration handles various error scenarios:
+## 7. Deployment Checklist
 
-- **MCP Server Unavailable**: Graceful fallback to local tools
-- **API Rate Limiting**: Automatic retry with exponential backoff
-- **Invalid Tokens**: Clear error messages
-- **Network Issues**: Timeout handling and retry logic
+- Inject `PARA_API_KEY` and `PARA_ENVIRONMENT` in the runtime environment.
+- Expose the `/mcp` endpoint behind HTTPS if the server is reachable outside your private network.
+- Monitor logs for `VibkitError` names (`ParaSdkNotAvailable`, `MissingUserShare`, etc.) to triage configuration issues quickly.
+- Since the wallet cache is in-memory, run a persistent process per operator session or back the store with a proper database before scaling to production workloads.
 
-## 11. Performance Considerations
-
-- The MCP server caches responses for better performance
-- Rate limiting prevents API abuse
-- Retry logic handles temporary failures
-- SSE transport provides real-time communication
-
-## 12. Security
-
-- No API keys required for CoinGecko (public API)
-- HTTP/SSE transport can be secured with HTTPS
-- Input validation prevents injection attacks
-- Rate limiting prevents abuse
-
-This integration provides a seamless way to use the CoinGecko MCP server with your existing web client while maintaining the same user experience. 
+Following these steps aligns the Para MCP server with the Arbitrum VibeKit web client, enabling rich wallet automation flows directly from the chat interface.

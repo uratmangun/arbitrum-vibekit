@@ -2,9 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { createPregenWalletTool } from './tools/createPregenWallet.js';
 import { listPregenWalletsTool } from './tools/listPregenWallets.js';
-import { signPregenTransactionTool } from './tools/signPregenTransaction.js';
 import { claimPregenWalletTool } from './tools/claimPregenWallet.js';
-import { markPregenWalletClaimedTool } from './tools/markPregenWalletClaimed.js';
+import { checkAddressBalanceTool } from './tools/checkAddressBalance.js';
 
 // (no-op) Removed legacy CoinGecko helpers; using local Para tools instead.
 
@@ -26,7 +25,7 @@ export async function createServer() {
         CreatePregenWalletSchema.shape,
         async (args: z.infer<typeof CreatePregenWalletSchema>) => {
             try {
-                const result = await createPregenWalletTool.execute(args as any);
+                const result = await createPregenWalletTool.execute(args as any, { custom: {} });
                 return {
                     content: [
                         {
@@ -59,7 +58,7 @@ export async function createServer() {
         ListPregenWalletsSchema.shape,
         async (_args: z.infer<typeof ListPregenWalletsSchema>) => {
             try {
-                const result = await listPregenWalletsTool.execute({} as any);
+                const result = await listPregenWalletsTool.execute({} as any, { custom: {} });
                 return {
                     content: [
                         {
@@ -84,6 +83,8 @@ export async function createServer() {
         },
     );
 
+    
+
     const ClaimPregenWalletSchema = claimPregenWalletTool.parameters;
 
     server.tool(
@@ -92,7 +93,7 @@ export async function createServer() {
         ClaimPregenWalletSchema.shape,
         async (args: z.infer<typeof ClaimPregenWalletSchema>) => {
             try {
-                const result = await claimPregenWalletTool.execute(args as any);
+                const result = await claimPregenWalletTool.execute(args as any, { custom: {} });
                 return {
                     content: [
                         {
@@ -117,15 +118,17 @@ export async function createServer() {
         },
     );
 
-    const MarkPregenWalletClaimedSchema = markPregenWalletClaimedTool.parameters;
+    
+
+    const CheckAddressBalanceSchema = checkAddressBalanceTool.parameters;
 
     server.tool(
-        'mark_pregen_wallet_claimed',
-        markPregenWalletClaimedTool.description,
-        MarkPregenWalletClaimedSchema.shape,
-        async (args: z.infer<typeof MarkPregenWalletClaimedSchema>) => {
+        'check_address_balance',
+        checkAddressBalanceTool.description,
+        CheckAddressBalanceSchema.shape,
+        async (args: z.infer<typeof CheckAddressBalanceSchema>) => {
             try {
-                const result = await markPregenWalletClaimedTool.execute(args as any);
+                const result = await checkAddressBalanceTool.execute(args as any, { custom: {} });
                 return {
                     content: [
                         {
@@ -135,46 +138,13 @@ export async function createServer() {
                     ],
                 };
             } catch (error) {
-                console.error('MCP server error (mark_pregen_wallet_claimed):', error);
+                console.error('MCP server error (check_address_balance):', error);
                 return {
                     content: [
                         {
                             type: 'text',
                             text: JSON.stringify({
-                                error: `Failed to mark pregenerated wallet as claimed: ${(error as Error).message}`
-                            }, null, 2),
-                        },
-                    ],
-                };
-            }
-        },
-    );
-
-    const SignPregenTransactionSchema = signPregenTransactionTool.parameters;
-
-    server.tool(
-        'sign_pregen_transaction',
-        signPregenTransactionTool.description,
-        SignPregenTransactionSchema.shape,
-        async (args: z.infer<typeof SignPregenTransactionSchema>) => {
-            try {
-                const result = await signPregenTransactionTool.execute(args as any);
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: JSON.stringify(result, null, 2),
-                        },
-                    ],
-                };
-            } catch (error) {
-                console.error('MCP server error (sign_pregen_transaction):', error);
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: JSON.stringify({
-                                error: `Failed to sign/execute transaction: ${(error as Error).message}`
+                                error: `Failed to fetch address balance: ${(error as Error).message}`
                             }, null, 2),
                         },
                     ],
@@ -184,4 +154,4 @@ export async function createServer() {
     );
 
     return server;
-} 
+}

@@ -8,6 +8,14 @@ import { createServer as createNodeServer } from 'node:http';
 import { createServer } from './mcp.js';
 import { randomUUID } from 'node:crypto';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { ZodError } from 'zod';
+import { CreatePregenWalletParams, createPregenWalletTool } from './tools/createPregenWallet.js';
+import {
+  findPregenWallet,
+  listPregenWallets,
+  findPregenWalletByAddress,
+  setPregenWalletClaimStatus,
+} from './store/pregenWalletStore.js';
 
 dotenv.config();
 
@@ -19,6 +27,131 @@ async function main() {
   app.use('*', async (c, next) => {
     console.log(`${c.req.method} ${c.req.url}`);
     await next();
+  });
+
+  // GET /api/pregen-wallets - List pregenerated wallets from in-memory store
+  app.get('/api/pregen-wallets', async (c) => {
+    try {
+      const data = listPregenWallets();
+      return c.json({ ok: true, data }, 200);
+    } catch (err: any) {
+      console.error('Error listing pregenerated wallets:', err);
+      return c.json(
+        { ok: false, error: 'ServerError', message: err?.message || String(err) },
+        500,
+      );
+    }
+  });
+
+  // GET /api/pregen-wallet/by-identifier - Fetch single pregenerated wallet by identifier or address
+  app.get('/api/pregen-wallet/by-identifier', async (c) => {
+    try {
+      const identifierKey = c.req.query('identifierKey');
+      const identifierValue = c.req.query('identifierValue');
+      const address = c.req.query('address');
+
+      if (!address && (!identifierKey || !identifierValue)) {
+        return c.json(
+          {
+            ok: false,
+            error: 'ValidationError',
+            message: 'Provide either address or both identifierKey and identifierValue',
+          },
+          400,
+        );
+      }
+
+      let entry = address ? findPregenWalletByAddress(address) : undefined;
+      if (!entry && identifierKey && identifierValue) {
+        entry = findPregenWallet(identifierKey, identifierValue);
+      }
+      if (!entry) {
+        return c.json(
+          {
+            ok: false,
+            error: 'NotFound',
+            message: address
+              ? `No pregenerated wallet found for address ${address}`
+              : `No pregenerated wallet found for ${identifierKey}:${identifierValue}`,
+          },
+          404,
+        );
+      }
+
+      // Return safe subset including userShareJson
+      const data = {
+        recordId: entry.recordId,
+        walletId: entry.walletId,
+        address: entry.address,
+        walletType: entry.walletType,
+        identifierKey: entry.identifierKey,
+        identifierValue: entry.identifierValue,
+        userShareJson: entry.userShareJson,
+        createdAt: entry.createdAt,
+        recoverySecret: entry.recoverySecret,
+        lastUsedAt: entry.lastUsedAt,
+        isClaimed: entry.isClaimed,
+      };
+      return c.json({ ok: true, data }, 200);
+    } catch (err: any) {
+      console.error('Error fetching pregenerated wallet by identifier:', err);
+      return c.json(
+        { ok: false, error: 'ServerError', message: err?.message || String(err) },
+        500,
+      );
+    }
+  });
+
+  // POST /api/pregen-wallet/mark-claimed - Update claim status by address or identifier
+  app.post('/api/pregen-wallet/mark-claimed', async (c) => {
+    try {
+      const body = (await c.req.json().catch(() => ({}))) as {
+        identifierKey?: string;
+        identifierValue?: string;
+        address?: string;
+        isClaimed?: boolean;
+        recoverySecret?: string;
+      };
+
+      const { identifierKey, identifierValue, address, recoverySecret } = body;
+      const isClaimed = body.isClaimed ?? true;
+
+      if (!address && (!identifierKey || !identifierValue)) {
+        return c.json(
+          {
+            ok: false,
+            error: 'ValidationError',
+            message: 'Provide either address or both identifierKey and identifierValue',
+          },
+          400,
+        );
+      }
+
+      const updated = setPregenWalletClaimStatus({
+        address,
+        identifierKey,
+        identifierValue,
+        isClaimed,
+        recoverySecret,
+      });
+      if (!updated) {
+        return c.json(
+          {
+            ok: false,
+            error: 'NotFound',
+            message: 'Pregenerated wallet not found for provided parameters',
+          },
+          404,
+        );
+      }
+      return c.json({ ok: true, data: updated }, 200);
+    } catch (err: any) {
+      console.error('Error updating claim status:', err);
+      return c.json(
+        { ok: false, error: 'ServerError', message: err?.message || String(err) },
+        500,
+      );
+    }
   });
 
   const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
@@ -116,6 +249,43 @@ async function main() {
     }
   });
 
+  // POST /api/pregen-wallet - Create a pregenerated wallet via Para Server SDK
+  app.post('/api/pregen-wallet', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const args = CreatePregenWalletParams.parse(body);
+      const task = await createPregenWalletTool.execute(args, { custom: {} as any });
+
+      // Convenience: parse first artifact text as JSON if present
+      let data: any = null;
+      const firstArtifact: any = task?.artifacts?.[0];
+      const firstPart: any = firstArtifact?.parts?.[0];
+      const text: string | undefined =
+        typeof firstPart?.text === 'string' ? firstPart.text : undefined;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+
+      return c.json({ ok: true, task, data }, 200);
+    } catch (err: any) {
+      if (err instanceof ZodError || err?.name === 'ZodError') {
+        return c.json(
+          { ok: false, error: 'ValidationError', message: err.message, issues: err.issues },
+          400,
+        );
+      }
+      console.error('Error creating pregenerated wallet:', err);
+      return c.json(
+        { ok: false, error: 'ServerError', message: err?.message || String(err) },
+        500,
+      );
+    }
+  });
+
   // Create a Node HTTP server that routes /mcp to the MCP transport and
   // delegates all other paths to the Hono app via Fetch API.
   const nodeServer = createNodeServer(async (req, res) => {
@@ -194,7 +364,19 @@ async function main() {
       }
 
       // Fallback to Hono app for non-MCP routes
-      const resp = await app.fetch(req as any);
+      // Convert Node IncomingMessage to WHATWG Request for Hono
+      const init: any = {
+        method: req.method,
+        headers: req.headers as any,
+      };
+      if (req.method && req.method !== 'GET' && req.method !== 'HEAD') {
+        init.body = req as any; // stream body
+      }
+      // Node streams require duplex flag for fetch in Node.js
+      init.duplex = 'half';
+      const request = new Request(url.toString(), init);
+
+      const resp = await app.fetch(request);
       res.statusCode = resp.status;
       resp.headers.forEach((value, key) => res.setHeader(key, value));
       const ab = await resp.arrayBuffer();
@@ -208,23 +390,28 @@ async function main() {
     }
   });
 
-  const PORT = Number(process.env.PORT || 3011);
+  const PORT = Number(process.env.PORT || 3012);
   nodeServer.listen(PORT, () => {
     console.log(`Para MCP Server (Hono + Node) is running on port ${PORT}`);
     console.log(`MCP endpoint available at http://localhost:${PORT}/mcp`);
   });
 
-  // Start stdio transport for local tools/inspector
-  const stdioTransport = new StdioServerTransport();
-  console.error('Initializing stdio transport...');
-  await server.connect(stdioTransport);
-  console.error('Para MCP stdio server started and connected.');
-  console.error('Server is now ready to receive stdio requests.');
+  // Optional: Start stdio transport for local tools/inspector if enabled
+  const enableStdio = process.env.MCP_STDIO_ENABLED === 'true';
+  if (enableStdio) {
+    const stdioTransport = new StdioServerTransport();
+    console.error('Initializing stdio transport...');
+    await server.connect(stdioTransport);
+    console.error('Para MCP stdio server started and connected.');
+    console.error('Server is now ready to receive stdio requests.');
 
-  process.stdin.on('end', () => {
-    console.error('Stdio connection closed, exiting...');
-    process.exit(0);
-  });
+    process.stdin.on('end', () => {
+      console.error('Stdio connection closed, exiting...');
+      process.exit(0);
+    });
+  } else {
+    console.error('MCP stdio transport disabled (set MCP_STDIO_ENABLED=true to enable).');
+  }
 }
 
 main().catch(() => process.exit(-1));
