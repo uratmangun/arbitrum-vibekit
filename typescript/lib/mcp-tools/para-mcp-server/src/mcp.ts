@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { createPregenWalletTool } from './tools/createPregenWallet.js';
 import { listPregenWalletsTool } from './tools/listPregenWallets.js';
 import { claimPregenWalletTool } from './tools/claimPregenWallet.js';
-import { checkAddressBalanceTool } from './tools/checkAddressBalance.js';
 
 // (no-op) Removed legacy CoinGecko helpers; using local Para tools instead.
 
@@ -119,39 +118,6 @@ export async function createServer() {
     );
 
     
-
-    const CheckAddressBalanceSchema = checkAddressBalanceTool.parameters;
-
-    server.tool(
-        'check_address_balance',
-        checkAddressBalanceTool.description,
-        CheckAddressBalanceSchema.shape,
-        async (args: z.infer<typeof CheckAddressBalanceSchema>) => {
-            try {
-                const result = await checkAddressBalanceTool.execute(args as any, { custom: {} });
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: JSON.stringify(result, null, 2),
-                        },
-                    ],
-                };
-            } catch (error) {
-                console.error('MCP server error (check_address_balance):', error);
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: JSON.stringify({
-                                error: `Failed to fetch address balance: ${(error as Error).message}`
-                            }, null, 2),
-                        },
-                    ],
-                };
-            }
-        },
-    );
 
     return server;
 }

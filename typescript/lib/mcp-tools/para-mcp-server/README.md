@@ -1,11 +1,11 @@
 # Para MCP Server
 
-A Model Context Protocol (MCP) server that wraps the [Para Server SDK](https://docs.getpara.com/server-sdk) to manage pregenerated wallets for Arbitrum VibeKit agents. The server exposes tools that cover the full lifecycle of a pregenerated wallet—creation, discovery, claiming, and transaction signing—while caching state locally for rapid agent development.
+A Model Context Protocol (MCP) server that wraps the [Para Server SDK](https://docs.getpara.com/server-sdk) to manage pregenerated wallets for Arbitrum VibeKit agents. The server exposes tools for creation, discovery, and claiming of pregenerated wallets, while caching state locally for rapid agent development.
 
 ## 🚀 Features
-- **Pregenerated wallet lifecycle tooling**: Create, list, claim, mark as claimed, and sign transactions against Para-managed wallets.
+- **Pregenerated wallet tooling**: Create, list, and claim pregenerated wallets against Para-managed accounts. A helper HTTP route is available to mark a wallet as claimed.
 - **In-memory cache**: Stores pregenerated wallet metadata and user shares locally so repeated tool calls are instant during a session.
-- **Dual transport support**: Streamable HTTP endpoint (`/mcp`) and stdio transport for local MCP inspectors/devtools.
+- **Dual transport support**: Streamable HTTP endpoint (`/mcp`) and optional stdio transport for local MCP inspectors/devtools (enable via `MCP_STDIO_ENABLED=true`).
 - **Robust Para integration**: Graceful fallbacks when the SDK shape changes, plus actionable `VibkitError` messages for missing configuration.
 - **Test-friendly design**: Injectable Para SDK/client mocks so the included test suite can run without network calls.
 
@@ -61,22 +61,13 @@ Fetch a cached wallet’s identifier metadata and user share for client-side cla
 {
   "identifierKey": "email",
   "identifierValue": "user@example.com",
-  "userShare": "{\"share\":\"...\"}"
+  "address": "0x1234...abcd",
+  "isClaimed": false,
+  "note": "This pregenerated wallet is not claimed. You can claim it from the frontend using the Claim button."
 }
 ```
 
-### `sign_pregen_transaction`
-Sign or execute a raw transaction with the cached user share via the Para SDK. Supports EVM, Solana, and Cosmos helpers depending on SDK version.
-
-**Parameters**
-- `identifier` *(string, required)*
-- `identifierType` *(enum, default `email`)*
-- `walletType` *(enum, default `EVM`)*
-- `rawTransaction` *(string, required)* – Hex/Base64 serialized transaction.
-- `chainId` *(string, optional)* – Used for EVM payloads.
-- `broadcast` *(boolean, default `false`)* – Attempt to broadcast if the SDK supports it.
-
-**Response Artifact (text JSON)** – Contains the request payload, Para SDK result, and wallet type used.
+> Note: Transaction signing is not exposed as an MCP tool in the current version.
 
 ## 🔧 Configuration
 
@@ -105,7 +96,7 @@ pnpm start
 pnpm watch
 ```
 
-The HTTP transport listens on `http://localhost:PORT/mcp`; stdio transport is started automatically for direct MCP inspectors.
+The HTTP transport listens on `http://localhost:PORT/mcp`; stdio transport is disabled by default and can be enabled by setting `MCP_STDIO_ENABLED=true` before starting the server.
 
 ## ✅ Testing
 
@@ -142,14 +133,14 @@ src/
 │   ├── claimPregenWallet.ts
 │   ├── createPregenWallet.ts
 │   ├── listPregenWallets.ts
-│   └── signPregenTransaction.ts
+│   
 └── utils/
     └── paraServer.ts    # Para SDK helpers and test overrides
 ```
 
 ## 🔄 Recent Updates
 - Migrated from CoinGecko tooling to Para pregenerated wallet workflows.
+- Removed deprecated tools (`check_address_balance`, transaction signing) to align with current Para wallet flows.
 - Added injectable Para SDK/client overrides to enable deterministic testing.
-- Expanded test runner to cover every tool end-to-end via mocked interactions.
 
 This server is the reference implementation for Para wallet orchestration inside the Arbitrum VibeKit agent ecosystem.
