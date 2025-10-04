@@ -4,18 +4,8 @@ import type { Task } from '@google-a2a/types';
 import { addPregenWallet, findPregenWallet } from '../store/pregenWalletStore.js';
 import { getParaServerClient, loadParaModule } from '../utils/paraServer.js';
 
-const identifierTypeSchema = z
-  .enum(['email', 'phone', 'username', 'id', 'custom'])
-  .describe('Identifier key used for pregenerated wallet lookup (e.g., email, phone, username, id)');
-
-const walletTypeSchema = z
-  .enum(['EVM', 'SOLANA', 'COSMOS'])
-  .describe('Target wallet network type');
-
 export const CreatePregenWalletParams = z.object({
-  identifier: z.string().min(1, 'Identifier is required').describe('Unique identifier for pregenerated wallet'),
-  identifierType: identifierTypeSchema.default('email'),
-  walletType: walletTypeSchema.default('EVM'),
+  email: z.string().email('Valid email is required').describe('Email address for pregenerated wallet'),
 });
 
 export const createPregenWalletTool: VibkitToolDefinition<typeof CreatePregenWalletParams, Task> = {
@@ -23,44 +13,48 @@ export const createPregenWalletTool: VibkitToolDefinition<typeof CreatePregenWal
   description: 'Create a Para pregenerated wallet for a specific identifier and cache its user share in memory.',
   parameters: CreatePregenWalletParams,
   execute: async (args: z.infer<typeof CreatePregenWalletParams>) => {
-    const existing = findPregenWallet(args.identifierType, args.identifier);
+    const existing = findPregenWallet(args.email);
     if (existing) {
-      const artifact = createArtifact(
-        [{ kind: 'text', text: JSON.stringify(existing, null, 2) }],
-        'ExistingPregeneratedWallet',
-        'Wallet already pregenerated for this identifier',
-      );
-      return createSuccessTask('pregen-wallet', [artifact], `Wallet already exists for ${args.identifierType}:${args.identifier}`);
+      // If wallet exists but is NOT claimed, don't allow creating a new one
+      if (!existing.isClaimed) {
+        const artifact = createArtifact(
+          [{ kind: 'text', text: JSON.stringify(existing, null, 2) }],
+          'ExistingUnclaimedWallet',
+          'An unclaimed wallet already exists for this email',
+        );
+        return createSuccessTask(
+          'pregen-wallet',
+          [artifact],
+          `Cannot create new wallet: an unclaimed wallet already exists for email:${args.email}`,
+        );
+      }
+      // If wallet exists and IS claimed, allow creation of a new wallet (will proceed below)
     }
 
     const para = await getParaServerClient();
     const { WalletType } = await loadParaModule();
 
-    const walletType = WalletType[args.walletType as keyof typeof WalletType] ?? WalletType.EVM;
-    const identifierKey = args.identifierType;
-    const pregenId: Record<string, string> = { [identifierKey]: args.identifier };
+    // Always create EVM wallet
+    const walletType = WalletType.EVM;
 
+    // Para v1 SDK uses pregenIdentifier and pregenIdentifierType
     let alreadyExists = false;
     try {
-      alreadyExists = await para.hasPregenWallet({ pregenId });
+      alreadyExists = await para.hasPregenWallet({
+        pregenIdentifier: args.email,
+        pregenIdentifierType: 'EMAIL',
+      });
     } catch (error) {
-      try {
-        alreadyExists = await para.hasPregenWallet({
-          pregenIdentifier: args.identifier,
-          pregenIdentifierType: args.identifierType.toUpperCase(),
-        });
-      } catch (innerError) {
-        throw new VibkitError(
-          'ParaHasPregenWalletFailed',
-          -32002,
-          `Unable to verify existing pregenerated wallet: ${(innerError as Error).message}`,
-        );
-      }
+      throw new VibkitError(
+        'ParaHasPregenWalletFailed',
+        -32002,
+        `Unable to verify existing pregenerated wallet: ${(error as Error).message}`,
+      );
     }
 
     if (alreadyExists) {
-     const artifact = createArtifact(
-        [{ kind: 'text', text: JSON.stringify({ pregenId, walletType }, null, 2) }],
+      const artifact = createArtifact(
+        [{ kind: 'text', text: JSON.stringify({ pregenIdentifier: args.email, pregenIdentifierType: 'EMAIL', walletType }, null, 2) }],
         'ExistingPregenWalletExternal',
         'Wallet exists in Para but was not cached locally yet',
       );
@@ -68,26 +62,24 @@ export const createPregenWalletTool: VibkitToolDefinition<typeof CreatePregenWal
       addPregenWallet({
         walletId: placeholderId,
         address: undefined,
-        walletType: args.walletType,
-        identifierKey,
-        identifierValue: args.identifier,
+        email: args.email,
         userShareJson: 'Unavailable - wallet already existed before caching',
-        rawWallet: { pregenId },
+        rawWallet: { pregenIdentifier: args.email, pregenIdentifierType: 'EMAIL' },
       });
       return createSuccessTask(
         'pregen-wallet',
         [artifact],
-        `Wallet already existed in Para for ${identifierKey}:${args.identifier}. Cached placeholder entry locally.`,
+        `Wallet already existed in Para for email:${args.email}. Cached placeholder entry locally.`,
       );
     }
 
+    // Para v1 SDK: createPregenWallet with pregenIdentifier and pregenIdentifierType
     let walletResponse;
     try {
       walletResponse = await para.createPregenWallet({
         type: walletType,
-        pregenId,
-        pregenIdentifier: args.identifier,
-        pregenIdentifierType: args.identifierType.toUpperCase(),
+        pregenIdentifier: args.email,
+        pregenIdentifierType: 'EMAIL',
       });
     } catch (error) {
       throw new VibkitError('ParaCreatePregenWalletFailed', -32003, (error as Error).message);
@@ -103,9 +95,7 @@ export const createPregenWalletTool: VibkitToolDefinition<typeof CreatePregenWal
     const stored = addPregenWallet({
       walletId: typeof walletResponse.id === 'string' ? walletResponse.id : 'unknown',
       address: typeof (walletResponse as { address?: string }).address === 'string' ? (walletResponse as { address?: string }).address : undefined,
-      walletType: args.walletType,
-      identifierKey,
-      identifierValue: args.identifier,
+      email: args.email,
       userShareJson: JSON.stringify(userShare ?? null),
       rawWallet: walletResponse,
     });
@@ -119,7 +109,7 @@ export const createPregenWalletTool: VibkitToolDefinition<typeof CreatePregenWal
     return createSuccessTask(
       'pregen-wallet',
       [artifact],
-      `Pregenerated wallet ${stored.walletId} created for ${identifierKey}:${args.identifier}.`,
+      `Pregenerated wallet ${stored.walletId} created for email:${args.email}.`,
     );
   },
 };

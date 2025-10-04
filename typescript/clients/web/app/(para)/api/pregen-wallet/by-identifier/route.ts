@@ -4,16 +4,15 @@ import { DEFAULT_SERVER_URLS } from '../../../../../agents-config';
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const identifierKey = searchParams.get('identifierKey');
-    const identifierValue = searchParams.get('identifierValue');
+    const email = searchParams.get('email');
     const address = searchParams.get('address');
 
-    if (!address && (!identifierKey || !identifierValue)) {
+    if (!address && !email) {
       return NextResponse.json(
         {
           ok: false,
           error: 'ValidationError',
-          message: 'Provide either address or both identifierKey and identifierValue',
+          message: 'Provide either address or email',
         },
         { status: 400 },
       );
@@ -33,8 +32,9 @@ export async function GET(req: Request) {
     if (address) {
       target.searchParams.set('address', address);
     }
-    if (identifierKey) target.searchParams.set('identifierKey', identifierKey);
-    if (identifierValue) target.searchParams.set('identifierValue', identifierValue);
+    if (email) {
+      target.searchParams.set('email', email);
+    }
 
     const upstreamResp = await fetch(target.toString(), {
       method: 'GET',

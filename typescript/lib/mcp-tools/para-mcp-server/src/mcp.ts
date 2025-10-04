@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { createPregenWalletTool } from './tools/createPregenWallet.js';
 import { listPregenWalletsTool } from './tools/listPregenWallets.js';
 import { claimPregenWalletTool } from './tools/claimPregenWallet.js';
+import { requestFaucetTool } from './tools/requestFaucet.js';
+import { transferEthTool } from './tools/transferEth.js';
+import { checkBalanceTool } from './tools/checkBalance.js';
 
-// (no-op) Removed legacy CoinGecko helpers; using local Para tools instead.
 
 export async function createServer() {
     const server = new McpServer({
@@ -16,13 +18,10 @@ export async function createServer() {
     // Tool definitions
     //
 
-    const CreatePregenWalletSchema = createPregenWalletTool.parameters;
-
     server.tool(
         'create_pregen_wallet',
-        createPregenWalletTool.description,
-        CreatePregenWalletSchema.shape,
-        async (args: z.infer<typeof CreatePregenWalletSchema>) => {
+        createPregenWalletTool.parameters.shape,
+        async (args: unknown) => {
             try {
                 const result = await createPregenWalletTool.execute(args as any, { custom: {} });
                 return {
@@ -40,7 +39,8 @@ export async function createServer() {
                         {
                             type: 'text',
                             text: JSON.stringify({
-                                error: `Failed to create pregenerated wallet: ${(error as Error).message}`
+                                error: 'ExecutionError',
+                                message: `Failed to create pregenerated wallet: ${(error as Error).message}`
                             }, null, 2),
                         },
                     ],
@@ -49,13 +49,10 @@ export async function createServer() {
         },
     );
 
-    const ListPregenWalletsSchema = listPregenWalletsTool.parameters;
-
     server.tool(
         'list_pregen_wallets',
-        listPregenWalletsTool.description,
-        ListPregenWalletsSchema.shape,
-        async (_args: z.infer<typeof ListPregenWalletsSchema>) => {
+        listPregenWalletsTool.parameters.shape,
+        async (args: unknown) => {
             try {
                 const result = await listPregenWalletsTool.execute({} as any, { custom: {} });
                 return {
@@ -73,7 +70,8 @@ export async function createServer() {
                         {
                             type: 'text',
                             text: JSON.stringify({
-                                error: `Failed to list pregenerated wallets: ${(error as Error).message}`
+                                error: 'ExecutionError',
+                                message: `Failed to list pregenerated wallets: ${(error as Error).message}`
                             }, null, 2),
                         },
                     ],
@@ -82,15 +80,10 @@ export async function createServer() {
         },
     );
 
-    
-
-    const ClaimPregenWalletSchema = claimPregenWalletTool.parameters;
-
     server.tool(
         'claim_pregen_wallet',
-        claimPregenWalletTool.description,
-        ClaimPregenWalletSchema.shape,
-        async (args: z.infer<typeof ClaimPregenWalletSchema>) => {
+        claimPregenWalletTool.parameters.shape,
+        async (args: unknown) => {
             try {
                 const result = await claimPregenWalletTool.execute(args as any, { custom: {} });
                 return {
@@ -108,7 +101,101 @@ export async function createServer() {
                         {
                             type: 'text',
                             text: JSON.stringify({
-                                error: `Failed to claim pregenerated wallet: ${(error as Error).message}`
+                                error: 'ExecutionError',
+                                message: `Failed to claim pregenerated wallet: ${(error as Error).message}`
+                            }, null, 2),
+                        },
+                    ],
+                };
+            }
+        },
+    );
+
+    server.tool(
+        'request_faucet',
+        requestFaucetTool.parameters.shape,
+        async (args: unknown) => {
+            try {
+                const result = await requestFaucetTool.execute(args as any, { custom: {} });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify(result, null, 2),
+                        },
+                    ],
+                };
+            } catch (error) {
+                console.error('MCP server error (request_faucet):', error);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                error: 'ExecutionError',
+                                message: `Failed to request faucet: ${(error as Error).message}`
+                            }, null, 2),
+                        },
+                    ],
+                };
+            }
+        },
+    );
+
+    server.tool(
+        'transfer_eth',
+        transferEthTool.parameters.shape,
+        async (args: unknown) => {
+            try {
+                const result = await transferEthTool.execute(args as any, { custom: {} });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify(result, null, 2),
+                        },
+                    ],
+                };
+            } catch (error) {
+                console.error('MCP server error (transfer_eth):', error);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                error: 'ExecutionError',
+                                message: `Failed to transfer ETH: ${(error as Error).message}`
+                            }, null, 2),
+                        },
+                    ],
+                };
+            }
+        },
+    );
+
+    server.tool(
+        'check_balance',
+        checkBalanceTool.parameters.shape,
+        async (args: unknown) => {
+            try {
+                const result = await checkBalanceTool.execute(args as any, { custom: {} });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify(result, null, 2),
+                        },
+                    ],
+                };
+            } catch (error) {
+                console.error('MCP server error (check_balance):', error);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                error: 'ExecutionError',
+                                message: `Failed to check balance: ${(error as Error).message}`
                             }, null, 2),
                         },
                     ],

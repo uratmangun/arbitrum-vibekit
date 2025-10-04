@@ -4,11 +4,11 @@ import { DEFAULT_SERVER_URLS } from '../../../../agents-config';
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { identifier, identifierType = 'email', walletType = 'EVM' } = body ?? {};
+    const { email, address, isClaimed, recoverySecret } = body ?? {};
 
-    if (!identifier || typeof identifier !== 'string') {
+    if (!address && !email) {
       return NextResponse.json(
-        { ok: false, error: 'ValidationError', message: 'identifier (string) is required' },
+        { ok: false, error: 'ValidationError', message: 'Provide either address or email' },
         { status: 400 },
       );
     }
@@ -19,9 +19,9 @@ export async function POST(req: Request) {
     let target: URL;
     try {
       const base = new URL(mcpUrl);
-      target = new URL('/api/pregen-wallet', `${base.protocol}//${base.host}`);
+      target = new URL('/api/pregen-wallet/mark-claimed', `${base.protocol}//${base.host}`);
     } catch {
-      target = new URL('http://localhost:3012/api/pregen-wallet');
+      target = new URL('http://localhost:3012/api/pregen-wallet/mark-claimed');
     }
 
     const upstreamResp = await fetch(target.toString(), {
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       headers: {
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ identifier, identifierType, walletType }),
+      body: JSON.stringify({ email, address, isClaimed, recoverySecret }),
       // Do not forward cookies/headers to avoid CORS complications
     });
 

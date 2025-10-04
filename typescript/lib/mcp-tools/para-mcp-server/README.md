@@ -50,7 +50,7 @@ Return the entire in-memory cache of pregenerated wallets.
 **Response Artifact (text JSON)** – Array of the cached wallet records.
 
 ### `claim_pregen_wallet`
-Fetch a cached wallet’s identifier metadata and user share for client-side claiming flows.
+Fetch a cached wallet's identifier metadata and user share for client-side claiming flows.
 
 **Parameters**
 - `identifier` *(string, required)*
@@ -67,13 +67,105 @@ Fetch a cached wallet’s identifier metadata and user share for client-side cla
 }
 ```
 
-> Note: Transaction signing is not exposed as an MCP tool in the current version.
+### `request_faucet`
+Request testnet faucet funds from Coinbase CDP for Base Sepolia or other supported EVM test networks. Returns transaction hash and explorer link.
 
-## 🔧 Configuration
+**Parameters**
+- `address` *(string, required)* – Ethereum address to receive faucet funds (must be valid 0x... format)
+- `token` *(enum, default `eth`)* – One of `eth`, `usdc`, `eurc`, `cbbtc`
+- `network` *(enum, default `base-sepolia`)* – One of `base-sepolia`, `ethereum-sepolia`, `ethereum-holesky`
+
+**Response Artifact (text JSON)**
+```json
+{
+  "success": true,
+  "transactionHash": "0x53e11e94ebb2438d6ddcfa07dabc9b551d2f440f8363fea941083bc397a86a42",
+  "address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "network": "base-sepolia",
+  "token": "eth",
+  "explorerLink": "https://sepolia.basescan.org/tx/0x53e11e94ebb2438d6ddcfa07dabc9b551d2f440f8363fea941083bc397a86a42",
+  "note": "Faucet funds requested successfully. Transaction may take a few moments to confirm on-chain."
+}
+```
+
+**Rate Limits (24-hour rolling window)**
+- ETH: 0.0001 per request, 0.1 max per 24h
+- USDC/EURC: 1 per request, 10 max per 24h
+- cbBTC: 0.0001 per request, 0.001 max per 24h
+
+### `transfer_eth`
+Transfer ETH from a pregenerated wallet to another address on Base Sepolia or other supported EVM test networks. Looks up the wallet by identifier (e.g., email like panda@gmail.com), loads the userShare from memory, and executes the transfer using Para's transfer method. Amount is specified in ETH (e.g., "0.001") and automatically converted to wei.
+
+**Parameters**
+- `identifier` *(string, required)* – Unique identifier for the pregenerated wallet (e.g., `panda@gmail.com`)
+- `identifierType` *(enum, default `email`)* – One of `email`, `phone`, `username`, `id`, `custom`
+- `recipientAddress` *(string, required)* – Recipient Ethereum address (must be valid 0x... format)
+- `amount` *(string, required)* – Amount to transfer in ETH (e.g., `"0.001"` for 0.001 ETH, `"0.00001"` for 0.00001 ETH)
+- `network` *(enum, default `base-sepolia`)* – One of `base-sepolia`, `ethereum-sepolia`, `ethereum-holesky`, `arbitrum-sepolia`
+- `rpcUrl` *(string, optional)* – Custom RPC URL for the transaction
+
+**Response Artifact (text JSON)**
+```json
+{
+  "success": true,
+  "transactionHash": "0xabc123...",
+  "from": "0x1234...abcd",
+  "to": "0x5678...ef90",
+  "amountEth": "0.001",
+  "amountWei": "1000000000000000",
+  "chainId": "84532",
+  "network": "base-sepolia",
+  "explorerLink": "https://sepolia.basescan.org/tx/0xabc123...",
+  "note": "ETH transfer completed successfully. Transaction may take a few moments to confirm on-chain."
+}
+```
+
+**Example Usage Flow**
+1. Create a pregenerated wallet: `create_pregen_wallet` with identifier `panda@gmail.com`
+2. Request faucet funds: `request_faucet` to fund the wallet address
+3. Transfer ETH: `transfer_eth` using identifier `panda@gmail.com` with amount `"0.001"` to send funds to another address
+
+> Note: The wallet must exist in the in-memory cache with a valid userShare to perform transfers.
+
+### `check_balance`
+Check ETH balance of any Ethereum address on Base Sepolia or other supported EVM test networks. Returns balance in both ETH and wei formats with current block information.
+
+**Parameters**
+- `address` *(string, required)* – Ethereum address to check balance for (must be valid 0x... format)
+- `network` *(enum, default `base-sepolia`)* – One of `base-sepolia`, `ethereum-sepolia`, `ethereum-holesky`, `arbitrum-sepolia`
+- `rpcUrl` *(string, optional)* – Custom RPC URL for the query
+
+**Response Artifact (text JSON)**
+```json
+{
+  "success": true,
+  "address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "balanceEth": "0.1",
+  "balanceWei": "100000000000000000",
+  "blockNumber": "12345678",
+  "explorerLink": "https://sepolia.basescan.org/address/0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  "note": "Balance retrieved successfully at block 12345678"
+}
+```
+
+**Example Usage**
+```bash
+# Check balance on Base Sepolia (default)
+pnpm balance:check 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
+
+# Check balance on Arbitrum Sepolia
+pnpm balance:check 0x742d35Cc6634C0532925a3b844Bc454e4438f44e arbitrum-sepolia
+```
+
+**Parameters**: none
 
 ### Environment Variables
 - `PARA_API_KEY` *(required)* – Server-side Para API key used to instantiate the SDK client.
 - `PARA_ENVIRONMENT` *(optional)* – `BETA` (default) or `PRODUCTION`; mapped to `Environment` enum in the SDK.
+- `CDP_API_KEY_NAME` *(required for faucet)* – Coinbase Developer Platform API key name for JWT authentication.
+- `CDP_API_KEY_SECRET` *(required for faucet)* – Coinbase Developer Platform API key secret (PEM format) for JWT authentication.
 - `PORT` *(optional)* – HTTP server port (defaults to `3012`).
 
 ### Installing & Building
@@ -94,6 +186,15 @@ pnpm start
 
 # Watch mode (nodemon)
 pnpm watch
+
+# Request faucet funds (requires CDP credentials)
+pnpm faucet:request 0x742d35Cc6634C0532925a3b844Bc454e4438f44e eth base-sepolia
+
+# Transfer ETH from a pregenerated wallet
+pnpm eth:transfer panda@gmail.com 0x742d35Cc6634C0532925a3b844Bc454e4438f44e 0.001
+
+# Check ETH balance of any address
+pnpm balance:check 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
 ```
 
 The HTTP transport listens on `http://localhost:PORT/mcp`; stdio transport is disabled by default and can be enabled by setting `MCP_STDIO_ENABLED=true` before starting the server.
@@ -130,17 +231,22 @@ src/
 ├── store/
 │   └── pregenWalletStore.ts
 ├── tools/
+│   ├── checkBalance.ts
 │   ├── claimPregenWallet.ts
 │   ├── createPregenWallet.ts
 │   ├── listPregenWallets.ts
-│   
+│   ├── requestFaucet.ts
+│   └── transferEth.ts
 └── utils/
     └── paraServer.ts    # Para SDK helpers and test overrides
 ```
 
 ## 🔄 Recent Updates
+- Added `check_balance` tool to check ETH balance of any Ethereum address on supported test networks.
+- Added `transfer_eth` tool to transfer ETH from pregenerated wallets using their cached userShare.
+- Added `request_faucet` tool to request testnet funds from Coinbase CDP for Base Sepolia and other EVM test networks.
 - Migrated from CoinGecko tooling to Para pregenerated wallet workflows.
-- Removed deprecated tools (`check_address_balance`, transaction signing) to align with current Para wallet flows.
+- Removed deprecated tools to align with current Para wallet flows.
 - Added injectable Para SDK/client overrides to enable deterministic testing.
 
 This server is the reference implementation for Para wallet orchestration inside the Arbitrum VibeKit agent ecosystem.
