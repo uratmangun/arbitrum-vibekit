@@ -8,8 +8,6 @@ import { createServer as createNodeServer } from 'node:http';
 import { createServer } from './mcp.js';
 import { randomUUID } from 'node:crypto';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { ZodError } from 'zod';
-import { CreatePregenWalletParams, createPregenWalletTool } from './tools/createPregenWallet.js';
 import {
   findPregenWallet,
   listPregenWallets,
@@ -43,27 +41,26 @@ async function main() {
     }
   });
 
-  // GET /api/pregen-wallet/by-identifier - Fetch single pregenerated wallet by identifier or address
+  // GET /api/pregen-wallet/by-identifier - Fetch single pregenerated wallet by email or address
   app.get('/api/pregen-wallet/by-identifier', async (c) => {
     try {
-      const identifierKey = c.req.query('identifierKey');
-      const identifierValue = c.req.query('identifierValue');
+      const email = c.req.query('email');
       const address = c.req.query('address');
 
-      if (!address && (!identifierKey || !identifierValue)) {
+      if (!address && !email) {
         return c.json(
           {
             ok: false,
             error: 'ValidationError',
-            message: 'Provide either address or both identifierKey and identifierValue',
+            message: 'Provide either address or email',
           },
           400,
         );
       }
 
       let entry = address ? findPregenWalletByAddress(address) : undefined;
-      if (!entry && identifierKey && identifierValue) {
-        entry = findPregenWallet(identifierKey, identifierValue);
+      if (!entry && email) {
+        entry = findPregenWallet(email);
       }
       if (!entry) {
         return c.json(
@@ -72,7 +69,7 @@ async function main() {
             error: 'NotFound',
             message: address
               ? `No pregenerated wallet found for address ${address}`
-              : `No pregenerated wallet found for ${identifierKey}:${identifierValue}`,
+              : `No pregenerated wallet found for email:${email}`,
           },
           404,
         );
@@ -83,9 +80,7 @@ async function main() {
         recordId: entry.recordId,
         walletId: entry.walletId,
         address: entry.address,
-        walletType: entry.walletType,
-        identifierKey: entry.identifierKey,
-        identifierValue: entry.identifierValue,
+        email: entry.email,
         userShareJson: entry.userShareJson,
         createdAt: entry.createdAt,
         recoverySecret: entry.recoverySecret,
@@ -102,26 +97,25 @@ async function main() {
     }
   });
 
-  // POST /api/pregen-wallet/mark-claimed - Update claim status by address or identifier
+  // POST /api/pregen-wallet/mark-claimed - Update claim status by address or email
   app.post('/api/pregen-wallet/mark-claimed', async (c) => {
     try {
       const body = (await c.req.json().catch(() => ({}))) as {
-        identifierKey?: string;
-        identifierValue?: string;
+        email?: string;
         address?: string;
         isClaimed?: boolean;
         recoverySecret?: string;
       };
 
-      const { identifierKey, identifierValue, address, recoverySecret } = body;
+      const { email, address, recoverySecret } = body;
       const isClaimed = body.isClaimed ?? true;
 
-      if (!address && (!identifierKey || !identifierValue)) {
+      if (!address && !email) {
         return c.json(
           {
             ok: false,
             error: 'ValidationError',
-            message: 'Provide either address or both identifierKey and identifierValue',
+            message: 'Provide either address or email',
           },
           400,
         );
@@ -129,8 +123,7 @@ async function main() {
 
       const updated = setPregenWalletClaimStatus({
         address,
-        identifierKey,
-        identifierValue,
+        email,
         isClaimed,
         recoverySecret,
       });
@@ -246,43 +239,6 @@ async function main() {
     } catch (error) {
       console.error('Error handling session termination:', error);
       return c.text('Error processing session termination', 500);
-    }
-  });
-
-  // POST /api/pregen-wallet - Create a pregenerated wallet via Para Server SDK
-  app.post('/api/pregen-wallet', async (c) => {
-    try {
-      const body = await c.req.json().catch(() => ({}));
-      const args = CreatePregenWalletParams.parse(body);
-      const task = await createPregenWalletTool.execute(args, { custom: {} as any });
-
-      // Convenience: parse first artifact text as JSON if present
-      let data: any = null;
-      const firstArtifact: any = task?.artifacts?.[0];
-      const firstPart: any = firstArtifact?.parts?.[0];
-      const text: string | undefined =
-        typeof firstPart?.text === 'string' ? firstPart.text : undefined;
-      if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = text;
-        }
-      }
-
-      return c.json({ ok: true, task, data }, 200);
-    } catch (err: any) {
-      if (err instanceof ZodError || err?.name === 'ZodError') {
-        return c.json(
-          { ok: false, error: 'ValidationError', message: err.message, issues: err.issues },
-          400,
-        );
-      }
-      console.error('Error creating pregenerated wallet:', err);
-      return c.json(
-        { ok: false, error: 'ServerError', message: err?.message || String(err) },
-        500,
-      );
     }
   });
 

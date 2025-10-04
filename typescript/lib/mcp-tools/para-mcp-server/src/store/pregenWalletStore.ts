@@ -1,14 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-export type PregenIdentifierKey = string;
-
 export interface StoredPregenWallet {
   recordId: string;
   walletId: string;
   address?: string;
-  walletType: string;
-  identifierKey: PregenIdentifierKey;
-  identifierValue: string;
+  email: string;
   userShareJson: string;
   createdAt: string;
   recoverySecret?: string;
@@ -32,8 +28,8 @@ export function addPregenWallet(entry: Omit<StoredPregenWallet, 'recordId' | 'cr
   return stored;
 }
 
-export function findPregenWallet(identifierKey: PregenIdentifierKey, identifierValue: string): StoredPregenWallet | undefined {
-  return STORE.find((wallet) => wallet.identifierKey === identifierKey && wallet.identifierValue === identifierValue);
+export function findPregenWallet(email: string): StoredPregenWallet | undefined {
+  return STORE.find((wallet) => wallet.email === email);
 }
 
 export function findPregenWalletByAddress(address: string): StoredPregenWallet | undefined {
@@ -47,11 +43,8 @@ export function listPregenWallets(): StoredPregenWallet[] {
 
 
 
-export function touchPregenWallet(params: {
-  identifierKey: PregenIdentifierKey;
-  identifierValue: string;
-}): StoredPregenWallet | undefined {
-  const entry = findPregenWallet(params.identifierKey, params.identifierValue);
+export function touchPregenWallet(email: string): StoredPregenWallet | undefined {
+  const entry = findPregenWallet(email);
   if (!entry) {
     return undefined;
   }
@@ -61,8 +54,7 @@ export function touchPregenWallet(params: {
 }
 
 export function setPregenWalletClaimStatus(params: {
-  identifierKey?: PregenIdentifierKey;
-  identifierValue?: string;
+  email?: string;
   address?: string;
   isClaimed: boolean;
   recoverySecret?: string;
@@ -71,8 +63,8 @@ export function setPregenWalletClaimStatus(params: {
   if (params.address) {
     entry = findPregenWalletByAddress(params.address);
   }
-  if (!entry && params.identifierKey && params.identifierValue) {
-    entry = findPregenWallet(params.identifierKey, params.identifierValue);
+  if (!entry && params.email) {
+    entry = findPregenWallet(params.email);
   }
   if (!entry) return undefined;
 

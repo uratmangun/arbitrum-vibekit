@@ -3,13 +3,8 @@ import { createArtifact, createSuccessTask, VibkitError, type VibkitToolDefiniti
 import type { Task } from '@google-a2a/types';
 import { findPregenWallet } from '../store/pregenWalletStore.js';
 
-const identifierTypeSchema = z
-  .enum(['email', 'phone', 'username', 'id', 'custom'])
-  .describe('Identifier key used for pregenerated wallet lookup (e.g., email, phone, username, id)');
-
 export const ClaimPregenWalletParams = z.object({
-  identifier: z.string().min(1, 'Identifier is required').describe('Unique identifier for pregenerated wallet'),
-  identifierType: identifierTypeSchema.default('email'),
+  email: z.string().email('Valid email is required').describe('Email address for pregenerated wallet'),
 });
 
 export const claimPregenWalletTool: VibkitToolDefinition<typeof ClaimPregenWalletParams, Task> = {
@@ -17,26 +12,29 @@ export const claimPregenWalletTool: VibkitToolDefinition<typeof ClaimPregenWalle
   description: 'Retrieve pregenerated wallet info from cache and return identifier and user share as JSON.',
   parameters: ClaimPregenWalletParams,
   execute: async (args: z.infer<typeof ClaimPregenWalletParams>) => {
-    const entry = findPregenWallet(args.identifierType, args.identifier);
+    const entry = findPregenWallet(args.email);
     if (!entry) {
       throw new VibkitError(
         'PregenWalletNotFound',
         -32001,
-        `No pregenerated wallet found for ${args.identifierType}:${args.identifier}`,
+        `No pregenerated wallet found for email:${args.email}`,
       );
     }
 
-
+    // Check if wallet is already claimed
+    if (entry.isClaimed) {
+      throw new VibkitError(
+        'PregenWalletAlreadyClaimed',
+        -32005,
+        `This pregenerated wallet for email:${args.email} has already been claimed.`,
+      );
+    }
 
     const payload = {
-      identifierKey: entry.identifierKey,
-      identifierValue: entry.identifierValue,
+      email: entry.email,
       address: entry.address,
-      isClaimed: Boolean(entry.isClaimed),
-      note:
-        entry.isClaimed
-          ? 'This pregenerated wallet has already been claimed.'
-          : 'This pregenerated wallet is not claimed. You can claim it from the frontend using the Claim button.',
+      isClaimed: false,
+      note: 'This pregenerated wallet is not claimed. You can claim it from the frontend using the Claim button.',
     };
 
     const artifact = createArtifact(
@@ -48,7 +46,7 @@ export const claimPregenWalletTool: VibkitToolDefinition<typeof ClaimPregenWalle
     return createSuccessTask(
       'pregen-wallet',
       [artifact],
-      `pregenerated wallet details for ${entry.identifierKey}:${entry.identifierValue}`,
+      `pregenerated wallet details for email:${entry.email}`,
     );
   },
 };

@@ -5,8 +5,7 @@ import { TaskState } from '@google-a2a/types';
 import { claimPregenWalletTool } from './src/tools/claimPregenWallet.js';
 import { createPregenWalletTool } from './src/tools/createPregenWallet.js';
 import { listPregenWalletsTool } from './src/tools/listPregenWallets.js';
-import { signPregenTransactionTool } from './src/tools/signPregenTransaction.js';
-import { findPregenWallet, listPregenWallets } from './src/store/pregenWalletStore.js';
+import { listPregenWallets } from './src/store/pregenWalletStore.js';
 import {
   __resetParaTestingOverrides,
   __setParaClientFactoryForTesting,
@@ -20,21 +19,14 @@ type TestResult = {
 };
 
 const identifier = 'user@example.com';
-const identifierType = 'email';
 const mockUserShare = { share: 'mock-user-share' };
-const mockSignResult = { txHash: '0xsigned', status: 'ok' };
 
 class MockParaClient {
   public hasPregenWalletCallCount = 0;
   public createPregenWalletCallCount = 0;
   public getUserShareCallCount = 0;
-  public setUserShareCallCount = 0;
-  public signEvmTransactionCallCount = 0;
-  public clearUserShareCallCount = 0;
   public lastHasPregenWalletPayload: Record<string, unknown> | undefined;
   public lastCreatePregenWalletPayload: Record<string, unknown> | undefined;
-  public lastSetUserShare: unknown;
-  public lastSignPayload: Record<string, unknown> | undefined;
 
   async hasPregenWallet(payload: Record<string, unknown>) {
     this.hasPregenWalletCallCount += 1;
@@ -51,21 +43,6 @@ class MockParaClient {
   async getUserShare() {
     this.getUserShareCallCount += 1;
     return mockUserShare;
-  }
-
-  async setUserShare(share: unknown) {
-    this.setUserShareCallCount += 1;
-    this.lastSetUserShare = share;
-  }
-
-  async signEvmTransaction(payload: Record<string, unknown>) {
-    this.signEvmTransactionCallCount += 1;
-    this.lastSignPayload = payload;
-    return mockSignResult;
-  }
-
-  async clearUserShare() {
-    this.clearUserShareCallCount += 1;
   }
 }
 
@@ -152,17 +129,14 @@ async function main() {
 
   await runTest('create_pregen_wallet tool', async () => {
     const task = await createPregenWalletTool.execute({
-      identifier,
-      identifierType,
-      walletType: 'EVM',
+      email: identifier,
     }, { custom: {} });
 
     ensureTaskCompleted(task, 'create_pregen_wallet tool');
     const storedWallet = parseFirstArtifactJson(task, 'create_pregen_wallet tool');
 
     expect(storedWallet.walletId === 'mock-wallet-id', 'Stored wallet ID should come from mock response');
-    expect(storedWallet.identifierKey === identifierType, 'Stored wallet identifier key mismatch');
-    expect(storedWallet.identifierValue === identifier, 'Stored wallet identifier value mismatch');
+    expect(storedWallet.email === identifier, 'Stored wallet email mismatch');
     expect(storedWallet.userShareJson === JSON.stringify(mockUserShare), 'Stored wallet user share mismatch');
 
     expect(mockParaClient.hasPregenWalletCallCount === 1, 'Expected hasPregenWallet to be called exactly once');
@@ -182,47 +156,17 @@ async function main() {
 
   await runTest('claim_pregen_wallet tool', async () => {
     const task = await claimPregenWalletTool.execute({
-      identifier,
-      identifierType,
+      email: identifier,
     }, { custom: {} });
 
     ensureTaskCompleted(task, 'claim_pregen_wallet tool');
     const payload = parseFirstArtifactJson(task, 'claim_pregen_wallet tool');
 
-    expect(payload.identifierKey === identifierType, 'Claim payload identifier key mismatch');
-    expect(payload.identifierValue === identifier, 'Claim payload identifier value mismatch');
-    expect(payload.userShare === JSON.stringify(mockUserShare), 'Claim payload user share mismatch');
+    expect(payload.email === identifier, 'Claim payload email mismatch');
   });
 
   // mark_pregen_wallet_claimed tool removed; skipping related test
-
-  await runTest('sign_pregen_transaction tool', async () => {
-    const rawTransaction = '0xdeadbeef';
-    const task = await signPregenTransactionTool.execute({
-      identifier,
-      identifierType,
-      walletType: 'EVM',
-      chainId: '1',
-      rawTransaction,
-      broadcast: false,
-    }, { custom: {} });
-
-    ensureTaskCompleted(task, 'sign_pregen_transaction tool');
-    const payload = parseFirstArtifactJson(task, 'sign_pregen_transaction tool');
-
-    expect(payload.walletType === 'EVM', 'Returned payload wallet type mismatch');
-    expect(payload.executionResult.txHash === mockSignResult.txHash, 'Execution result hash mismatch');
-    expect(mockParaClient.setUserShareCallCount === 1, 'Expected setUserShare to be called exactly once');
-    expect(mockParaClient.signEvmTransactionCallCount === 1, 'Expected signEvmTransaction to be called exactly once');
-    expect(mockParaClient.clearUserShareCallCount === 1, 'Expected clearUserShare to be called exactly once');
-    expect(mockParaClient.lastSignPayload?.walletId === 'mock-wallet-id', 'Sign payload should include wallet ID');
-    expect(mockParaClient.lastSignPayload?.rawTransaction === rawTransaction, 'Sign payload raw transaction mismatch');
-    expect(JSON.stringify(mockParaClient.lastSetUserShare) === JSON.stringify(mockUserShare), 'setUserShare received unexpected data');
-
-    const stored = findPregenWallet(identifierType, identifier);
-    expect(stored?.lastOperation === 'sign-evm', 'Stored wallet lastOperation was not updated after sign');
-    expect(typeof stored?.lastUsedAt === 'string' && stored?.lastUsedAt.length > 0, 'Stored wallet lastUsedAt was not updated after sign');
-  });
+  // sign_pregen_transaction tool removed; skipping related test
 }
 
 await main()

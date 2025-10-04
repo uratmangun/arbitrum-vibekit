@@ -36,14 +36,15 @@ export function ClaimPregenWallet({ result }: ClaimPregenWalletProps) {
     }
   }
 
-  const identifierKey: string | undefined = payload?.identifierKey ?? task?.identifierKey;
-  const identifierValue: string | undefined = payload?.identifierValue ?? task?.identifierValue;
+  // Backend now returns: { email, address, isClaimed, note }
+  const identifierKey: string | undefined = payload?.email ? 'EMAIL' : (payload?.identifierKey ?? task?.identifierKey);
+  const identifierValue: string | undefined = payload?.email ?? (payload?.identifierValue ?? task?.identifierValue);
   const initialUserShare: unknown = payload?.userShare ?? task?.userShare; // optional fallback
 
   const [isClaiming, setIsClaiming] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasClaimed, setHasClaimed] = useState(false);
+  const [hasClaimed, setHasClaimed] = useState(Boolean(payload?.isClaimed));
   const { openConnectModal } = useConnectModal();
   const [email, setEmail] = useState<string | null>(null);
   const [loadingEmail, setLoadingEmail] = useState(false);
@@ -137,10 +138,9 @@ export function ClaimPregenWallet({ result }: ClaimPregenWalletProps) {
   useEffect(() => {
     async function checkClaimed() {
       try {
-        if (!identifierKey || !identifierValue) return;
+        if (!identifierValue) return;
         const qp = new URLSearchParams({
-          identifierKey: String(identifierKey),
-          identifierValue: String(identifierValue),
+          email: String(identifierValue),
         });
         const resp = await fetch(`/api/pregen-wallet/by-identifier?${qp.toString()}`);
         const data = await resp.json().catch(() => ({} as any));
@@ -151,7 +151,7 @@ export function ClaimPregenWallet({ result }: ClaimPregenWalletProps) {
       }
     }
     checkClaimed();
-  }, [identifierKey, identifierValue]);
+  }, [identifierValue]);
 
   function handleLogin() {
     if (paraModalClient) {
@@ -241,8 +241,7 @@ export function ClaimPregenWallet({ result }: ClaimPregenWalletProps) {
       let parsedShare: any = undefined;
       try {
         const qp = new URLSearchParams({
-          identifierKey: String(identifierKey),
-          identifierValue: String(identifierValue),
+          email: String(identifierValue),
         });
         const resp = await fetch(`/api/pregen-wallet/by-identifier?${qp.toString()}`);
         const data = await resp.json().catch(() => ({} as any));
@@ -298,8 +297,7 @@ export function ClaimPregenWallet({ result }: ClaimPregenWalletProps) {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            identifierKey: identifierKey,
-            identifierValue: identifierValue,
+            email: identifierValue,
             isClaimed: true,
             recoverySecret: secret,
           }),
@@ -331,6 +329,25 @@ export function ClaimPregenWallet({ result }: ClaimPregenWalletProps) {
                 {identifierKey ?? 'unknown'} ({identifierValue ?? 'unknown'})
               </span>
             </div>
+            {payload?.address && (
+              <div>
+                <span className="text-white">Address: </span>
+                <span className="font-mono text-xs">{payload.address}</span>
+              </div>
+            )}
+            {payload?.isClaimed !== undefined && (
+              <div>
+                <span className="text-white">Status: </span>
+                <span className={`font-semibold ${payload.isClaimed ? 'text-green-200' : 'text-yellow-200'}`}>
+                  {payload.isClaimed ? 'Claimed' : 'Not Claimed'}
+                </span>
+              </div>
+            )}
+            {payload?.note && (
+              <div className="text-xs text-white/80 italic">
+                {payload.note}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               {email ? (
                 <>
@@ -373,7 +390,7 @@ export function ClaimPregenWallet({ result }: ClaimPregenWalletProps) {
             {error && <div className="text-red-600 text-xs">{error}</div>}
           </div>
         ) : (
-          <pre className="max-h-64 overflow-auto rounded bg-slate-50 p-2 text-xs">
+          <pre className="max-h-64 overflow-auto rounded p-2 text-xs">
             {typeof text === 'string' ? text : JSON.stringify(result ?? {}, null, 2)}
           </pre>
         )}

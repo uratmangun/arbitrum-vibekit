@@ -20,9 +20,15 @@ Create a `.env` file in the Para MCP server directory with your Para credentials
 PARA_API_KEY=pk_live_or_test_value
 PARA_ENVIRONMENT=BETA        # or PRODUCTION
 PORT=3012                    # optional; defaults to 3012
+
+# Required for faucet functionality
+CDP_API_KEY_NAME=your_cdp_api_key_name
+CDP_API_KEY_SECRET=your_cdp_api_key_secret_pem
 ```
 
 > The server throws a `MissingParaApiKey` error if `PARA_API_KEY` is absent, so make sure the value is injected in development and production environments.
+> 
+> The `CDP_API_KEY_NAME` and `CDP_API_KEY_SECRET` are only required if you want to use the `request_faucet` tool to get testnet funds. Get your credentials at https://portal.cdp.coinbase.com/
 
 ## 3. Run the Server
 
@@ -84,6 +90,7 @@ A typical wallet onboarding conversation calls tools in this order:
 1. **`create_pregen_wallet`** – Seeds the in-memory cache and retrieves the user share from Para.
 2. **`list_pregen_wallets`** *(optional)* – Shows the operator the current cache contents.
 3. **`claim_pregen_wallet`** – Returns the user share for the frontend to complete a client-side claim.
+4. **`request_faucet`** *(optional)* – Funds the wallet with testnet tokens from Coinbase CDP faucet.
 
 Each tool returns an artifact whose first part is JSON text. The web client typically uses `JSON.parse` to render or store the results. See `clients/web/components/ClaimPregenWallet.tsx` and related components for usage patterns. If your UI needs to track claim state locally, you can call the server HTTP route `POST /api/pregen-wallet/mark-claimed` (not exposed as an MCP tool).
 
@@ -92,6 +99,10 @@ Each tool returns an artifact whose first part is JSON text. The web client typi
 User: "Create a pregenerated wallet for alice@example.com"
 Agent: (calls para:create_pregen_wallet)
 UI: Shows the stored wallet record returned in the artifact.
+
+User: "Fund the wallet 0x742d35Cc6634C0532925a3b844Bc454e4438f44e with testnet ETH"
+Agent: (calls para:request_faucet with address and token='eth')
+UI: Shows transaction hash and explorer link for the faucet request.
 ```
 
 ## 6. Testing Locally
