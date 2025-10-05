@@ -57,19 +57,19 @@ export const chatAgents = [
     description: 'Para wallet agent',
     suggestedActions: [
       {
-        title: 'List Pregen Wallet',
-        label: 'list pregen wallet',
+        title: 'List',
+        label: 'pregen wallet',
         action: 'List all pregen wallet',
       },
       {
-        title: 'Create pregen wallet',
-        label: 'Create pregen wallet',
-        action: 'Create pregen wallet',
+        title: 'Check',
+        label: 'Balance',
+        action: 'Check balance of this address in arbitrum-sepolia network',
       },
       {
-        title: 'Claim pregen wallet',
-        label: 'Claim pregen wallet',
-        action: 'Claim pregen wallet',
+        title: 'Request faucet',
+        label: 'Faucet',
+        action: 'Request faucet for this address in ethereum-sepolia network',
       },
     ],
   },
