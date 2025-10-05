@@ -44,8 +44,7 @@ export function ProviderWrapper({ children }: { children: React.ReactNode }) {
       },
       appName: APP_NAME,
       // You can customize OAuth methods & layouts as desired
-      // oauthMethods: [OAuthMethod.GOOGLE, OAuthMethod.APPLE],
-      // authLayout: [AuthLayout.AUTH_FULL, AuthLayout.EXTERNAL_FULL],
+      // oauthMethods: [OAuthMethod.GOOGLE, OAuthMethod.APPLE],      
     });
 
     const connectors = connectorsForWallets([
