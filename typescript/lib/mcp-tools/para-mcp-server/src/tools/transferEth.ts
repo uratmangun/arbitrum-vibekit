@@ -24,7 +24,6 @@ export const TransferEthParams = z.object({
     .min(1, 'Amount is required')
     .describe('Amount to transfer in ETH (e.g., "0.001" for 0.001 ETH, "0.00001" for 0.00001 ETH)'),
   network: networkSchema.default('base-sepolia'),
-  rpcUrl: z.string().optional().describe('Optional custom RPC URL for the transaction'),
 });
 
 // Chain IDs mapping
@@ -173,7 +172,7 @@ export const transferEthTool: VibkitToolDefinition<typeof TransferEthParams, Tas
 
       // Cast to any to satisfy types; viem integration supports Para server instances
       const viemParaAccount = createParaAccount(para as any);
-      const rpcUrl = args.rpcUrl ?? DEFAULT_RPC_URLS[args.network as keyof typeof DEFAULT_RPC_URLS];
+      const rpcUrl = DEFAULT_RPC_URLS[args.network as keyof typeof DEFAULT_RPC_URLS];
 
       const viemClient = createParaViemClient(para as any, {
         account: viemParaAccount,
