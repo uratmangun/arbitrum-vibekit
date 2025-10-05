@@ -22,13 +22,13 @@ PARA_ENVIRONMENT=BETA        # or PRODUCTION
 PORT=3012                    # optional; defaults to 3012
 
 # Required for faucet functionality
-CDP_API_KEY_NAME=your_cdp_api_key_name
+CDP_API_KEY_ID=your_CDP_API_KEY_ID
 CDP_API_KEY_SECRET=your_cdp_api_key_secret_pem
 ```
 
 > The server throws a `MissingParaApiKey` error if `PARA_API_KEY` is absent, so make sure the value is injected in development and production environments.
 > 
-> The `CDP_API_KEY_NAME` and `CDP_API_KEY_SECRET` are only required if you want to use the `request_faucet` tool to get testnet funds. Get your credentials at https://portal.cdp.coinbase.com/
+> The `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` are only required if you want to use the `request_faucet` tool to get testnet funds. Get your credentials at https://portal.cdp.coinbase.com/
 
 ## 3. Run the Server
 
