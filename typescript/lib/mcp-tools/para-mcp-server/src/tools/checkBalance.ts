@@ -15,7 +15,6 @@ export const CheckBalanceParams = z.object({
     .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address format')
     .describe('Ethereum address to check balance for'),
   network: networkSchema.default('base-sepolia'),
-  rpcUrl: z.string().optional().describe('Optional custom RPC URL'),
 });
 
 // Chain configuration mapping
@@ -49,7 +48,7 @@ export const checkBalanceTool: VibkitToolDefinition<typeof CheckBalanceParams, T
       }
 
       // Create public client with custom RPC URL if provided
-      const rpcUrl = args.rpcUrl || DEFAULT_RPC_URLS[args.network];
+      const rpcUrl = DEFAULT_RPC_URLS[args.network];
       const client: PublicClient = createPublicClient({
         chain,
         transport: http(rpcUrl),
