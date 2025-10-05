@@ -8,6 +8,7 @@ import {
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import { getParaWallet } from '@getpara/rainbowkit-wallet';
 import { Environment } from '@getpara/web-sdk';
+import { AuthLayout } from '@getpara/react-sdk';
 import {
   coinbaseWallet,
   metaMaskWallet,
@@ -45,7 +46,6 @@ export function ProviderWrapper({ children }: { children: React.ReactNode }) {
       appName: APP_NAME,
       // You can customize OAuth methods & layouts as desired
       // oauthMethods: [OAuthMethod.GOOGLE, OAuthMethod.APPLE],
-      // authLayout: [AuthLayout.AUTH_FULL, AuthLayout.EXTERNAL_FULL],
     });
 
     const connectors = connectorsForWallets([
