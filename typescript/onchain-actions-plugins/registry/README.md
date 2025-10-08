@@ -37,9 +37,25 @@ onchain-actions-plugins/
     └── tsup.config.ts
 ```
 
-## Core Framework
+### What are Plugins?
 
-The core framework (`registry/src/core/`) provides:
+Plugins are capabilities that expand Ember's functionality by integrating new DeFi protocols. The plugin created by developers must handle all smart contract interactions, from constructing transaction calldata to managing protocol-specific logic. Once a plugin is finalized, updates will be made to Ember's backend to fully integrate the new capabilities.
+
+### Benefits of the Plugin System
+
+The plugin system provides several key advantages for protocol integrations:
+
+1. **Provided Entity Mapping**: Standardized entity mapping ensures consistent data structures across all protocol integrations.
+
+2. **Faster Protocol Integration**: Pre-built framework and type safety accelerates the integration of new DeFi protocols.
+
+3. **Easier User Consumption and Aggregated/Optimized Results**: Unified interface allows users to interact with multiple protocols seamlessly, with aggregated data and optimized execution paths.
+
+4. **Potential Trailblazer Incentive**: Early plugin developers may be eligible for the [Trailblazer Fund 2.0](https://www.emberai.xyz/blog/introducing-arbitrum-vibekit-and-the-trailblazer-fund-2-0) initiative launched by Arbitrum.
+
+## Plugin Architecture
+
+The core framework (`registry/src/core/`) provides the following components:
 
 - **actions**: Action type definitions and interfaces for all plugin types
 - **queries**: Query type definitions for retrieving protocol data
@@ -47,9 +63,11 @@ The core framework (`registry/src/core/`) provides:
 - **pluginType.ts**: Core plugin type definitions
 - **index.ts**: Main exports for plugin development
 
-### Plugin Architecture
+These components work together to create a type-safe plugin system: **index.ts** defines the foundational `EmberPlugin` interface, while **pluginType.ts** defines the plugin types (lending, liquidity, swap, perpetuals) and maps each type to its available **actions** and **queries**. The **actions** directory provides the executable operations (supply, borrow, swap, etc.) with their callback signatures, while **queries** enable data retrieval without transactions. All inputs and outputs are validated through **schemas**, ensuring type safety and data consistency across the system.
 
-The core framework defines an `EmberPlugin<Type>` interface with a generic `PluginType`. Each plugin must implement this interface:
+### Plugin Interface
+
+The core framework defines an `EmberPlugin<Type>` interface and each plugin must implement this interface:
 
 ```typescript
 interface EmberPlugin<Type extends PluginType> {
@@ -216,7 +234,7 @@ The schema system provides comprehensive type safety with Zod validation:
 
 ## Plugin Registry
 
-The registry manages plugin discovery and registration with two distinct registration patterns:
+The registry ([`registry.ts`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/onchain-actions-plugins/registry/src/registry.ts)) manages plugin discovery and registration. You can initialize a registry using [`initializePublicRegistry()`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/onchain-actions-plugins/registry/src/index.ts). The registry supports two distinct registration patterns:
 
 ### Deferred Registration (Recommended)
 
