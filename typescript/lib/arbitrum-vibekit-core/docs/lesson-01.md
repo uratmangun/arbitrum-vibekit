@@ -51,18 +51,21 @@ export const lendingSkill = defineSkill({
 Tools implement the actual business logic:
 
 ```ts
-export const supplyTool = defineTool({
+const supplyParams = z.object({
+  token: z.string(),
+  amount: z.number(),
+  walletAddress: z.string(),
+});
+
+export const supplyTool: VibkitToolDefinition<typeof supplyParams> = {
   name: 'supplyToken',
   description: 'Supply tokens to Aave lending pool',
-  inputSchema: z.object({
-    token: z.string(),
-    amount: z.number(),
-    walletAddress: z.string(),
-  }),
-  implementation: async (args, context) => {
+  parameters: supplyParams,
+  execute: async (args, context) => {
     // Tool implementation here
+    return await aave.supply(args.token, args.amount, args.walletAddress);
   },
-});
+};
 ```
 
 #### **LLM Orchestration**
