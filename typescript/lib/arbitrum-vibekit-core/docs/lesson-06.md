@@ -1,300 +1,89 @@
-# **Lesson 6: v2 Agent Structure and File Layout**
+# **Lesson 6: The Tool Call Lifecycle**
 
 ---
 
-### 📂 Overview
+### 🔍 Overview
 
-The v2 framework introduces a clean, modular architecture centered around **skills** as the primary abstraction. This lesson explains the folder structure used in template agents and how each component fits together to create powerful, maintainable AI agents.
+Every time a tool is invoked in the agent framework—whether by an LLM through MCP or by another agent through A2A—it follows the same lifecycle pattern: from input validation to response emission.
 
-The v2 structure prioritizes clarity, type safety, and separation of concerns—making it easy for developers to understand, extend, and maintain their agents.
-
----
-
-### 📁 Template Agent Structure
-
-_The standard folder layout used by all v2 template agents._
-
-```plaintext
-agent-name/
-├── src/
-│   ├── index.ts          # Agent entry point and MCP server setup
-│   ├── skills/           # Skill definitions (high-level capabilities)
-│   │   ├── lending.ts    # Example: lending skill with multiple tools
-│   │   ├── trading.ts    # Example: trading skill
-│   │   └── analytics.ts  # Example: analytics skill
-│   ├── tools/            # Tool implementations (actions)
-│   │   ├── supply.ts     # Example: supply tool
-│   │   ├── borrow.ts     # Example: borrow tool
-│   │   └── swap.ts       # Example: swap workflow tool
-│   ├── hooks/            # Tool enhancement hooks (optional)
-│   │   └── index.ts      # Before/after hooks for tools
-│   └── context/          # Shared context and types (optional)
-│       ├── provider.ts   # Context provider
-│       └── types.ts      # Type definitions
-├── test/                 # Test files
-├── package.json          # Agent dependencies
-├── tsconfig.json         # TypeScript configuration
-└── README.md            # Agent documentation
-```
+Understanding this lifecycle will help you reason about how data flows through an agent, and where you can customize behavior.
 
 ---
 
-### 🛠️ Directory Roles
+### ⏳ Step-by-Step Lifecycle
 
-#### **src/skills/** - High-Level Capabilities
+1. **Invocation Begins**
 
-Skills define what your agent can do. Each skill groups related tools and handles LLM orchestration.
+   - The agent receives a request via MCP (from an LLM) or A2A (from another agent).
+   - A new **Task** object is created with a `threadId`, even if the task is stateless.
 
-```ts
-// skills/greeting.ts
-import { defineSkill } from 'arbitrum-vibekit-core';
-import { getFormalGreetingTool, getCasualGreetingTool } from '../tools/index.js';
+2. **Schema Validation**
 
-export const greetingSkill = defineSkill({
-  id: 'greeting-skill',
-  name: 'Greeting Generator',
-  description: 'Generate personalized greetings in different styles',
-  tags: ['greeting', 'personalization'],
-  examples: ['Greet Alice formally', 'Say hello to Bob casually'],
-  inputSchema: z.object({
-    name: z.string(),
-    style: z.enum(['formal', 'casual']),
-  }),
-  tools: [getFormalGreetingTool, getCasualGreetingTool],
-  mcpServers: [
-    /* external MCP servers */
-  ],
-  // LLM orchestration handles tool routing automatically
-});
-```
+   - The tool's input is validated using a Zod (or JSON Schema) definition.
+   - If validation fails, the call is rejected with a structured error.
 
-#### **src/tools/** - Implementation Logic
+3. **Payment Check (optional)**
 
-Tools contain the actual business logic. They're internal to skills and handle specific operations.
+   - For tools decorated with a paywall, the framework checks for an `x402-paid` header.
+   - If payment is missing, the call responds with `402 Payment Required` and an `x-paylink` header.
+   - Once payment is completed, the call can be retried automatically.
 
-```ts
-// tools/getFormalGreeting.ts
-import { z } from 'zod';
-import { defineTool } from 'arbitrum-vibekit-core';
+4. **Before Hook (optional)**
 
-export const getFormalGreetingTool = defineTool({
-  name: 'getFormalGreeting',
-  description: 'Generate a formal greeting',
-  inputSchema: z.object({
-    name: z.string(),
-  }),
-  handler: async input => {
-    return `Good day, ${input.name}. I hope you are well.`;
-  },
-});
-```
+   - Runs before your tool logic.
+   - Common uses: input normalization, access checks, analytics logging, rate limiting.
 
-#### **src/hooks/** - Tool Enhancement (Optional)
+5. **Tool Logic Executes**
 
-Hooks run before or after tool execution to add cross-cutting concerns like logging, validation, or formatting.
+   - The core function runs with validated arguments.
+   - It may access agent state (global or task) if needed.
 
-```ts
-// hooks/index.ts
-import type { ToolContext } from 'arbitrum-vibekit-core';
+6. **After Hook (optional)**
 
-export const beforeHooks = {
-  // Runs before any tool in the getPricePrediction family
-  getPricePrediction: async (context: ToolContext) => {
-    console.log(`[Hook] Getting price prediction for:`, context.input);
-    // Modify context.input if needed
-  },
-};
+   - Runs after the tool returns a result.
+   - Common uses: logging, output redaction, caching, telemetry, task updates.
 
-export const afterHooks = {
-  getPricePrediction: async (context: ToolContext) => {
-    // Format the response with emojis and structure
-    if (context.result && typeof context.result === 'object') {
-      context.result = {
-        ...context.result,
-        formatted: `📈 Price prediction: ${context.result.prediction}`,
-      };
-    }
-  },
-};
-```
+7. **Response Sent**
 
-#### **src/context/** - Shared State (Optional)
-
-Context provides type-safe shared state loaded at startup, typically from MCP servers or environment variables.
-
-```ts
-// context/types.ts
-export interface AgentContext {
-  tokenMap: Record<string, { address: string; decimals: number }>;
-  apiEndpoints: {
-    quicknode: string;
-    ember: string;
-  };
-  loadedAt: Date;
-}
-```
-
-```ts
-// context/provider.ts
-import type { AgentContext } from './types.js';
-import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
-
-export async function contextProvider(deps: {
-  mcpClients: Record<string, Client>;
-}): Promise<AgentContext> {
-  // Load shared data from MCP servers at startup
-  const emberClient = deps.mcpClients['ember'];
-  const tokenMap = await loadTokenMapFromMcp(emberClient);
-
-  return {
-    tokenMap,
-    apiEndpoints: {
-      quicknode: process.env.QUICKNODE_URL!,
-      ember: process.env.EMBER_ENDPOINT!,
-    },
-    loadedAt: new Date(),
-  };
-}
-```
-
-#### **src/index.ts** - Agent Entry Point
-
-The main entry point sets up the agent configuration and starts the MCP server.
-
-```ts
-// index.ts
-import { Agent, type AgentConfig } from 'arbitrum-vibekit-core';
-import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { greetingSkill } from './skills/greeting.js';
-import { contextProvider } from './context/provider.js';
-
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-export const agentConfig: AgentConfig = {
-  name: 'My Agent',
-  version: '1.0.0',
-  description: 'A helpful AI agent',
-  skills: [greetingSkill],
-  url: 'localhost',
-  capabilities: {
-    streaming: false,
-    pushNotifications: false,
-    stateTransitionHistory: false,
-  },
-  defaultInputModes: ['application/json'],
-  defaultOutputModes: ['application/json'],
-};
-
-const agent = Agent.create(agentConfig, {
-  cors: true,
-  llm: { model: openrouter('google/gemini-2.0-flash-001') },
-});
-
-await agent.start(3000, contextProvider);
-```
+   - A final structured response is returned to the caller.
+   - If the task supports streaming, updates may continue asynchronously via SSE.
 
 ---
 
-### 🏗️ Architecture Principles
+### ⚖️ Stateless or Stateful?
 
-#### **Skills as Public Interface**
-
-- **Skills** are what other agents and users see
-- Each skill represents a cohesive capability
-- Skills use LLM orchestration to route between tools
-- Skills declare their MCP server dependencies
-
-#### **Tools as Internal Implementation**
-
-- **Tools** are internal implementation details
-- Tools contain the actual business logic
-- Tools can be shared between skills
-- Tools access context for shared resources
-
-#### **LLM Orchestration First**
-
-- Skills default to LLM orchestration (no manual handler)
-- LLM intelligently routes user requests to appropriate tools
-- Manual handlers only for simple, deterministic operations
-- Supports multi-tool workflows and conditional logic
-
-#### **Type Safety Throughout**
-
-- Context providers ensure type-safe shared state
-- Zod schemas validate all inputs
-- TypeScript interfaces for all data structures
-- Compile-time checking prevents runtime errors
+- Even stateless tool calls create a `Task`, but don't store anything in the task state.
+- Stateful tools read/write task state during or after execution.
+- Hooks (before/after) can manipulate global state even if the tool itself is stateless.
 
 ---
 
-### 📋 Design Patterns
+### 🛠️ Developer Touchpoints
 
-#### **Single-Tool Skills**
+You can customize any part of the lifecycle:
 
-For focused capabilities that might expand later:
-
-```ts
-export const tokenSwapSkill = defineSkill({
-  id: 'token-swap',
-  name: 'Token Swap',
-  description: 'Swap tokens on DEX',
-  tools: [executeSwapWorkflow], // Easy to add more tools later
-});
-```
-
-#### **Multi-Tool Skills**
-
-For complex capabilities with multiple related operations:
-
-```ts
-export const lendingSkill = defineSkill({
-  id: 'lending-operations',
-  name: 'Lending Operations',
-  description: 'Perform lending operations on Aave protocol',
-  tools: [supplyTool, borrowTool, repayTool, withdrawTool],
-});
-```
-
-#### **Workflow Tools**
-
-For multi-step processes that always occur together:
-
-```ts
-// tools/executeSwapWorkflow.ts
-export const executeSwapWorkflow = defineTool({
-  name: 'executeSwapWorkflow',
-  description: 'Complete token swap workflow',
-  handler: async input => {
-    // Encapsulates: quote → approve → execute → confirm
-    const quote = await getQuote(input);
-    await approveToken(input, quote);
-    const result = await executeSwap(input, quote);
-    return result;
-  },
-});
-```
+- Define the **tool schema** using Zod.
+- Write a `before()` or `after()` function in the same file as your tool.
+- Use `getTaskState()` or `setTaskState()` in long-running workflows.
+- Log custom traces or metrics in the `after()` hook.
 
 ---
 
 ### ✅ Summary
 
-The v2 folder structure provides:
+Tool calls always follow the same clear path:
 
-- **Clear separation of concerns** between skills, tools, hooks, and context
-- **LLM-first architecture** with intelligent orchestration
-- **Type-safe state management** through context providers
-- **Modular design** that's easy to understand and extend
-- **Standardized patterns** across all template agents
+- Receive input → validate → run hooks → run logic → return response
 
-This structure scales from simple single-skill agents to complex multi-capability systems while maintaining clarity and maintainability.
+This consistent lifecycle ensures reliability, traceability, and flexibility—whether you're building simple utilities or orchestrating complex multi-agent workflows.
 
-> "Good architecture makes the right thing easy and the wrong thing hard."
+> "Every tool call is a conversation. The lifecycle makes sure it's heard, checked, and answered."
 
-| Component   | Purpose                | When to Use                                    |
-| ----------- | ---------------------- | ---------------------------------------------- |
-| **Skills**  | Public capabilities    | Always - the primary abstraction               |
-| **Tools**   | Implementation logic   | Always - at least one per skill                |
-| **Hooks**   | Cross-cutting concerns | Optional - for logging, formatting, validation |
-| **Context** | Shared state           | Optional - when tools need shared resources    |
+| Decision                                                     | Rationale                                                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| **Fixed order: validation → paywall → hooks → impl → after** | Guarantees fees are charged before heavy work, and `before/after` hooks cannot reorder unexpectedly.         |
+| **Schema validation with Zod**                               | Single source of truth for both runtime checks and static typing; discourages duplicating checks in hooks.   |
+| **Payment decorator, not hook**                              | Enforces fee even if tool author forgets to write a hook; keeps business logic pure.                         |
+| **Context object (`ctx`)**                                   | Typed wrapper carrying validated args, task helpers, meta; avoids mutation of `req/res`.                     |
+| **ThreadId creation for every call**                         | Unifies MCP and A2A observability; lets DevTools time-travel any call path.                                  |
+| **wrapAsync + AgentError**                                   | Removes boilerplate try/catch; returns model-friendly structured errors consistent with OpenAI SDK patterns. |

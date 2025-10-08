@@ -1,412 +1,308 @@
-# **Lesson 21: Provider Selection and Agent Configuration**
+# **Lesson 21: LLM Orchestration vs Manual Handlers**
 
 ---
 
 ### 🔍 Overview
 
-Setting up an agent in v2 involves two key components: **provider selection** for LLM integration and **agent configuration** for defining your agent's identity and capabilities. These work together to create a fully functional agent that can intelligently process requests and interact with external services.
+One of the most important architectural decisions in v2 is choosing between **LLM orchestration** and **manual handlers** for your skills. This choice fundamentally affects how your agent processes user requests and coordinates between tools.
 
-**Provider selection** handles LLM model access across different providers (OpenRouter, Anthropic, OpenAI). **Agent configuration** defines your agent's metadata, skills, and runtime behavior.
+**LLM orchestration** (the default) lets the LLM intelligently route user requests to appropriate tools and handle complex workflows. **Manual handlers** bypass the LLM entirely for deterministic, simple operations where you want complete control.
 
-Understanding both is essential for creating production-ready agents that are properly configured and can access the LLM capabilities they need.
-
----
-
-### 🤖 Provider Selection
-
-The v2 framework uses `createProviderSelector()` to handle LLM provider integration. This abstracts away provider-specific details while giving you access to multiple AI models:
-
-```ts
-// src/index.ts
-import { createProviderSelector } from 'arbitrum-vibekit-core';
-
-const providers = createProviderSelector({
-  openRouterApiKey: process.env.OPENROUTER_API_KEY,
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY, // Optional
-  openAiApiKey: process.env.OPENAI_API_KEY, // Optional
-});
-
-// Check provider availability
-if (!providers.openrouter) {
-  throw new Error('OpenRouter provider not available. Check OPENROUTER_API_KEY.');
-}
-```
-
-#### **Available Providers**
-
-```ts
-// OpenRouter (recommended - access to many models)
-const model = providers.openrouter('google/gemini-2.5-flash-preview');
-const model2 = providers.openrouter('openai/gpt-4o');
-const model3 = providers.openrouter('anthropic/claude-3.5-sonnet');
-
-// Direct provider access (if API keys provided)
-const model4 = providers.anthropic('claude-3.5-sonnet-20241022');
-const model5 = providers.openai('gpt-4o');
-```
-
-#### **Provider Selection Patterns**
-
-**Single Provider (Most Common):**
-
-```ts
-const providers = createProviderSelector({
-  openRouterApiKey: process.env.OPENROUTER_API_KEY,
-});
-
-const agent = Agent.create(agentConfig, {
-  llm: {
-    model: providers.openrouter('google/gemini-2.5-flash-preview'),
-  },
-});
-```
-
-**Multi-Provider with Fallback:**
-
-```ts
-const providers = createProviderSelector({
-  openRouterApiKey: process.env.OPENROUTER_API_KEY,
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// Use preferred provider with fallback
-const model = providers.anthropic
-  ? providers.anthropic('claude-3.5-sonnet-20241022')
-  : providers.openrouter('anthropic/claude-3.5-sonnet');
-```
-
-**Environment-Based Selection:**
-
-```ts
-const providers = createProviderSelector({
-  openRouterApiKey: process.env.OPENROUTER_API_KEY,
-});
-
-const modelName = process.env.LLM_MODEL || 'google/gemini-2.5-flash-preview';
-const model = providers.openrouter(modelName);
-```
+Understanding when to use each approach is crucial for building effective agents that balance AI intelligence with predictable behavior.
 
 ---
 
-### ⚙️ Agent Configuration
+### 🧠 LLM Orchestration (Default & Recommended)
 
-The `AgentConfig` object defines your agent's identity, capabilities, and behavior:
+When you define a skill without a `handler`, the framework uses **LLM orchestration**. The LLM becomes your intelligent coordinator:
 
 ```ts
-// src/agent.ts or src/index.ts
-import type { AgentConfig } from 'arbitrum-vibekit-core';
+export const lendingSkill = defineSkill({
+  id: 'lending-operations',
+  name: 'Lending Operations',
+  description: 'Perform lending operations on Aave protocol',
+  tags: ['defi', 'lending'],
+  examples: ['Supply 100 USDC', 'Borrow 50 ETH', 'What is my debt?'],
 
-export const agentConfig: AgentConfig = {
-  // Identity
-  name: 'My Lending Agent',
-  version: '1.0.0',
-  description: 'A DeFi lending agent for Aave protocol',
-  url: 'https://github.com/myorg/lending-agent', // Optional
+  inputSchema: z.object({
+    instruction: z.string().describe('Natural language lending request'),
+    walletAddress: z.string(),
+  }),
 
-  // Capabilities
-  skills: [lendingSkill, portfolioSkill],
+  tools: [supplyTool, borrowTool, repayTool, withdrawTool, getBalancesTool],
 
-  // Technical capabilities
-  capabilities: {
-    streaming: false, // Server-sent events support
-    pushNotifications: false, // Proactive notifications
-    stateTransitionHistory: false, // Track state changes
-  },
-
-  // I/O formats
-  defaultInputModes: ['application/json'],
-  defaultOutputModes: ['application/json'],
-};
+  // No handler = LLM orchestration
+});
 ```
 
-#### **Required Configuration Fields**
+#### **How LLM Orchestration Works**
+
+1. **Intent Analysis**: LLM analyzes natural language input
+2. **Tool Selection**: Chooses appropriate tool(s) based on intent
+3. **Parameter Extraction**: Extracts and validates tool parameters
+4. **Execution**: Calls tool(s) with proper arguments
+5. **Result Processing**: Formats and returns coherent response
 
 ```ts
-export const minimalConfig: AgentConfig = {
-  name: 'Agent Name', // Required: Human-readable name
-  version: '1.0.0', // Required: Semantic version
-  description: 'What agent does', // Required: Clear description
-  skills: [mySkill], // Required: At least one skill
-  capabilities: {
-    // Required: Capability flags
-    streaming: false,
-    pushNotifications: false,
-    stateTransitionHistory: false,
-  },
-  defaultInputModes: ['application/json'], // Required
-  defaultOutputModes: ['application/json'], // Required
-};
+// User: "I want to supply 100 USDC and then borrow 50 ETH"
+// LLM orchestration:
+// 1. Analyzes: Two operations - supply USDC, then borrow ETH
+// 2. Routes: First to supplyTool, then to borrowTool
+// 3. Executes: supplyTool({ token: "USDC", amount: 100, ... })
+// 4. Then: borrowTool({ token: "ETH", amount: 50, ... })
+// 5. Returns: "Successfully supplied 100 USDC and borrowed 50 ETH"
 ```
 
-#### **Environment-Driven Configuration**
+#### **LLM Orchestration Benefits**
+
+- ✅ **Natural Language Processing**: Handles varied user input gracefully
+- ✅ **Multi-Tool Workflows**: Coordinates complex operations automatically
+- ✅ **Context Awareness**: Understands relationships between operations
+- ✅ **Error Recovery**: Can adapt when tools fail or need clarification
+- ✅ **Future-Proof**: Adding new tools extends capability automatically
+
+---
+
+### ⚙️ Manual Handlers (Explicit Control)
+
+For simple, deterministic operations, you can provide a manual `handler` that bypasses LLM orchestration:
+
+```ts
+export const timeSkill = defineSkill({
+  id: 'get-time',
+  name: 'Get Current Time',
+  description: 'Get the current time in specified format',
+  tags: ['utility', 'time'],
+  examples: ['What time is it?', 'Get current timestamp'],
+
+  inputSchema: z.object({
+    format: z.enum(['iso', 'unix', 'human']).default('iso'),
+    timezone: z.string().optional(),
+  }),
+
+  tools: [getTimeTool], // Still required for consistency
+
+  // Manual handler - bypasses LLM completely
+  handler: async input => {
+    const now = new Date();
+    let result;
+
+    switch (input.format) {
+      case 'unix':
+        result = {
+          timestamp: Math.floor(now.getTime() / 1000),
+          format: 'unix',
+        };
+        break;
+      case 'human':
+        result = {
+          timestamp: now.toLocaleString('en-US', {
+            timeZone: input.timezone || 'UTC',
+          }),
+          format: 'human',
+        };
+        break;
+      case 'iso':
+      default:
+        result = {
+          timestamp: now.toISOString(),
+          format: 'iso',
+        };
+    }
+
+    return createSuccessTask('get-time', result);
+  },
+});
+```
+
+#### **Manual Handler Benefits**
+
+- ✅ **Predictable Behavior**: Always executes exactly as programmed
+- ✅ **Performance**: No LLM latency or cost
+- ✅ **Deterministic**: Same input always produces same output
+- ✅ **Simple Logic**: Straightforward control flow
+- ✅ **Edge Case Handling**: You control all error scenarios
+
+---
+
+### 🤔 When to Choose Each Approach
+
+#### **Use LLM Orchestration When:**
+
+- **Multiple tools** need coordination
+- **Natural language** input is important
+- **Complex workflows** with conditional logic
+- **User intent** varies significantly
+- **Tools relationship** changes based on context
+
+```ts
+// Perfect for LLM orchestration
+export const portfolioSkill = defineSkill({
+  id: 'portfolio-management',
+  inputSchema: z.object({
+    instruction: z.string(), // "Rebalance my portfolio to 60% ETH, 40% USDC"
+  }),
+  tools: [getBalancesTool, calculateRebalanceTool, executeSwapTool, analyzeRiskTool],
+  // LLM coordinates: get balances → calculate needed swaps → execute trades
+});
+```
+
+#### **Use Manual Handlers When:**
+
+- **Simple, deterministic** operations
+- **Performance** is critical
+- **Complete control** over logic flow is needed
+- **No coordination** between tools required
+- **Predefined input/output** mapping
+
+```ts
+// Perfect for manual handler
+export const calculatorSkill = defineSkill({
+  id: 'calculator',
+  name: 'Calculator',
+  description: 'Perform mathematical calculations',
+  tags: ['utility', 'math'],
+  examples: ['Calculate 2 + 2 * 3'],
+  inputSchema: z.object({
+    expression: z.string(), // "2 + 2 * 3"
+  }),
+  tools: [calculateTool],
+  handler: async input => {
+    // Simple, deterministic calculation
+    const result = evaluateExpression(input.expression);
+    return createSuccessTask('calculate', { result, expression: input.expression });
+  },
+});
+```
+
+---
+
+### 🔄 Hybrid Patterns
+
+You can also mix approaches for different skills in the same agent:
 
 ```ts
 export const agentConfig: AgentConfig = {
-  name: process.env.AGENT_NAME || 'Default Agent Name',
-  version: process.env.AGENT_VERSION || '1.0.0',
-  description: process.env.AGENT_DESCRIPTION || 'A helpful AI agent',
+  name: 'Multi-Modal Agent',
   skills: [
-    /* your skills */
+    // LLM orchestration for complex operations
+    lendingSkill, // "Supply ETH and borrow USDC"
+    portfolioSkill, // "Rebalance my portfolio optimally"
+
+    // Manual handlers for simple operations
+    timeSkill, // "What time is it?"
+    calculatorSkill, // "Calculate 15% of 1000"
+    echoSkill, // "Echo this message"
   ],
-  url: process.env.AGENT_URL || 'localhost',
-  capabilities: {
-    streaming: process.env.ENABLE_STREAMING === 'true',
-    pushNotifications: process.env.ENABLE_NOTIFICATIONS === 'true',
-    stateTransitionHistory: process.env.ENABLE_HISTORY === 'true',
-  },
-  defaultInputModes: ['application/json'],
-  defaultOutputModes: ['application/json'],
 };
 ```
 
 ---
 
-### 🏗️ Agent Creation and Runtime Options
+### 📊 Decision Framework
 
-Combine configuration and providers to create your agent:
+| Factor                   | LLM Orchestration                 | Manual Handler                |
+| ------------------------ | --------------------------------- | ----------------------------- |
+| **Input Complexity**     | Natural language, varied requests | Structured, predictable input |
+| **Tool Coordination**    | Multiple tools, workflows         | Single operation              |
+| **Performance**          | Acceptable latency                | Critical performance          |
+| **Predictability**       | Flexible, adaptive                | Deterministic required        |
+| **Future Extensibility** | Easy to add tools                 | Manual code changes           |
 
-```ts
-import { Agent } from 'arbitrum-vibekit-core';
+#### **Quick Decision Tree**
 
-// Create the agent
-const agent = Agent.create(agentConfig, {
-  // Runtime options
-  cors: process.env.ENABLE_CORS !== 'false',
-  basePath: process.env.BASE_PATH || undefined,
-  llm: {
-    model: providers.openrouter(process.env.LLM_MODEL || 'google/gemini-2.5-flash-preview'),
-  },
-});
 ```
-
-#### **Runtime Options**
-
-```ts
-interface AgentRuntimeOptions {
-  cors?: boolean; // Enable CORS headers
-  basePath?: string; // API base path (e.g., '/api/v1')
-  llm: {
-    model: LanguageModel; // LLM model instance
-  };
-}
-```
-
-#### **Starting the Agent**
-
-```ts
-// Simple startup
-await agent.start(3000);
-
-// With context provider
-await agent.start(3000, contextProvider);
-
-// With custom startup logic
-const PORT = parseInt(process.env.PORT || '3000', 10);
-
-agent
-  .start(PORT, contextProvider)
-  .then(() => {
-    console.log(`🚀 Agent running on port ${PORT}`);
-    console.log(`📍 Base URL: http://localhost:${PORT}`);
-    console.log(`🤖 Agent Card: http://localhost:${PORT}/.well-known/agent.json`);
-    console.log(`🔌 MCP SSE: http://localhost:${PORT}/sse`);
-  })
-  .catch(error => {
-    console.error('Failed to start agent:', error);
-    process.exit(1);
-  });
-```
-
----
-
-### 🔌 External MCP Server Configuration
-
-When your agent needs to connect to external MCP servers (like Ember AI), the framework handles client initialization automatically. You just need to:
-
-1. **Set Environment Variables:**
-
-```bash
-# Remote MCP servers
-EMBER_ENDPOINT=@https://api.emberai.xyz/mcp
-ALLORA_ENDPOINT=@http://allora.example.com/mcp
-```
-
-2. **Reference in Skills:**
-
-```ts
-// The framework detects MCP server references in your skills
-// and automatically creates clients for them
-const emberClient = deps.mcpClients['ember']; // Available if EMBER_ENDPOINT is set
-```
-
-3. **Framework Auto-Discovery:**
-   The v2 framework automatically:
-
-- Detects MCP server references in your skills
-- Creates appropriate transport connections (`StreamableHTTPClientTransport` for HTTP endpoints)
-- Initializes clients before calling your context provider
-- Makes them available via `deps.mcpClients['server-name']`
-
-**Transport Configuration (Handled Automatically):**
-
-```ts
-// This is done internally by the framework:
-// const transport = new StreamableHTTPClientTransport(new URL(process.env.EMBER_ENDPOINT));
-// const emberClient = new Client({ name: 'ember', version: '1.0.0' }, { capabilities: {} });
-```
-
-### 🔧 Complete Setup Example
-
-Here's a complete agent setup following best practices:
-
-```ts
-#!/usr/bin/env node
-import 'dotenv/config';
-import { Agent, type AgentConfig, createProviderSelector } from 'arbitrum-vibekit-core';
-import { mySkill } from './skills/mySkill.js';
-import { contextProvider } from './context/provider.js';
-
-// 1. Provider Selection
-const providers = createProviderSelector({
-  openRouterApiKey: process.env.OPENROUTER_API_KEY,
-});
-
-if (!providers.openrouter) {
-  console.error('OpenRouter API key required. Set OPENROUTER_API_KEY environment variable.');
-  process.exit(1);
-}
-
-// 2. Agent Configuration
-export const agentConfig: AgentConfig = {
-  name: process.env.AGENT_NAME || 'My Agent',
-  version: process.env.AGENT_VERSION || '1.0.0',
-  description: process.env.AGENT_DESCRIPTION || 'A helpful AI agent',
-  skills: [mySkill],
-  url: process.env.AGENT_URL || 'localhost',
-  capabilities: {
-    streaming: false,
-    pushNotifications: false,
-    stateTransitionHistory: false,
-  },
-  defaultInputModes: ['application/json'],
-  defaultOutputModes: ['application/json'],
-};
-
-// 3. Agent Creation
-const agent = Agent.create(agentConfig, {
-  cors: process.env.ENABLE_CORS !== 'false',
-  basePath: process.env.BASE_PATH || undefined,
-  llm: {
-    model: providers.openrouter(process.env.LLM_MODEL || 'google/gemini-2.5-flash-preview'),
-  },
-});
-
-// 4. Startup
-const PORT = parseInt(process.env.PORT || '3000', 10);
-
-agent
-  .start(PORT, contextProvider)
-  .then(() => {
-    console.log(`🚀 ${agentConfig.name} running on port ${PORT}`);
-    console.log(`📊 Skills: ${agentConfig.skills.map(s => s.name).join(', ')}`);
-    console.log(`🤖 Agent Card: http://localhost:${PORT}/.well-known/agent.json`);
-  })
-  .catch(error => {
-    console.error('Failed to start agent:', error);
-    process.exit(1);
-  });
-```
-
----
-
-### 🌍 Environment Variables
-
-Standard environment variables for agent configuration:
-
-```bash
-# .env
-# LLM Provider
-OPENROUTER_API_KEY=your_key_here
-LLM_MODEL=google/gemini-2.5-flash-preview
-
-# Agent Identity
-AGENT_NAME=My Custom Agent
-AGENT_VERSION=1.2.0
-AGENT_DESCRIPTION=A specialized agent for specific tasks
-AGENT_URL=https://my-agent.example.com
-
-# Runtime Options
-PORT=3000
-ENABLE_CORS=true
-BASE_PATH=/api/v1
-
-# Feature Flags
-ENABLE_STREAMING=false
-ENABLE_NOTIFICATIONS=false
-ENABLE_HISTORY=false
-
-# Service Dependencies
-EMBER_ENDPOINT=@https://api.emberai.xyz/mcp
-QUICKNODE_API_KEY=your_quicknode_key
+Does the skill need to coordinate multiple tools?
+├─ YES → LLM Orchestration
+└─ NO → Is the operation simple and deterministic?
+   ├─ YES → Manual Handler
+   └─ NO → LLM Orchestration (for flexibility)
 ```
 
 ---
 
 ### 🎯 Best Practices
 
-#### **Provider Selection:**
+#### **For LLM Orchestration:**
 
-1. **Use OpenRouter for flexibility** - Access to multiple models
-2. **Environment-driven model selection** - Easy to change models
-3. **Provider availability checks** - Fail fast on missing keys
-4. **Fallback providers** - Redundancy for production
-
-#### **Agent Configuration:**
-
-1. **Environment-driven config** - Flexible deployment
-2. **Semantic versioning** - Clear version tracking
-3. **Descriptive metadata** - Help users understand capabilities
-4. **Conservative capabilities** - Start with minimal features
-
-#### **Error Handling:**
+1. **Clear tool descriptions** - Help LLM understand when to use each tool
+2. **Good examples** - Provide diverse use cases in skill metadata
+3. **Descriptive schemas** - Use Zod descriptions for better parameter extraction
+4. **Error handling** - Let tools return clear error messages
 
 ```ts
-// Good: Comprehensive startup validation
-if (!process.env.OPENROUTER_API_KEY) {
-  console.error('Missing required environment variable: OPENROUTER_API_KEY');
-  process.exit(1);
-}
-
-const providers = createProviderSelector({
-  openRouterApiKey: process.env.OPENROUTER_API_KEY,
+// Good: Clear, specific descriptions
+const supplyTokenParams = z.object({
+  token: z.string().describe('Token symbol like USDC, ETH'),
+  amount: z.number().describe('Amount to supply'),
 });
 
-if (!providers.openrouter) {
-  console.error('Failed to initialize OpenRouter provider');
-  process.exit(1);
-}
+export const supplyTokenTool: VibkitToolDefinition<typeof supplyTokenParams> = {
+  name: 'supplyToken',
+  description: 'Supply tokens to Aave lending pool to earn interest',
+  parameters: supplyTokenParams,
+  execute: async (args, context) => {
+    // Implementation
+    return await aave.supply(args.token, args.amount);
+  },
+};
+
+// Use in skill
+tools: [supplyTokenTool];
+```
+
+#### **For Manual Handlers:**
+
+1. **Simple input schemas** - Avoid natural language fields
+2. **Comprehensive validation** - Handle all edge cases explicitly
+3. **Clear return types** - Return structured, typed responses
+4. **Error boundaries** - Catch and format all exceptions
+
+```ts
+handler: async (input) => {
+  try {
+    // Validate business logic
+    if (input.amount <= 0) {
+      throw new VibkitError('InvalidAmount', 'Amount must be positive');
+    }
+
+    // Execute deterministic logic
+    const result = performCalculation(input);
+
+    // Return structured response
+    return createSuccessTask('calculation', {
+      success: true,
+      result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return createErrorTask('calculation', error.message, {
+      timestamp: new Date().toISOString(),
+    });
+  }
+},
 ```
 
 ---
 
 ### ✅ Summary
 
-Proper agent setup requires both provider selection and configuration:
+The choice between LLM orchestration and manual handlers shapes your agent's behavior:
 
-- **Provider selection** abstracts LLM access across multiple providers
-- **Agent configuration** defines identity, capabilities, and behavior
-- **Runtime options** control CORS, paths, and LLM model selection
-- **Environment variables** enable flexible, deployment-specific configuration
-- **Error handling** ensures agents fail fast with clear messages
+- **LLM orchestration** provides intelligence, flexibility, and natural language handling
+- **Manual handlers** provide control, performance, and predictability
+- **Most skills** should use LLM orchestration for maximum capability
+- **Simple operations** benefit from manual handlers for reliability
+- **Hybrid approaches** let you optimize each skill individually
 
-Start with OpenRouter for maximum model flexibility, use environment variables for configuration, and implement comprehensive startup validation.
+Start with LLM orchestration by default, and reach for manual handlers only when you need deterministic control or critical performance.
 
-> "Configuration is communication with your future self."
+> "Let the LLM coordinate complexity. Take control for simplicity."
 
-| Decision                              | Rationale                                                         |
-| ------------------------------------- | ----------------------------------------------------------------- |
-| **OpenRouter as primary provider**    | Access to multiple LLM providers through single API               |
-| **Environment-driven configuration**  | Enables different settings per deployment environment             |
-| **Required metadata fields**          | Ensures all agents are discoverable and self-documenting          |
-| **Conservative default capabilities** | Prevents unexpected behavior; features opt-in rather than opt-out |
-| **Startup validation**                | Fail-fast approach prevents runtime errors in production          |
+| Decision                                 | Rationale                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| **LLM orchestration as default**         | Maximizes agent capability and handles varied user input gracefully        |
+| **Tools required even with handlers**    | Maintains consistent architecture and enables future migration             |
+| **Clear decision criteria**              | Prevents over-engineering simple operations or under-powering complex ones |
+| **Hybrid approach encouraged**           | Lets you optimize each skill for its specific requirements                 |
+| **Performance vs flexibility trade-off** | Explicit choice based on use case requirements                             |

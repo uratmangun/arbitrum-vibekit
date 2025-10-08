@@ -1,509 +1,412 @@
-# **Lesson 22: Workflow Tools and Design Patterns**
+# **Lesson 22: Provider Selection and Agent Configuration**
 
 ---
 
 ### 🔍 Overview
 
-As agents grow more sophisticated, you'll encounter scenarios where multiple operations need to be coordinated together. **Workflow tools** encapsulate multi-step processes that always occur together, while design patterns help you structure skills for maximum effectiveness and maintainability.
+Setting up an agent in v2 involves two key components: **provider selection** for LLM integration and **agent configuration** for defining your agent's identity and capabilities. These work together to create a fully functional agent that can intelligently process requests and interact with external services.
 
-Understanding when to use workflow tools versus individual tools, and how to structure skills around common patterns, is crucial for building agents that are both powerful and easy to understand.
+**Provider selection** handles LLM model access across different providers (OpenRouter, Anthropic, OpenAI). **Agent configuration** defines your agent's metadata, skills, and runtime behavior.
 
-This lesson covers the key design patterns used in production agents and when to apply each approach.
+Understanding both is essential for creating production-ready agents that are properly configured and can access the LLM capabilities they need.
 
 ---
 
-### 🔄 Workflow Tools vs Individual Tools
+### 🤖 Provider Selection
 
-#### **Individual Tools Pattern**
-
-Best for independent actions that users might want to perform separately:
+The v2 framework uses `createProviderSelector()` to handle LLM provider integration. This abstracts away provider-specific details while giving you access to multiple AI models:
 
 ```ts
-// Good: Independent lending operations
-export const supplyTool = defineTool({
-  name: 'supplyToken',
-  description: 'Supply tokens to Aave lending pool',
-  inputSchema: z.object({
-    token: z.string(),
-    amount: z.number(),
-    walletAddress: z.string(),
-  }),
-  handler: async input => {
-    // Just supply tokens
-    return await aave.supply(input.token, input.amount, input.walletAddress);
-  },
+// src/index.ts
+import { createProviderSelector } from 'arbitrum-vibekit-core';
+
+const providers = createProviderSelector({
+  openRouterApiKey: process.env.OPENROUTER_API_KEY,
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY, // Optional
+  openAiApiKey: process.env.OPENAI_API_KEY, // Optional
 });
 
-export const borrowTool = defineTool({
-  name: 'borrowToken',
-  description: 'Borrow tokens from Aave lending pool',
-  inputSchema: z.object({
-    token: z.string(),
-    amount: z.number(),
-    walletAddress: z.string(),
-  }),
-  handler: async input => {
-    // Just borrow tokens
-    return await aave.borrow(input.token, input.amount, input.walletAddress);
-  },
+// Check provider availability
+if (!providers.openrouter) {
+  throw new Error('OpenRouter provider not available. Check OPENROUTER_API_KEY.');
+}
+```
+
+#### **Available Providers**
+
+```ts
+// OpenRouter (recommended - access to many models)
+const model = providers.openrouter('google/gemini-2.5-flash-preview');
+const model2 = providers.openrouter('openai/gpt-4o');
+const model3 = providers.openrouter('anthropic/claude-3.5-sonnet');
+
+// Direct provider access (if API keys provided)
+const model4 = providers.anthropic('claude-3.5-sonnet-20241022');
+const model5 = providers.openai('gpt-4o');
+```
+
+#### **Provider Selection Patterns**
+
+**Single Provider (Most Common):**
+
+```ts
+const providers = createProviderSelector({
+  openRouterApiKey: process.env.OPENROUTER_API_KEY,
 });
 
-// LLM can coordinate: "Supply 100 USDC then borrow 50 ETH"
-export const lendingSkill = defineSkill({
-  id: 'lending-operations',
-  tools: [supplyTool, borrowTool, repayTool, withdrawTool],
-  // LLM orchestrates the sequence
+const agent = Agent.create(agentConfig, {
+  llm: {
+    model: providers.openrouter('google/gemini-2.5-flash-preview'),
+  },
 });
 ```
 
-#### **Workflow Tools Pattern**
-
-Best for multi-step processes that always occur together:
+**Multi-Provider with Fallback:**
 
 ```ts
-// Good: Swap always requires quote → approve → execute
-export const executeSwapWorkflow = defineTool({
-  name: 'executeSwapWorkflow',
-  description: 'Complete token swap from quote to execution',
-  inputSchema: z.object({
-    fromToken: z.string(),
-    toToken: z.string(),
-    amount: z.number(),
-    walletAddress: z.string(),
-    slippage: z.number().default(0.5),
-  }),
-  handler: async input => {
-    try {
-      // Step 1: Get quote
-      const quote = await dex.getQuote({
-        fromToken: input.fromToken,
-        toToken: input.toToken,
-        amount: input.amount,
-      });
-
-      // Step 2: Check allowance and approve if needed
-      const allowance = await token.getAllowance(
-        input.fromToken,
-        input.walletAddress,
-        DEX_ROUTER_ADDRESS
-      );
-
-      if (allowance < input.amount) {
-        await token.approve(input.fromToken, input.walletAddress, DEX_ROUTER_ADDRESS, input.amount);
-      }
-
-      // Step 3: Execute swap
-      const swapResult = await dex.executeSwap({
-        ...quote,
-        slippage: input.slippage,
-        walletAddress: input.walletAddress,
-      });
-
-      return {
-        success: true,
-        quote,
-        swapResult,
-        fromAmount: input.amount,
-        toAmount: swapResult.outputAmount,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        step: 'Failed during workflow execution',
-      };
-    }
-  },
+const providers = createProviderSelector({
+  openRouterApiKey: process.env.OPENROUTER_API_KEY,
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// Use preferred provider with fallback
+const model = providers.anthropic
+  ? providers.anthropic('claude-3.5-sonnet-20241022')
+  : providers.openrouter('anthropic/claude-3.5-sonnet');
+```
+
+**Environment-Based Selection:**
+
+```ts
+const providers = createProviderSelector({
+  openRouterApiKey: process.env.OPENROUTER_API_KEY,
+});
+
+const modelName = process.env.LLM_MODEL || 'google/gemini-2.5-flash-preview';
+const model = providers.openrouter(modelName);
 ```
 
 ---
 
-### 📋 Common Design Patterns
+### ⚙️ Agent Configuration
 
-#### **1. Single-Tool Skills (Focused Capability)**
-
-For specialized capabilities that might expand later:
+The `AgentConfig` object defines your agent's identity, capabilities, and behavior:
 
 ```ts
-export const priceSkill = defineSkill({
-  id: 'price-prediction',
-  name: 'Price Prediction',
-  description: 'Get AI-powered price predictions for tokens',
-  tags: ['prediction', 'market-data'],
-  examples: ['What will BTC price be?', 'Get ETH price prediction'],
+// src/agent.ts or src/index.ts
+import type { AgentConfig } from 'arbitrum-vibekit-core';
 
-  inputSchema: z.object({
-    message: z.string().describe('Natural language price query'),
-  }),
+export const agentConfig: AgentConfig = {
+  // Identity
+  name: 'My Lending Agent',
+  version: '1.0.0',
+  description: 'A DeFi lending agent for Aave protocol',
+  url: 'https://github.com/myorg/lending-agent', // Optional
 
-  tools: [getPricePredictionTool], // Single focused tool
+  // Capabilities
+  skills: [lendingSkill, portfolioSkill],
 
-  mcpServers: [
-    {
-      command: 'node',
-      moduleName: '@alloralabs/mcp-server',
-      env: { ALLORA_API_KEY: process.env.ALLORA_API_KEY },
-    },
-  ],
-});
-```
-
-**When to use:**
-
-- Single focused capability
-- Might expand with more tools later
-- Clear, specific user intent
-- External service integration
-
-#### **2. Multi-Tool Skills (Complex Operations)**
-
-For comprehensive capabilities with multiple related operations:
-
-```ts
-export const portfolioSkill = defineSkill({
-  id: 'portfolio-management',
-  name: 'Portfolio Management',
-  description: 'Comprehensive portfolio analysis and management',
-  tags: ['portfolio', 'analysis', 'defi'],
-  examples: [
-    'What are my current holdings?',
-    'Rebalance my portfolio to 60% ETH, 40% USDC',
-    'Analyze my portfolio performance',
-  ],
-
-  inputSchema: z.object({
-    instruction: z.string(),
-    walletAddress: z.string(),
-  }),
-
-  tools: [
-    getPortfolioBalancesTool, // "What do I own?"
-    analyzePerformanceTool, // "How am I doing?"
-    suggestRebalanceTool, // "How should I rebalance?"
-    executeRebalanceWorkflow, // "Rebalance to target allocation"
-    calculateRiskTool, // "What's my risk exposure?"
-  ],
-
-  // LLM coordinates based on user intent
-});
-```
-
-**When to use:**
-
-- Multiple related operations
-- Complex user intents
-- Needs intelligent routing
-- Comprehensive capability area
-
-#### **3. Workflow-Dominant Skills (Process-Oriented)**
-
-For skills built around coordinated multi-step processes:
-
-```ts
-export const tradingSkill = defineSkill({
-  id: 'advanced-trading',
-  name: 'Advanced Trading',
-  description: 'Execute complex trading strategies',
-  tags: ['trading', 'strategy', 'defi'],
-  examples: [
-    'Execute market buy for 1000 USDC of ETH',
-    'Place limit order: buy ETH at $3000',
-    'Cancel order #123',
-  ],
-
-  tools: [
-    // Workflows for complex operations
-    executeMarketOrderWorkflow, // Market buy/sell with validation
-    executeLimitOrderWorkflow, // Place and monitor limit orders
-    executeDCAWorkflow, // Dollar cost averaging strategy
-
-    // Simple tools for quick operations
-    cancelOrderTool, // Cancel existing order
-    getOrderStatusTool, // Check order status
-    getOrderHistoryTool, // View past orders
-  ],
-});
-```
-
-**When to use:**
-
-- Mix of complex workflows and simple operations
-- Process-heavy domain (trading, DeFi strategies)
-- Need both automation and manual control
-
-#### **4. Utility Skills (Support Functions)**
-
-For simple, deterministic operations that support other capabilities:
-
-```ts
-export const utilitySkill = defineSkill({
-  id: 'utility-functions',
-  name: 'Utility Functions',
-  description: 'Helper functions for calculations and formatting',
-  tags: ['utility', 'calculation'],
-  examples: ['What time is it?', 'Calculate 15% of 1000', 'Format this timestamp'],
-
-  tools: [getCurrentTimeTool, calculatePercentageTool, formatNumberTool, convertUnitsTool],
-
-  // Often uses manual handlers for performance
-  handler: async input => {
-    // Route to appropriate utility function
-    // Manual routing for deterministic operations
+  // Technical capabilities
+  capabilities: {
+    streaming: false, // Server-sent events support
+    pushNotifications: false, // Proactive notifications
+    stateTransitionHistory: false, // Track state changes
   },
-});
-```
 
-**When to use:**
-
-- Simple, deterministic operations
-- Supporting other skills
-- Performance-critical functions
-- Pure computation
-
----
-
-### 🎯 Design Decision Framework
-
-#### **Tool Granularity Decision Tree**
-
-```
-Is this a multi-step process that ALWAYS happens together?
-├─ YES → Workflow Tool
-│   └─ Example: Quote → Approve → Swap
-└─ NO → Individual Tools
-    └─ Example: Supply, Borrow, Repay (can be done separately)
-
-Do users need to perform steps independently?
-├─ YES → Individual Tools + LLM Orchestration
-└─ NO → Workflow Tool
-
-Is the process deterministic with clear steps?
-├─ YES → Workflow Tool
-└─ NO → Individual Tools + LLM Coordination
-```
-
-#### **Skill Structure Decision Tree**
-
-```
-How many tools does this capability need?
-├─ 1 Tool → Single-Tool Skill
-├─ 2-4 Related Tools → Multi-Tool Skill
-└─ 5+ Tools → Consider splitting into multiple skills
-
-Are the tools tightly coupled?
-├─ YES → Keep in same skill
-└─ NO → Split into separate skills
-
-Do the tools serve the same user intent?
-├─ YES → Same skill
-└─ NO → Separate skills
-```
-
----
-
-### 🔧 Implementation Examples
-
-#### **Hook-Enhanced Workflow**
-
-Combine workflows with hooks for maximum flexibility:
-
-```ts
-// tools/executeSwapWorkflow.ts
-export const executeSwapWorkflow = defineTool({
-  name: 'executeSwapWorkflow',
-  description: 'Execute token swap with validation and confirmation',
-  inputSchema: swapSchema,
-  handler: async input => {
-    // Core workflow logic
-    return await performSwap(input);
-  },
-});
-
-// hooks/swapHooks.ts
-export const beforeHooks = {
-  executeSwapWorkflow: async context => {
-    // Pre-validation
-    await validateSwapParameters(context.input);
-    await checkTokenBalances(context.input);
-    await verifySlippageLimits(context.input);
-  },
-};
-
-export const afterHooks = {
-  executeSwapWorkflow: async context => {
-    // Post-processing
-    await logSwapTransaction(context.result);
-    await updatePortfolioCache(context.input.walletAddress);
-    await notifyUser(context.result);
-  },
+  // I/O formats
+  defaultInputModes: ['application/json'],
+  defaultOutputModes: ['application/json'],
 };
 ```
 
-#### **Conditional Workflows**
-
-Workflows that adapt based on conditions:
+#### **Required Configuration Fields**
 
 ```ts
-export const smartRebalanceWorkflow = defineTool({
-  name: 'smartRebalanceWorkflow',
-  description: 'Intelligently rebalance portfolio based on current state',
-  inputSchema: z.object({
-    walletAddress: z.string(),
-    targetAllocation: z.record(z.number()),
-    maxSlippage: z.number().default(1.0),
-  }),
-  handler: async input => {
-    // Step 1: Analyze current portfolio
-    const currentBalances = await getPortfolioBalances(input.walletAddress);
-    const analysis = await analyzeRebalanceNeeds(currentBalances, input.targetAllocation);
-
-    if (!analysis.needsRebalancing) {
-      return {
-        success: true,
-        action: 'no_rebalancing_needed',
-        message: 'Portfolio is already within target allocation',
-        currentAllocation: analysis.currentAllocation,
-      };
-    }
-
-    // Step 2: Plan trades
-    const tradePlan = await calculateRequiredTrades(analysis);
-
-    if (tradePlan.estimatedSlippage > input.maxSlippage) {
-      return {
-        success: false,
-        action: 'slippage_too_high',
-        message: `Estimated slippage ${tradePlan.estimatedSlippage}% exceeds limit ${input.maxSlippage}%`,
-        tradePlan,
-      };
-    }
-
-    // Step 3: Execute trades
-    const results = [];
-    for (const trade of tradePlan.trades) {
-      const result = await executeSwap(trade);
-      results.push(result);
-
-      if (!result.success) {
-        // Stop on first failure
-        return {
-          success: false,
-          action: 'trade_failed',
-          message: `Trade failed: ${result.error}`,
-          completedTrades: results,
-        };
-      }
-    }
-
-    return {
-      success: true,
-      action: 'rebalanced',
-      message: 'Portfolio successfully rebalanced',
-      completedTrades: results,
-      newAllocation: await getCurrentAllocation(input.walletAddress),
-    };
+export const minimalConfig: AgentConfig = {
+  name: 'Agent Name', // Required: Human-readable name
+  version: '1.0.0', // Required: Semantic version
+  description: 'What agent does', // Required: Clear description
+  skills: [mySkill], // Required: At least one skill
+  capabilities: {
+    // Required: Capability flags
+    streaming: false,
+    pushNotifications: false,
+    stateTransitionHistory: false,
   },
-});
+  defaultInputModes: ['application/json'], // Required
+  defaultOutputModes: ['application/json'], // Required
+};
+```
+
+#### **Environment-Driven Configuration**
+
+```ts
+export const agentConfig: AgentConfig = {
+  name: process.env.AGENT_NAME || 'Default Agent Name',
+  version: process.env.AGENT_VERSION || '1.0.0',
+  description: process.env.AGENT_DESCRIPTION || 'A helpful AI agent',
+  skills: [
+    /* your skills */
+  ],
+  url: process.env.AGENT_URL || 'localhost',
+  capabilities: {
+    streaming: process.env.ENABLE_STREAMING === 'true',
+    pushNotifications: process.env.ENABLE_NOTIFICATIONS === 'true',
+    stateTransitionHistory: process.env.ENABLE_HISTORY === 'true',
+  },
+  defaultInputModes: ['application/json'],
+  defaultOutputModes: ['application/json'],
+};
 ```
 
 ---
 
-### 🎨 Advanced Patterns
+### 🏗️ Agent Creation and Runtime Options
 
-#### **Skill Composition**
-
-Building complex capabilities from simpler skills:
+Combine configuration and providers to create your agent:
 
 ```ts
-// Simple skills
-export const swapSkill = defineSkill({
-  id: 'token-swap',
-  tools: [executeSwapWorkflow],
-});
+import { Agent } from 'arbitrum-vibekit-core';
 
-export const lendingSkill = defineSkill({
-  id: 'lending',
-  tools: [supplyTool, borrowTool],
-});
-
-// Composed skill that uses other skills
-export const yieldFarmingSkill = defineSkill({
-  id: 'yield-farming',
-  name: 'Yield Farming',
-  description: 'Automated yield farming strategies',
-  tools: [
-    // Workflow that coordinates swap + lending
-    executeYieldFarmWorkflow,
-  ],
-
-  // Can reference other skills' tools if needed
-  // Or delegate to other agents via A2A
+// Create the agent
+const agent = Agent.create(agentConfig, {
+  // Runtime options
+  cors: process.env.ENABLE_CORS !== 'false',
+  basePath: process.env.BASE_PATH || undefined,
+  llm: {
+    model: providers.openrouter(process.env.LLM_MODEL || 'google/gemini-2.5-flash-preview'),
+  },
 });
 ```
 
-#### **Error Recovery Workflows**
-
-Workflows that handle failures gracefully:
+#### **Runtime Options**
 
 ```ts
-export const robustSwapWorkflow = defineTool({
-  name: 'robustSwapWorkflow',
-  description: 'Execute swap with automatic retry and fallback',
-  handler: async input => {
-    const maxRetries = 3;
-    const fallbackDexes = ['uniswap', 'sushiswap', 'curve'];
+interface AgentRuntimeOptions {
+  cors?: boolean; // Enable CORS headers
+  basePath?: string; // API base path (e.g., '/api/v1')
+  llm: {
+    model: LanguageModel; // LLM model instance
+  };
+}
+```
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      for (const dex of fallbackDexes) {
-        try {
-          const result = await executeSwapOnDex(input, dex);
-          return {
-            success: true,
-            result,
-            dexUsed: dex,
-            attempt: attempt + 1,
-          };
-        } catch (error) {
-          console.warn(`Swap failed on ${dex}, attempt ${attempt + 1}:`, error.message);
+#### **Starting the Agent**
 
-          if (dex === fallbackDexes[fallbackDexes.length - 1] && attempt === maxRetries - 1) {
-            // Last attempt on last DEX
-            return {
-              success: false,
-              error: 'All swap attempts failed',
-              attempts: maxRetries,
-              dexesTried: fallbackDexes,
-              lastError: error.message,
-            };
-          }
-        }
-      }
-    }
+```ts
+// Simple startup
+await agent.start(3000);
+
+// With context provider
+await agent.start(3000, contextProvider);
+
+// With custom startup logic
+const PORT = parseInt(process.env.PORT || '3000', 10);
+
+agent
+  .start(PORT, contextProvider)
+  .then(() => {
+    console.log(`🚀 Agent running on port ${PORT}`);
+    console.log(`📍 Base URL: http://localhost:${PORT}`);
+    console.log(`🤖 Agent Card: http://localhost:${PORT}/.well-known/agent.json`);
+    console.log(`🔌 MCP SSE: http://localhost:${PORT}/sse`);
+  })
+  .catch(error => {
+    console.error('Failed to start agent:', error);
+    process.exit(1);
+  });
+```
+
+---
+
+### 🔌 External MCP Server Configuration
+
+When your agent needs to connect to external MCP servers (like Ember AI), the framework handles client initialization automatically. You just need to:
+
+1. **Set Environment Variables:**
+
+```bash
+# Remote MCP servers
+EMBER_ENDPOINT=@https://api.emberai.xyz/mcp
+ALLORA_ENDPOINT=@http://allora.example.com/mcp
+```
+
+2. **Reference in Skills:**
+
+```ts
+// The framework detects MCP server references in your skills
+// and automatically creates clients for them
+const emberClient = deps.mcpClients['ember']; // Available if EMBER_ENDPOINT is set
+```
+
+3. **Framework Auto-Discovery:**
+   The v2 framework automatically:
+
+- Detects MCP server references in your skills
+- Creates appropriate transport connections (`StreamableHTTPClientTransport` for HTTP endpoints)
+- Initializes clients before calling your context provider
+- Makes them available via `deps.mcpClients['server-name']`
+
+**Transport Configuration (Handled Automatically):**
+
+```ts
+// This is done internally by the framework:
+// const transport = new StreamableHTTPClientTransport(new URL(process.env.EMBER_ENDPOINT));
+// const emberClient = new Client({ name: 'ember', version: '1.0.0' }, { capabilities: {} });
+```
+
+### 🔧 Complete Setup Example
+
+Here's a complete agent setup following best practices:
+
+```ts
+#!/usr/bin/env node
+import 'dotenv/config';
+import { Agent, type AgentConfig, createProviderSelector } from 'arbitrum-vibekit-core';
+import { mySkill } from './skills/mySkill.js';
+import { contextProvider } from './context/provider.js';
+
+// 1. Provider Selection
+const providers = createProviderSelector({
+  openRouterApiKey: process.env.OPENROUTER_API_KEY,
+});
+
+if (!providers.openrouter) {
+  console.error('OpenRouter API key required. Set OPENROUTER_API_KEY environment variable.');
+  process.exit(1);
+}
+
+// 2. Agent Configuration
+export const agentConfig: AgentConfig = {
+  name: process.env.AGENT_NAME || 'My Agent',
+  version: process.env.AGENT_VERSION || '1.0.0',
+  description: process.env.AGENT_DESCRIPTION || 'A helpful AI agent',
+  skills: [mySkill],
+  url: process.env.AGENT_URL || 'localhost',
+  capabilities: {
+    streaming: false,
+    pushNotifications: false,
+    stateTransitionHistory: false,
+  },
+  defaultInputModes: ['application/json'],
+  defaultOutputModes: ['application/json'],
+};
+
+// 3. Agent Creation
+const agent = Agent.create(agentConfig, {
+  cors: process.env.ENABLE_CORS !== 'false',
+  basePath: process.env.BASE_PATH || undefined,
+  llm: {
+    model: providers.openrouter(process.env.LLM_MODEL || 'google/gemini-2.5-flash-preview'),
   },
 });
+
+// 4. Startup
+const PORT = parseInt(process.env.PORT || '3000', 10);
+
+agent
+  .start(PORT, contextProvider)
+  .then(() => {
+    console.log(`🚀 ${agentConfig.name} running on port ${PORT}`);
+    console.log(`📊 Skills: ${agentConfig.skills.map(s => s.name).join(', ')}`);
+    console.log(`🤖 Agent Card: http://localhost:${PORT}/.well-known/agent.json`);
+  })
+  .catch(error => {
+    console.error('Failed to start agent:', error);
+    process.exit(1);
+  });
+```
+
+---
+
+### 🌍 Environment Variables
+
+Standard environment variables for agent configuration:
+
+```bash
+# .env
+# LLM Provider
+OPENROUTER_API_KEY=your_key_here
+LLM_MODEL=google/gemini-2.5-flash-preview
+
+# Agent Identity
+AGENT_NAME=My Custom Agent
+AGENT_VERSION=1.2.0
+AGENT_DESCRIPTION=A specialized agent for specific tasks
+AGENT_URL=https://my-agent.example.com
+
+# Runtime Options
+PORT=3000
+ENABLE_CORS=true
+BASE_PATH=/api/v1
+
+# Feature Flags
+ENABLE_STREAMING=false
+ENABLE_NOTIFICATIONS=false
+ENABLE_HISTORY=false
+
+# Service Dependencies
+EMBER_ENDPOINT=@https://api.emberai.xyz/mcp
+QUICKNODE_API_KEY=your_quicknode_key
+```
+
+---
+
+### 🎯 Best Practices
+
+#### **Provider Selection:**
+
+1. **Use OpenRouter for flexibility** - Access to multiple models
+2. **Environment-driven model selection** - Easy to change models
+3. **Provider availability checks** - Fail fast on missing keys
+4. **Fallback providers** - Redundancy for production
+
+#### **Agent Configuration:**
+
+1. **Environment-driven config** - Flexible deployment
+2. **Semantic versioning** - Clear version tracking
+3. **Descriptive metadata** - Help users understand capabilities
+4. **Conservative capabilities** - Start with minimal features
+
+#### **Error Handling:**
+
+```ts
+// Good: Comprehensive startup validation
+if (!process.env.OPENROUTER_API_KEY) {
+  console.error('Missing required environment variable: OPENROUTER_API_KEY');
+  process.exit(1);
+}
+
+const providers = createProviderSelector({
+  openRouterApiKey: process.env.OPENROUTER_API_KEY,
+});
+
+if (!providers.openrouter) {
+  console.error('Failed to initialize OpenRouter provider');
+  process.exit(1);
+}
 ```
 
 ---
 
 ### ✅ Summary
 
-Effective workflow and skill design requires understanding the trade-offs:
+Proper agent setup requires both provider selection and configuration:
 
-- **Workflow tools** encapsulate multi-step processes that always occur together
-- **Individual tools** provide flexibility for independent operations
-- **LLM orchestration** handles coordination between individual tools
-- **Design patterns** provide proven structures for common scenarios
-- **Mixed approaches** optimize each capability for its specific needs
+- **Provider selection** abstracts LLM access across multiple providers
+- **Agent configuration** defines identity, capabilities, and behavior
+- **Runtime options** control CORS, paths, and LLM model selection
+- **Environment variables** enable flexible, deployment-specific configuration
+- **Error handling** ensures agents fail fast with clear messages
 
-Choose workflow tools for coupled processes, individual tools for independent operations, and let LLM orchestration handle the coordination between them.
+Start with OpenRouter for maximum model flexibility, use environment variables for configuration, and implement comprehensive startup validation.
 
-> "Good design makes common things easy and complex things possible."
+> "Configuration is communication with your future self."
 
-| Pattern                | Use Case             | Benefits                    | Trade-offs            |
-| ---------------------- | -------------------- | --------------------------- | --------------------- |
-| **Workflow Tools**     | Coupled processes    | Reliability, atomicity      | Less flexibility      |
-| **Individual Tools**   | Independent actions  | Flexibility, composability  | Requires coordination |
-| **Single-Tool Skills** | Focused capabilities | Simple, clear               | Limited scope         |
-| **Multi-Tool Skills**  | Complex domains      | Comprehensive               | More complex          |
-| **Utility Skills**     | Support functions    | Performance, predictability | Limited intelligence  |
+| Decision                              | Rationale                                                         |
+| ------------------------------------- | ----------------------------------------------------------------- |
+| **OpenRouter as primary provider**    | Access to multiple LLM providers through single API               |
+| **Environment-driven configuration**  | Enables different settings per deployment environment             |
+| **Required metadata fields**          | Ensures all agents are discoverable and self-documenting          |
+| **Conservative default capabilities** | Prevents unexpected behavior; features opt-in rather than opt-out |
+| **Startup validation**                | Fail-fast approach prevents runtime errors in production          |

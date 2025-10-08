@@ -1,72 +1,77 @@
-# **Lesson 11: Reducers and Immutable Updates**
+# **Lesson 11: Global State and Why It Matters (Legacy)**
 
 ---
 
 ### 🔍 Overview
 
-The global state system uses **Immer**, which makes it easy to write updates that _look_ mutable but are actually safe and immutable under the hood. But as your agent grows, it helps to keep logic modular and predictable.
+Some agents need memory. They may need to track user preferences, conversation history, shared caches, counters, or long-running workflow status.
 
-That’s where **reducers** come in. Inspired by Redux, reducers let you group related update logic into named handlers—so state changes stay readable, testable, and composable.
-
----
-
-### ⚖️ When to Use a Reducer
-
-Use a reducer when:
-
-- A slice of state needs more than one kind of update
-- You want to separate business logic from tool files
-- The same updates are triggered from multiple tools or hooks
+That’s where **global state** comes in. It provides a centralized, mutable store that tools, hooks, and tasks can all read from or write to. State is optional—many tools will remain stateless—but when you need it, it's easy to access and safely update.
 
 ---
 
-### 🌐 Example Reducer
+### 🌀 How State Works
+
+The global state object is created once using `createGlobalStore()` from `arbitrum-vibekit`. It uses **Immer** under the hood, so you can write code that looks imperative, but still updates immutably.
 
 ```ts
-// state/reducers/metrics.ts
-
-export const metricsReducer = {
-  incrementToolCall: (draft, toolName) => {
-    draft.metrics.calls[toolName] ??= 0;
-    draft.metrics.calls[toolName]++;
-  },
-
-  recordLatency: (draft, toolName, ms) => {
-    draft.metrics.latency[toolName] = ms;
-  },
-};
-```
-
-Then in a hook or tool:
-
-```ts
-import { update } from "arbitrum-vibekit/state";
-import { metricsReducer } from "../state/reducers/metrics";
+import { store, update } from "arbitrum-vibekit/state";
 
 update((draft) => {
-  metricsReducer.incrementToolCall(draft, ctx.tool);
+  draft.userCache[ctx.userId] = { seenSymbols: ["ETH", "USDC"] };
 });
+
+const seen = store.userCache[ctx.userId]?.seenSymbols;
 ```
+
+All updates go through the `update()` function, which guarantees consistency and lets you subscribe to changes if needed.
 
 ---
 
-### 🚫 What Not to Do
+### 🚫 What Not to Store
 
-- Avoid giant reducer files that mix unrelated concerns
-- Don’t mutate the `store` object directly—always go through `update()`
-- Don’t hard-code logic into tools if it's reused or state-specific
+Avoid storing:
+
+- Per-request data (that should live in `ctx.meta`)
+- Large documents (use external persistence if needed)
+- Sensitive tokens or secrets (use environment vars)
+
+State should hold **shared, evolving context** that's cheap to keep in memory and safe to replicate.
+
+---
+
+### 📖 Reserved Slices
+
+Some parts of global state are used by the framework to manage LLM interaction and system-level behavior:
+
+- `llm.meta`: internal coordination and system prompt overrides (not included in prompt context)
+- `llm.ctx`: **user-defined prompt context** passed into the LLM
+- `metrics`: call counters and usage analytics
+
+#### LLM Context vs Internal State
+
+- Use `llm.ctx` to pass **select values into the LLM's prompt**—e.g. user roles, preferences, or constraints.
+- Use the rest of global state (like `userCache`, `threadData`) for **agent-side memory**—things the LLM shouldn't or doesn’t need to see.
+
+This separation keeps your prompts lean and relevant, while letting your agent maintain rich internal context across time.
+
+> Only include what the LLM needs to reason about. Leave the rest for the agent.
 
 ---
 
 ### ✅ Summary
 
-Reducers give you modular, declarative control over how state is updated. They help clarify what changed, where, and why—without sacrificing Immer's simplicity.
+- Global state is optional but powerful
+- You can read from `store` or write via `update()`
+- Immer lets you mutate safely and ergonomically
+- Avoid using global state as a dumping ground—treat it like a shared memory map
 
-> "Reducers let you name your intent. Not just change your state."
+> "Stateless tools run fast. Stateful tools run deep."
 
-| Decision                                | Rationale                                                                                                                      |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Redux-style slice reducers**          | Groups related update functions, so state-change intent is named and reusable instead of scattered anonymous `update()` calls. |
-| **Keep reducers in `/state/reducers/`** | Physically separates business updates from tool code, aiding unit testing and code-ownership boundaries.                       |
-| **Immer draft passed in**               | Lets reducers write intuitive `draft.foo++` code while preserving immutability for time-travel and replay.                     |
-| **Call reducers from hooks/tools**      | Encourages thin call-sites and central logic, avoiding copy-pasted `update()` blocks in multiple files.                        |
+| Decision                                               | Rationale                                                                                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Immer via `update()`**                               | Empowers junior developers to write “mutable” code that remains immutable under the hood, supporting time-travel and safe concurrency.                        |
+| **Reserved slices (`llm.meta`, `llm.ctx`, `metrics`)** | Separates system prompts (`llm.meta`) from user-shown prompt context (`llm.ctx`) and metric counters, preventing accidental context bloat or name collisions. |
+| **Clear read vs write APIs**                           | Enforces reading from `store` and writing via `update()`, avoiding direct mutations and ensuring state changes are logged and traceable.                      |
+| **Task vs Global state boundary**                      | Guards against misuse: per-call or per-task data stays in task state, while global state holds shared, long-lived context.                                    |
+| **Prompt hygiene reminder**                            | Explicitly warns to include only necessary data in `llm.ctx`, preserving token budget and model performance.                                                  |

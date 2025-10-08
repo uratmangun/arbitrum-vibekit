@@ -1,78 +1,72 @@
-# **Lesson 14: Monetization with x402**
+# **Lesson 14: Long-Running Tasks and Loops (Legacy)**
 
 ---
 
 ### 🔍 Overview
 
-Some tools or services your agent provides may be worth charging for—either with flat fees or as a percentage of something like a swap amount. The framework uses the emerging **x402** protocol to make this simple and compatible with major LLM and agent ecosystems.
+Not every tool runs once and returns. Some workflows need to run over time: indexing a stream, polling a service, sending periodic updates, or maintaining stateful coordination across agents.
 
-x402 allows any tool call to require payment before continuing. The protocol is transparent, LLM-friendly, and works cleanly with retries and signatures.
+This is where **long-running tasks and loops** come in. The framework gives you simple helpers to start, track, and stop these kinds of processes using A2A and shared task state.
 
 ---
 
-### 💰 The withPaywall Decorator
+### 🔁 Looping with A2A Tasks
 
-To require payment for a tool, wrap it in `withPaywall()`:
+Loops are implemented as recurring A2A tasks. Instead of scheduling with cron or external timers, the agent can:
+
+1. Start a loop by registering a task with `createLoopTask()`
+2. Execute the task at a fixed interval
+3. Use `ctx.setTaskState()` to track progress or emit events
+4. Stop the loop by cancelling the task thread
 
 ```ts
-import { withPaywall } from "arbitrum-vibekit/paywall";
-import { someTool } from "./someTool";
+import { createLoopTask } from "arbitrum-vibekit/a2a";
 
-export default withPaywall(someTool, { flat: 0.05 }); // $0.05 USD
+export default async function startHeartbeat(ctx) {
+  createLoopTask("heartbeat", 10, async () => {
+    ctx.setTaskState({ timestamp: Date.now() });
+  });
+  return { ok: true };
+}
 ```
 
-You can also charge a percentage:
+---
+
+### 📦 Task State for Long Workflows
+
+Any A2A task has a `threadId` and an optional `task state`. You can read and write it using:
 
 ```ts
-export default withPaywall(someTool, { pct: 0.01 }); // 1% of amountUsd
+const state = await ctx.getTaskState();
+ctx.setTaskState({ ...state, step: "phase-2" });
 ```
 
-This ensures the tool doesn’t run unless the request includes a valid x402 payment header.
+This is useful for:
+
+- Progress tracking
+- Conversation memory
+- Event coordination
+- Resumable agents
 
 ---
 
-### ⛔ If Payment is Missing
+### ⛔ What Not to Do
 
-If a user calls a paywalled tool without payment:
-
-- The decorator throws an `AgentError` with code `PaymentRequired`
-- The response includes an `x-paylink` header with a payment link
-- The caller can pay, then retry with `x402-paid: true`
-
-This model supports:
-
-- Human confirmation flows ("Sign to continue")
-- Agent-to-agent delegation with cost forwarding
-- Full retry semantics
-
----
-
-### 💳 How Fees Are Calculated
-
-The decorator uses these fields from `ctx.args`:
-
-- `amountUsd`: used for percentage calculations
-- Optional custom logic can be inserted by wrapping `withPaywall` in another function
-
----
-
-### 🚫 What Not to Do
-
-- Don’t charge users without transparency
-- Don’t hard-code logic when you could reuse the decorator
-- Don’t forget to test both unpaid and paid flows
+- Don’t use global state for per-task data
+- Don’t forget to cancel loops when they’re no longer needed
+- Don’t assume all tasks run forever—design them to exit cleanly
 
 ---
 
 ### ✅ Summary
 
-x402 lets you charge for value in a composable, agent-friendly way. Use `withPaywall()` to wrap tools and let the protocol handle payment enforcement.
+Long-running tasks give agents memory, persistence, and the ability to act over time. Loops are just one example—but the real power comes from treating agents as workers that coordinate across tasks.
 
-> "You don’t need a business model for every tool. Just the ones that deliver value."
+> "A good agent doesn’t just answer. It remembers. It returns. It evolves."
 
-| Decision                              | Rationale                                                                                                 |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **`withPaywall()` decorator**         | Guarantees payment check occurs before any hooks/logic; tool authors can’t accidentally skip the fee.     |
-| **Flat or % fee signature**           | Fits most SaaS or swap-style pricing without bloating API surface.                                        |
-| **Returns `402` + `x-paylink`**       | Aligns with emerging industry standard; LLMs or agents know immediately how to settle and retry.          |
-| **Fee computed from `amountUsd` arg** | Keeps business maths outside decorator, yet lets decorator remain generic; encourages clear param naming. |
+| Decision                                 | Rationale                                                                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **`createLoopTask(threadId, interval)`** | Abstracts `setInterval` + task state wiring; avoids ad-hoc timers scattered through tools.                      |
+| **Store progress in per-task state**     | Keeps memory local to the task, preventing global pollution and enabling multiple concurrent loops safely.      |
+| **Use A2A streaming for heartbeat**      | Leverages built-in SSE, giving real-time feedback to UIs or coordinating agents without inventing new channels. |
+| **Explicit cancel flow**                 | Encourages graceful shutdown, so loops don’t become zombie timers after agent redeploys.                        |

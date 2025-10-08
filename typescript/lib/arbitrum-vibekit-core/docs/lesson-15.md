@@ -1,254 +1,310 @@
-# **Lesson 15: Observability and Metrics in V2**
+# **Lesson 15: Agent Monetization and Payment Flows**
 
 ---
 
 ### 🔍 Overview
 
-The v2 framework provides comprehensive observability features for monitoring agent health, tracking performance metrics, and debugging agent behavior. Understanding these patterns is crucial for running production agents and maintaining reliable service operations.
+> 📝 **Note:** This lesson provides modern approaches to agent monetization in the v2 framework. While the legacy x402 protocol lesson is still available for reference, this covers practical payment integration patterns.
 
-V2 agents include built-in health endpoints, agent cards for service discovery, and hook-based metrics collection. You can start with lightweight monitoring and scale up to full observability platforms like OpenTelemetry and Grafana.
+Vibekit v2 agents can implement various monetization strategies, from simple API key authentication to advanced payment-per-call models. This lesson covers practical patterns for monetizing your AI agents.
 
 ---
 
-### 🏥 Built-in Health Endpoints
+### 💳 Monetization Strategies
 
-Every v2 agent automatically provides a health endpoint:
+#### **1. API Key / Subscription Model**
 
-```ts
-// GET /health - automatically available
-{
-  "status": "healthy",
-  "timestamp": "2025-01-15T10:30:00Z",
-  "version": "1.2.0",
-  "uptime": 3600,
-  "checks": {
-    "llmProvider": "ok",
-    "mcpServers": "ok",
-    "database": "ok"
-  },
-  "skills": [
-    {
-      "id": "token-swapping",
-      "status": "ready",
-      "lastUsed": "2025-01-15T10:25:00Z"
+```typescript
+// src/hooks/auth.ts
+export const apiKeyAuthHook = createHook({
+  before: async (args, context) => {
+    const apiKey = context.headers?.['x-api-key'];
+
+    if (!apiKey) {
+      throw new Error('API key required');
     }
-  ]
-}
-```
 
-### 🆔 Agent Cards for Service Discovery
+    const subscription = await validateApiKey(apiKey);
 
-V2 agents publish agent cards at `/.well-known/agent.json` for automatic discovery:
+    if (!subscription.active) {
+      throw new Error('Subscription expired');
+    }
 
-```json
-{
-  "name": "Lending Agent",
-  "version": "1.0.0",
-  "description": "A DeFi lending agent for Aave protocol",
-  "skills": [...],
-  "endpoints": {
-    "mcp": "/mcp",
-    "health": "/health"
-  }
-}
-```
+    // Track usage
+    await incrementUsage(apiKey);
 
----
-
-### 📊 Hook-Based Metrics Collection
-
-Use before/after hooks to collect metrics without cluttering business logic:
-
-```ts
-// metrics/hooks.ts
-export const metricsCollector = new Map<string, number>();
-
-export const metricsHook: AfterHook<any> = async (result, context, args) => {
-  const toolName = context.tool || 'unknown';
-  metricsCollector.set(toolName, (metricsCollector.get(toolName) || 0) + 1);
-
-  return result;
-};
+    return args;
+  },
+});
 
 // Apply to tools
-export const instrumentedTool = withHooks(baseTool, {
-  after: [metricsHook, formatResponseHook],
+export const paidTool = withHooks(baseTool, {
+  before: [apiKeyAuthHook],
 });
 ```
 
-### 🛠 Examples of Useful Metrics
+#### **2. Pay-Per-Use Model**
 
-**Performance Tracking:**
+```typescript
+// src/hooks/payment.ts
+export const paymentHook = createHook({
+  before: async (args, context) => {
+    const paymentId = context.headers?.['x-payment-id'];
 
-- Tool execution time and success rates
-- LLM request latency and token usage
-- MCP server response times
-- Hook execution overhead
+    if (!paymentId) {
+      throw new Error('Payment required');
+    }
 
-**Business Metrics:**
-
-- Skill usage patterns and popular capabilities
-- Transaction success rates and error types
-- User interaction patterns
-- Resource utilization
-
-**Health Indicators:**
-
-- Error rates by tool and skill
-- External service availability
-- Memory and CPU usage trends
-- Rate limiting and throttling events
-
----
-
-### 🧪 Production Monitoring Integration
-
-#### **Health Monitoring**
-
-Monitor agent health across your infrastructure:
-
-```ts
-export class HealthMonitor {
-  async checkAllAgents(): Promise<HealthReport[]> {
-    const agents = this.registry.getAllAgents();
-
-    const healthChecks = agents.map(async agent => {
-      try {
-        const response = await fetch(`${agent.url}/health`);
-        const health = await response.json();
-
-        return {
-          agent: agent.name,
-          status: health.status,
-          lastCheck: new Date(),
-          uptime: health.uptime,
-          version: health.version,
-        };
-      } catch (error) {
-        return {
-          agent: agent.name,
-          status: 'unreachable',
-          lastCheck: new Date(),
-          error: error.message,
-        };
-      }
+    const payment = await verifyPayment(paymentId, {
+      tool: context.toolName,
+      minAmount: TOOL_PRICES[context.toolName],
     });
 
-    return Promise.all(healthChecks);
-  }
-}
+    if (!payment.verified) {
+      throw new Error('Invalid payment');
+    }
+
+    return { ...args, paymentConfirmed: true };
+  },
+});
 ```
 
-#### **Metrics Export**
+#### **3. Token Gating**
 
-Export metrics for external monitoring systems:
+```typescript
+export const tokenGateHook = createHook({
+  before: async (args, context) => {
+    const userAddress = args.walletAddress || context.userAddress;
 
-```ts
-// monitoring/metrics.ts
-export class MetricsCollector {
-  private counters = new Map<string, number>();
-  private gauges = new Map<string, number>();
-  private histograms = new Map<string, number[]>();
+    const balance = await checkTokenBalance(userAddress, ACCESS_TOKEN_ADDRESS);
 
-  increment(name: string, value: number = 1): void {
-    this.counters.set(name, (this.counters.get(name) || 0) + value);
-  }
+    if (balance < MINIMUM_TOKEN_BALANCE) {
+      throw new Error(`Requires ${MINIMUM_TOKEN_BALANCE} tokens to access this feature`);
+    }
 
-  getMetrics(): Record<string, any> {
-    return {
-      counters: Object.fromEntries(this.counters),
-      gauges: Object.fromEntries(this.gauges),
-      histograms: Object.fromEntries(
-        Array.from(this.histograms.entries()).map(([name, values]) => [
-          name,
-          {
-            count: values.length,
-            sum: values.reduce((a, b) => a + b, 0),
-            avg: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0,
-          },
-        ])
-      ),
-      timestamp: new Date().toISOString(),
-    };
-  }
-}
+    return args;
+  },
+});
 ```
 
 ---
 
-### 🔧 Structured Logging
+### 💰 Payment Integration Patterns
 
-Implement structured logging for better observability:
+#### **Crypto Payment Flow**
 
-```ts
-// logging/logger.ts
-import winston from 'winston';
-
-export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  defaultMeta: {
-    service: process.env.AGENT_NAME || 'vibekit-agent',
-    version: process.env.AGENT_VERSION || '1.0.0',
-  },
-  transports: [
-    new winston.transports.Console({
-      format:
-        process.env.NODE_ENV === 'development' ? winston.format.simple() : winston.format.json(),
-    }),
-  ],
+```typescript
+const cryptoPaymentParams = z.object({
+  operation: z.string(),
+  paymentTxHash: z.string(),
 });
 
-// Use in hooks
-export const loggingHook: BeforeHook<any> = async (args, context) => {
-  logger.info('Tool execution started', {
-    tool: context.tool,
-    args: args,
-    skillInput: context.skillInput,
-  });
+export const cryptoPaymentTool: VibkitToolDefinition<typeof cryptoPaymentParams> = {
+  name: 'executeWithPayment',
+  description: 'Execute operation with crypto payment',
+  parameters: cryptoPaymentParams,
+  execute: async (args, context) => {
+    // Verify payment transaction
+    const tx = await context.provider.getTransaction(args.paymentTxHash);
+    const receipt = await tx.wait();
 
-  return args;
+    // Validate payment amount and recipient
+    if (receipt.to !== PAYMENT_RECEIVER_ADDRESS) {
+      throw new Error('Payment sent to wrong address');
+    }
+
+    const paidAmount = tx.value;
+    const requiredAmount = getOperationCost(args.operation);
+
+    if (paidAmount < requiredAmount) {
+      throw new Error('Insufficient payment');
+    }
+
+    // Execute the operation
+    const result = await executeOperation(args.operation);
+
+    return {
+      success: true,
+      result,
+      paymentReceived: paidAmount.toString(),
+    };
+  },
 };
 ```
 
+#### **Fiat Payment Integration**
+
+```typescript
+// Integration with Stripe/payment processor
+export const fiatPaymentHook = createHook({
+  before: async (args, context) => {
+    const sessionId = context.headers?.['stripe-session-id'];
+
+    if (!sessionId) {
+      throw new Error('Payment session required');
+    }
+
+    // Verify with Stripe
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== 'paid') {
+      throw new Error('Payment not completed');
+    }
+
+    return args;
+  },
+});
+```
+
 ---
 
-### ⚠️ Best Practices
+### 📊 Usage Tracking and Analytics
 
-**Do:**
+#### **Metered Billing**
 
-- Use hooks for automatic metrics collection
-- Monitor both business and technical metrics
-- Include correlation IDs for tracing
-- Set up alerting on critical metrics
-- Use structured logging in production
+```typescript
+interface UsageRecord {
+  userId: string;
+  toolName: string;
+  timestamp: number;
+  cost: number;
+}
 
-**Don't:**
+export const meteringHook = createHook({
+  before: async (args, context) => {
+    const userId = getUserId(context);
+    const cost = TOOL_PRICES[context.toolName] || 0;
 
-- Log sensitive data (private keys, personal info)
-- Block execution for metrics collection
-- Hard-code metric names - use constants
-- Ignore error rates and latency trends
-- Over-instrument - focus on key indicators
+    // Record usage
+    await recordUsage({
+      userId,
+      toolName: context.toolName,
+      timestamp: Date.now(),
+      cost,
+    });
+
+    return args;
+  },
+  after: async (result, args, context) => {
+    // Update metrics
+    await updateUserMetrics(getUserId(context), {
+      successfulCalls: 1,
+      totalSpent: TOOL_PRICES[context.toolName],
+    });
+
+    return result;
+  },
+});
+```
+
+#### **Rate Limiting by Tier**
+
+```typescript
+export const rateLimitHook = createHook({
+  before: async (args, context) => {
+    const userId = getUserId(context);
+    const tier = await getUserTier(userId);
+
+    const limits = {
+      free: { callsPerMinute: 10, callsPerDay: 100 },
+      pro: { callsPerMinute: 100, callsPerDay: 10000 },
+      enterprise: { callsPerMinute: 1000, callsPerDay: 100000 },
+    };
+
+    const userLimit = limits[tier];
+    const usage = await getRecentUsage(userId);
+
+    if (usage.lastMinute >= userLimit.callsPerMinute) {
+      throw new Error('Rate limit exceeded for your tier');
+    }
+
+    if (usage.today >= userLimit.callsPerDay) {
+      throw new Error('Daily limit exceeded');
+    }
+
+    return args;
+  },
+});
+```
 
 ---
 
-### ✅ Summary
+### 🔐 Secure Payment Handling
 
-V2 observability is built around health endpoints, agent cards, and hook-based metrics. The framework provides production-ready monitoring out of the box, with clean patterns for extending to full observability platforms.
+#### **Payment Signature Verification**
 
-Start with built-in health checks and hook-based metrics, then integrate with monitoring systems as your agent ecosystem grows.
+```typescript
+import { verifyMessage } from 'ethers';
 
-> "Observable agents are reliable agents. If you can't measure it, you can't improve it."
+export const signatureVerificationHook = createHook({
+  before: async (args, context) => {
+    const { message, signature, signerAddress } = args;
 
-| Feature                       | Benefit                            | Use Case                  |
-| ----------------------------- | ---------------------------------- | ------------------------- |
-| **Built-in health endpoints** | Zero-config monitoring             | Basic health checks       |
-| **Agent cards**               | Service discovery and metadata     | Multi-agent orchestration |
-| **Hook-based metrics**        | Non-intrusive performance tracking | Tool and skill monitoring |
-| **Structured logging**        | Searchable, queryable log data     | Debugging and analysis    |
-| **External integration**      | Enterprise monitoring and alerting | Production operations     |
+    // Verify signature
+    const recoveredAddress = verifyMessage(message, signature);
+
+    if (recoveredAddress.toLowerCase() !== signerAddress.toLowerCase()) {
+      throw new Error('Invalid signature');
+    }
+
+    // Verify message contains payment info
+    const paymentData = JSON.parse(message);
+    if (paymentData.amount < MINIMUM_PAYMENT) {
+      throw new Error('Payment amount too low');
+    }
+
+    return args;
+  },
+});
+```
+
+---
+
+### 📈 Revenue Optimization
+
+#### **Dynamic Pricing**
+
+```typescript
+function getDynamicPrice(toolName: string, usage: UsageStats): number {
+  const basePrice = BASE_PRICES[toolName];
+
+  // Increase price during high demand
+  if (usage.currentLoad > 0.8) {
+    return basePrice * 1.5;
+  }
+
+  // Decrease price during low usage
+  if (usage.currentLoad < 0.2) {
+    return basePrice * 0.7;
+  }
+
+  return basePrice;
+}
+
+export const dynamicPricingHook = createHook({
+  before: async (args, context) => {
+    const usage = await getSystemUsage();
+    const price = getDynamicPrice(context.toolName, usage);
+
+    const payment = args.paymentAmount;
+    if (payment < price) {
+      throw new Error(`Current price: ${price}. Paid: ${payment}. Please pay the difference.`);
+    }
+
+    return args;
+  },
+});
+```
+
+---
+
+### 🔗 Related Resources
+
+- [Lesson 9: How Tool Hooks Work](./lesson-09.md)
+- [Lesson 16: Observability and Metrics in V2](./lesson-16.md)
+- [Lesson 19: Agent Validation and Transaction Security](./lesson-19.md)
+- [Lesson 15 (Legacy): Monetization with x402](./lesson-15-legacy.md) - Protocol reference
+
+---
+
+**Next:** [Lesson 16: Observability and Metrics in V2](./lesson-16.md)

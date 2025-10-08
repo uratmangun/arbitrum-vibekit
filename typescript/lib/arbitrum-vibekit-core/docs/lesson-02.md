@@ -1,271 +1,232 @@
-# **Lesson 2: Understanding MCP (Model Context Protocol) in V2**
+# **Lesson 2: Vibe Coding with Vibekit**
 
 ---
 
 ### 🔍 Overview
 
-> 🧩 **Note:** In the v2 framework, MCP serves as the primary interface for LLM integration while internally using the A2A schema for consistency. Skills are exposed as MCP tools, and the modern StreamableHTTP transport provides better performance and reliability than legacy SSE.
+**Vibe coding** is AI-assisted development where you describe what you want in natural language and the AI helps implement it. Instead of memorizing APIs and writing boilerplate, you focus on the "what" and "why" while the AI handles the "how."
 
-MCP (Model Context Protocol) in the v2 framework enables LLMs to interact with agent skills as if they were native tool calls. Unlike exposing individual tools directly, v2 agents expose **skills** as MCP tools - each skill represents a high-level capability that intelligently coordinates multiple internal tools through LLM orchestration.
-
-This design keeps the LLM interface clean while allowing complex multi-tool workflows behind the scenes.
+Vibekit enables you to build DeFi agents through vibe coding. The framework provides templates, pre-built tools for common DeFi operations, and a structured workflow for developing agents collaboratively with AI.
 
 ---
 
-### ⚙️ Key V2 Concepts
+### 🎧 What is Vibe Coding?
 
-- **Skills as MCP Tools**: Each skill becomes a single MCP tool with natural language input
-- **Modern Transport**: StreamableHTTP is default, with legacy SSE support for backwards compatibility
-- **Agent Cards**: Automatic service discovery via `/.well-known/agent.json`
-- **LLM Orchestration**: Skills intelligently route to appropriate internal tools
-- **Schema Generation**: Skills automatically generate MCP schemas from Zod definitions
+Vibe coding represents a paradigm shift in software development:
 
----
-
-### 🧰 V2 MCP Agent Flow
-
-1. **Agent publishes skills as MCP tools** using modern StreamableHTTP transport
-2. **LLM discovers available skills** from the agent's exposed tool schemas
-3. **LLM calls a skill** with natural language input:
-
-   ```json
-   {
-     "name": "lending-operations",
-     "arguments": {
-       "instruction": "I want to supply 100 USDC to earn yield",
-       "walletAddress": "0x123..."
-     }
-   }
-   ```
-
-4. **Skill uses LLM orchestration** to route to appropriate tools internally
-5. **Agent returns structured response** with transaction data or results
+- **Natural Language First**: Describe what you want to build in plain English
+- **Context-Aware AI**: The AI understands your project structure, dependencies, and patterns
+- **Iterative Development**: Quickly prototype and refine agent behaviors
+- **Framework Integration**: Vibekit's structured approach makes AI assistance more effective
 
 ---
 
-### 🏗️ Modern Transport Architecture
+### 🤖 Available Agent Templates
 
-#### **StreamableHTTP (Default)**
+Head to the [agent playground](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates) to explore production-ready templates:
 
-The v2 framework uses StreamableHTTP as the primary transport:
+- **quickstart-agent**: Simple agent to get started quickly
+- **lending-agent**: AAVE lending operations with wallet integration
+- **ember-agent**: Full-featured agent with Ember API integration
+- **wallet-balance-agent**: Query wallet balances and token holdings
+- **allora-price-prediction-agent**: Price prediction using Allora network
+- **langgraph-workflow-agent**: Complex workflows with LangGraph orchestration
 
-```ts
-// Automatically configured in v2 agents
-const agent = Agent.create(agentConfig, {
-  llm: { model: providers.openrouter('google/gemini-2.5-flash') },
+Each template can be customized through natural language prompts to add skills or modify behavior.
+
+---
+
+### 🧰 Key Components
+
+Understanding these components will help you vibe code more effectively:
+
+**Agent Templates**
+
+- Pre-built structure in `typescript/templates/`
+- Includes Dockerfile, config, and testable base agent
+- Start from `quickstart-agent` and customize
+
+**Skills**
+
+- High-level capabilities your agent provides
+- Examples: lending operations, token swaps, price prediction
+- Defined using `defineSkill()` with tools and LLM orchestration
+
+**Tools**
+
+- Internal implementation of specific actions
+- Combined into skills for intelligent coordination
+- Examples: `supplyTool`, `borrowTool`, `swapTool`
+
+**MCP Tools**
+
+- Connect to external services and data sources
+- Examples: Ember API for DeFi execution, Allora for predictions
+- Integrated via MCP client connections
+
+**Scratchpad** (`.vibecode/<BRANCH>/scratchpad.md`)
+
+- Branch-specific development plan and progress tracker
+- Shared between you and the AI during development
+- Contains task breakdowns, decisions, and lessons learned
+
+**Execution Modes**
+
+- **Planner Mode**: Collaboratively design architecture and break down tasks
+- **Executor Mode**: Implement code based on the plan
+- Switch between modes as needed during development
+
+---
+
+### 🔄 Development Workflow
+
+#### **1. Start with Planning**
+
+Use Planner mode to create a development plan:
+
+```
+User: "I want to create an Allora price prediction agent"
+
+AI (Planner): "Let me break this down:
+1. Set up agent template from quickstart
+2. Define price prediction skill
+3. Integrate Allora MCP server
+4. Create prediction tool
+5. Add testing and validation"
+```
+
+Refine the plan before implementation to catch redundant steps early.
+
+#### **2. Iterate with Review**
+
+Sanity check AI suggestions to avoid duplicate work:
+
+```
+User: "Wait, we already have that MCP tool"
+AI: "You're right! I'll use the existing tool instead"
+```
+
+Watch for: literal instruction following, missing context, logic errors, duplicate code.
+
+#### **3. Implement with Tools**
+
+Use Executor mode to build. Combine tools with hooks for clean composition:
+
+```typescript
+const enhancedPredictionTool = withHooks(basePredictionTool, {
+  before: [validateInputHook, fetchMarketDataHook],
+  after: [formatResponseHook, cacheResultHook],
 });
-
-// Exposes MCP at: http://localhost:3000/mcp
-await agent.start(3000);
 ```
 
-#### **Legacy SSE Support**
+#### **4. Test as You Build**
 
-For backwards compatibility with older MCP clients:
+Write tests alongside implementation:
 
-```ts
-// Enable legacy SSE transport
-const runtimeOptions = {
-  enableLegacySseTransport: true, // Adds /sse endpoint
-  llm: { model: selectedModel },
-};
+```typescript
+it('should predict price with valid input', async () => {
+  const result = await agent.executeSkill('price-prediction', {
+    instruction: 'Predict ETH price for next hour',
+  });
 
-// Provides both:
-// - Modern: http://localhost:3000/mcp (StreamableHTTP)
-// - Legacy: http://localhost:3000/sse (Server-Sent Events)
-```
-
-#### **Transport Comparison**
-
-| Feature         | StreamableHTTP (Default)     | SSE (Legacy)            |
-| --------------- | ---------------------------- | ----------------------- |
-| **Performance** | Optimized, bidirectional     | Adequate                |
-| **Reliability** | Built-in retry, backpressure | Manual handling         |
-| **Standards**   | Latest MCP SDK               | Original MCP            |
-| **Use Case**    | New integrations             | Backwards compatibility |
-
----
-
-### 🎯 Skills-Based MCP Pattern
-
-#### **Why Skills Instead of Direct Tools?**
-
-Traditional MCP often exposes many individual tools. V2 uses skills for better organization:
-
-```ts
-// V2 Pattern: Skills as capabilities
-export const lendingSkill = defineSkill({
-  id: 'lending-operations',
-  name: 'Lending Operations',
-  description: 'Perform lending operations on Aave protocol',
-
-  inputSchema: z.object({
-    instruction: z.string().describe('Natural language lending request'),
-    walletAddress: z.string().describe('User wallet address'),
-  }),
-
-  // Internal tools (not exposed to LLM directly)
-  tools: [supplyTool, borrowTool, repayTool, withdrawTool],
-
-  // LLM orchestration handles routing
+  expect(result.success).toBe(true);
+  expect(result.data.prediction).toBeDefined();
 });
 ```
 
-#### **LLM Sees Clean Interface**
+Testing catches: environment variable issues, hardcoded values, missing error handling.
 
-The LLM only sees the skill, not internal complexity:
+#### **5. Debug Conversationally**
 
-```json
-{
-  "name": "lending-operations",
-  "description": "Perform lending operations on Aave protocol",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "instruction": {
-        "type": "string",
-        "description": "Natural language lending request"
-      },
-      "walletAddress": {
-        "type": "string",
-        "description": "User wallet address"
-      }
-    }
-  }
-}
-```
-
-#### **Skill Handles Complexity Internally**
-
-When the LLM calls the skill, it orchestrates tools automatically:
+Fix issues through conversation:
 
 ```
-LLM calls: lending-operations("Supply 1000 USDC then borrow 500 DAI", "0x123...")
-↓
-Skill LLM orchestration:
-1. Analyzes: Two operations needed
-2. Routes to: supplyTool({ token: "USDC", amount: 1000, ... })
-3. Then routes to: borrowTool({ token: "DAI", amount: 500, ... })
-4. Returns: Combined transaction data and status
+User: "The agent is failing with port 3000 already in use"
+AI: "Let me update the Dockerfile to use PORT env var and fix the config"
 ```
 
----
+#### **6. Integrate**
 
-### 🔧 Agent Card & Discovery
+Connect your agent to the Vibekit frontend:
 
-Every v2 agent automatically exposes discoverable metadata:
-
-```json
-// GET /.well-known/agent.json
-{
-  "name": "Lending Agent",
-  "version": "1.0.0",
-  "description": "A DeFi lending agent for Aave protocol",
-  "capabilities": {
-    "streaming": false,
-    "pushNotifications": false,
-    "stateTransitionHistory": false
+```typescript
+// agents-config.ts
+export const agents = [
+  {
+    name: 'Price Prediction Agent',
+    url: 'http://localhost:3001/mcp',
+    skills: ['price-prediction'],
   },
-  "skills": [
-    {
-      "id": "lending-operations",
-      "name": "Lending Operations",
-      "description": "Perform lending operations on Aave protocol",
-      "tags": ["defi", "lending", "aave"],
-      "examples": ["Supply 100 USDC", "Borrow 50 ETH"]
-    }
-  ],
-  "endpoints": {
-    "mcp": "/mcp",
-    "health": "/health"
-  }
-}
-```
-
-This enables:
-
-- **Service Discovery**: Find agents by capability
-- **Integration Planning**: Understand available skills
-- **Health Monitoring**: Check agent status
-- **Version Management**: Track compatibility
-
----
-
-### 🧠 Agent-Orchestration Benefits
-
-#### **Clean LLM Interface**
-
-- Single skill call instead of complex tool orchestration
-- Natural language input reduces prompt engineering
-- LLM doesn't need to understand internal tool relationships
-
-#### **Powerful Internal Coordination**
-
-- Skills can coordinate multiple tools automatically
-- Complex workflows handled transparently
-- Error recovery and validation at skill level
-
-#### **Example: Complex Workflow Made Simple**
-
-```
-// What LLM sees (simple)
-User: "Optimize my DeFi position for maximum yield"
-LLM calls: portfolio-optimization("Optimize my DeFi position for maximum yield", "0x123...")
-
-// What happens internally (complex)
-Skill orchestrates:
-1. getBalancesTool() → Current positions
-2. analyzeYieldTool() → Best opportunities
-3. calculateRebalanceTool() → Optimal moves
-4. executeTradesTool() → Transaction data
-5. Return comprehensive optimization plan
+];
 ```
 
 ---
 
-### ✨ V2 MCP Advantages
+### 💡 Best Practices
 
-- **Simplified Integration**: Skills provide high-level capabilities vs low-level tools
-- **Modern Transport**: StreamableHTTP performance with SSE fallback
-- **Automatic Discovery**: Agent cards enable service discovery
-- **LLM-Friendly**: Natural language input, structured output
-- **Internal Flexibility**: Change tools without breaking MCP interface
-- **Production Ready**: Health checks, monitoring, deployment patterns
+**Effective Prompts:**
+
+- **Be specific**: _"Add error handling for insufficient balance"_ not _"make it better"_
+- **Reference patterns**: _"Follow lending-agent template but add repay functionality"_
+- **Iterate incrementally**: _"First add the supply tool, then we'll add borrow"_
+- **Leverage framework**: _"Use defineSkill with LLM orchestration"_
+
+**Development Practices:**
+
+- Know your framework concepts (skills, tools, hooks)
+- Reference existing agents for patterns
+- Clean up default tools once your own are in place
+- Validate end-to-end before moving forward
+- Use Planner mode when stuck or changing approach
+
+**Quality Practices:**
+
+- Write tests alongside implementation, not after
+- Test frequently as you build
+- Update scratchpad with lessons learned
+- Keep prompt engineering files current
 
 ---
 
-### 🔌 Agent Interoperability
+### 🧠 Prompt Engineering Files
 
-V2 agents act as both MCP servers and clients:
+Vibekit provides AI guidance through rule files:
 
-```ts
-// As MCP server: Exposes skills to LLMs
-agent.start(3000); // Skills available at /mcp
+**Cursor Rules** (`.cursor/rules/`)
 
-// As MCP client: Can call other agents' skills
-const emberClient = deps.mcpClients['ember'];
-const result = await emberClient.callTool('swap-tokens', args);
+- `createVibekitAgent.mdc` - Agent creation guide with best practices
+- `vibeCodingWorkflow.mdc` - Planner/Executor workflow patterns
+- `workspaceRules.mdc` - Monorepo guidelines and standards
+
+**Claude Prompts** (`.claude/`)
+
+- `agents/` - Persona-driven agents for TDD, documentation, features
+- `commands/` - High-level command structures
+- `hooks/` - Development lifecycle scripts
+
+**Example Quick Reference:**
+
+```typescript
+// Creating a new agent:
+1. Copy quickstart-agent template
+2. Define skills using defineSkill({ ... })
+3. Implement tools for operations
+4. Configure LLM provider
+5. Add environment variables
 ```
 
-This enables:
-
-- **LLM Integration**: Primary interface for model interactions
-- **Agent Composition**: Agents calling other agents
-- **Swarm Architectures**: Coordinated multi-agent workflows
+Keep these files updated when you discover new patterns or best practices.
 
 ---
 
-### ✅ Summary
+### 🔗 Related Resources
 
-MCP in the v2 framework provides a modern, skills-based interface for LLM integration. Skills expose high-level capabilities through clean natural language interfaces, while LLM orchestration handles complex internal tool coordination. Modern StreamableHTTP transport provides better performance, with legacy SSE support ensuring backwards compatibility.
+- [Lesson 1: What is an AI Agent](./lesson-01.md) - Foundation concepts
+- [Lesson 3: Understanding MCP](./lesson-03.md) - Protocol integration
+- [Lesson 20: Skills - The v2 Foundation](./lesson-20.md) - Building skills
+- [Agent Templates](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates) - Example implementations
+- [Cursor Rules](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/.cursor/rules) - Prompt engineering files
 
-> "Skills make complexity simple. MCP makes agents accessible."
+---
 
-| Decision                      | Rationale                                                 |
-| ----------------------------- | --------------------------------------------------------- |
-| **Skills as MCP tools**       | Cleaner LLM interface, hides internal complexity          |
-| **StreamableHTTP default**    | Modern transport with better performance and reliability  |
-| **Legacy SSE support**        | Backwards compatibility without holding back architecture |
-| **Agent cards for discovery** | Enables service discovery and integration planning        |
-| **LLM orchestration**         | Intelligent tool routing without exposing complexity      |
-| **Natural language input**    | Reduces prompt engineering, more intuitive for LLMs       |
+**Next:** [Lesson 3: Understanding MCP (Model Context Protocol) in V2](./lesson-03.md)

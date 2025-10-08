@@ -1,126 +1,54 @@
-# **Lesson 25: Modern Transport and Service Discovery**
+# **Lesson 25: Production Deployment and Configuration**
 
 ---
 
 ### 🔍 Overview
 
-The v2 framework introduces a modern transport architecture that provides better performance, reliability, and service discovery capabilities. Understanding the transport layer, agent cards, and service discovery patterns is crucial for building production-ready agents that can be easily integrated and monitored.
+Deploying agents to production requires careful consideration of configuration management, service discovery, monitoring, and security. The v2 framework provides built-in features for production deployment, including agent cards, health endpoints, and flexible configuration patterns.
 
-This lesson covers the StreamableHTTP transport, backwards compatibility with SSE, agent cards for service discovery, and integration patterns with external systems.
+Understanding production deployment patterns, environment management, and operational concerns is crucial for running reliable agents that can be discovered and integrated by other systems.
 
----
-
-### 🚀 Modern Transport Architecture
-
-#### **StreamableHTTP Transport (Default)**
-
-The v2 framework uses StreamableHTTP as the primary MCP transport, providing significant improvements over legacy SSE:
-
-```ts
-// Automatically configured with modern transport
-const agent = Agent.create(agentConfig, {
-  llm: { model: providers.openrouter('x-ai/grok-3-mini') },
-});
-
-// Exposes modern MCP endpoint at /mcp
-await agent.start(3000);
-console.log('Modern MCP available at: http://localhost:3000/mcp');
-```
-
-#### **StreamableHTTP Benefits**
-
-- **Better Performance**: Optimized request/response cycles
-- **Bidirectional Communication**: Full duplex communication
-- **Built-in Backpressure**: Automatic flow control
-- **Error Recovery**: Robust retry mechanisms
-- **Standard Compliance**: Latest MCP SDK implementation
-
-#### **Legacy SSE Support**
-
-For backwards compatibility with older MCP clients:
-
-```ts
-const runtimeOptions = {
-  // Enable legacy transport alongside modern
-  enableLegacySseTransport: true,
-  llm: { model: selectedModel },
-};
-
-const agent = Agent.create(agentConfig, runtimeOptions);
-await agent.start(3000);
-
-// Now provides both endpoints:
-// Modern:  http://localhost:3000/mcp  (StreamableHTTP)
-// Legacy:  http://localhost:3000/sse  (Server-Sent Events)
-```
+This lesson covers production-ready deployment practices, monitoring, and the operational aspects of running v2 agents.
 
 ---
 
-### 🆔 Agent Cards & Service Discovery
+### 🌐 Agent Cards and Service Discovery
 
-Every v2 agent automatically publishes an agent card for service discovery:
-
-#### **Agent Card Structure**
+Every v2 agent automatically exposes an agent card at `/.well-known/agent.json` that describes its capabilities:
 
 ```json
-// GET /.well-known/agent.json
 {
-  "name": "Multi-Skill DeFi Agent",
-  "version": "1.2.0",
-  "description": "Unified DeFi agent supporting swapping, lending, and liquidity operations",
+  "name": "Lending Agent",
+  "version": "1.0.0",
+  "description": "A DeFi lending agent for Aave protocol",
   "url": "https://api.myagent.com",
   "capabilities": {
-    "streaming": true,
+    "streaming": false,
     "pushNotifications": false,
-    "stateTransitionHistory": true
+    "stateTransitionHistory": false
   },
   "skills": [
     {
-      "id": "token-swapping",
-      "name": "Token Swapping",
-      "description": "Swap tokens via Camelot DEX on Arbitrum",
-      "tags": ["defi", "swapping", "camelot"],
-      "examples": ["Swap 100 USDC for ETH", "Exchange DAI to USDT"]
-    },
-    {
       "id": "lending-operations",
       "name": "Lending Operations",
-      "description": "Supply, borrow, repay, withdraw via Aave",
+      "description": "Perform lending operations on Aave protocol",
       "tags": ["defi", "lending", "aave"],
-      "examples": ["Supply 1000 USDC", "Borrow 0.5 ETH"]
+      "examples": ["Supply 100 USDC", "Borrow 50 ETH"]
     }
   ],
   "endpoints": {
-    "mcp": "/mcp",
-    "health": "/health",
-    "sse": "/sse"
-  },
-  "metadata": {
-    "supportedChains": ["arbitrum"],
-    "protocols": ["aave", "camelot"],
-    "lastUpdated": "2025-01-15T10:30:00Z"
+    "mcp": "/sse",
+    "health": "/health"
   }
 }
 ```
 
-#### **Agent Card Benefits**
+#### **Service Discovery Integration**
 
-- **Automatic Discovery**: Find agents by capability or protocol
-- **Integration Planning**: Understand available skills before integration
-- **Health Monitoring**: Check agent status and endpoints
-- **Version Management**: Track compatibility and updates
-- **Capability Matching**: Route requests to appropriate agents
-
----
-
-### 🔍 Service Discovery Patterns
-
-#### **Registry-Based Discovery**
-
-Build agent registries for dynamic service discovery:
+Use agent cards for automatic service discovery:
 
 ```ts
-// discovery/AgentRegistry.ts
+// discovery/agentRegistry.ts
 export class AgentRegistry {
   private agents = new Map<string, AgentCard>();
 
@@ -136,10 +64,16 @@ export class AgentRegistry {
         status: 'active',
       });
 
-      console.log(`✅ Registered: ${agentCard.name} at ${url}`);
+      console.log(`Registered agent: ${agentCard.name} at ${url}`);
     } catch (error) {
-      console.error(`❌ Failed to register agent at ${url}:`, error.message);
+      console.error(`Failed to register agent at ${url}:`, error.message);
     }
+  }
+
+  async discoverAgents(urls: string[]): Promise<AgentCard[]> {
+    const discoveries = urls.map(url => this.registerAgent(url));
+    await Promise.allSettled(discoveries);
+    return Array.from(this.agents.values());
   }
 
   findAgentsByCapability(capability: string): AgentCard[] {
@@ -151,273 +85,573 @@ export class AgentRegistry {
       )
     );
   }
-
-  findAgentsByProtocol(protocol: string): AgentCard[] {
-    return Array.from(this.agents.values()).filter(agent =>
-      agent.metadata?.protocols?.includes(protocol)
-    );
-  }
-}
-```
-
-#### **Capability-Based Routing**
-
-Route requests to appropriate agents based on capabilities:
-
-```ts
-// orchestration/CapabilityRouter.ts
-export class CapabilityRouter {
-  constructor(private registry: AgentRegistry) {}
-
-  async routeRequest(capability: string, request: any): Promise<any> {
-    const candidates = this.registry.findAgentsByCapability(capability);
-
-    if (candidates.length === 0) {
-      throw new Error(`No agents found for capability: ${capability}`);
-    }
-
-    // Simple load balancing - pick first healthy agent
-    for (const agent of candidates) {
-      try {
-        const health = await this.checkHealth(agent.url);
-        if (health.status === 'healthy') {
-          return await this.callAgent(agent, request);
-        }
-      } catch (error) {
-        console.warn(`Agent ${agent.name} unhealthy, trying next...`);
-      }
-    }
-
-    throw new Error(`No healthy agents available for: ${capability}`);
-  }
-
-  private async checkHealth(url: string): Promise<HealthStatus> {
-    const response = await fetch(`${url}/health`);
-    return response.json();
-  }
-
-  private async callAgent(agent: AgentCard, request: any): Promise<any> {
-    // Use MCP client to call agent skill
-    const mcpClient = new Client({ name: 'router', version: '1.0.0' }, { capabilities: {} });
-
-    const transport = new StreamableHTTPClientTransport(new URL(`${agent.url}/mcp`));
-
-    await mcpClient.connect(transport);
-    return await mcpClient.callTool(request.skill, request.arguments);
-  }
 }
 ```
 
 ---
 
-### 🌐 Integration Patterns
+### 🔧 Environment Configuration
 
-#### **MCP Client Integration**
+#### **Environment Variable Patterns**
 
-Connect to v2 agents from external systems:
+Organize environment variables by category:
+
+```bash
+# .env.production
+# ================
+# LLM Provider Configuration
+OPENROUTER_API_KEY=sk-or-v1-...
+LLM_MODEL=google/gemini-2.5-flash-preview
+
+# Agent Identity
+AGENT_NAME=Production Lending Agent
+AGENT_VERSION=1.2.3
+AGENT_DESCRIPTION=Production-ready DeFi lending agent for Arbitrum
+AGENT_URL=https://lending-agent.mycompany.com
+
+# Server Configuration
+PORT=3000
+ENABLE_CORS=true
+BASE_PATH=/api/v1
+
+# Feature Flags
+ENABLE_STREAMING=false
+ENABLE_NOTIFICATIONS=true
+ENABLE_HISTORY=true
+ENABLE_ANALYTICS=true
+
+# External Service Dependencies
+EMBER_ENDPOINT=@https://api.emberai.xyz/mcp
+QUICKNODE_API_KEY=qn_...
+ALCHEMY_API_KEY=alch_...
+
+# Security
+JWT_SECRET=your-secure-jwt-secret
+API_RATE_LIMIT=100
+MAX_REQUEST_SIZE=10mb
+
+# Monitoring & Logging
+LOG_LEVEL=info
+METRICS_ENABLED=true
+HEALTH_CHECK_INTERVAL=30000
+
+# Database (if needed)
+DATABASE_URL=postgresql://user:pass@host:port/db
+REDIS_URL=redis://host:port
+```
+
+#### **Configuration Validation**
+
+Validate configuration at startup:
 
 ```ts
-// clients/AgentClient.ts
-export class AgentClient {
-  private client: Client;
-  private transport: StreamableHTTPClientTransport;
+// config/validation.ts
+import { z } from 'zod';
 
-  constructor(private agentUrl: string) {
-    this.transport = new StreamableHTTPClientTransport(new URL(`${agentUrl}/mcp`));
+const configSchema = z.object({
+  // Required configuration
+  OPENROUTER_API_KEY: z.string().min(10),
+  PORT: z
+    .string()
+    .transform(val => parseInt(val, 10))
+    .refine(val => val > 0 && val < 65536),
 
-    this.client = new Client({ name: 'external-client', version: '1.0.0' }, { capabilities: {} });
-  }
+  // Optional with defaults
+  NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  ENABLE_CORS: z
+    .string()
+    .transform(val => val === 'true')
+    .default('true'),
 
-  async connect(): Promise<void> {
-    await this.client.connect(this.transport);
-  }
-
-  async getAgentCard(): Promise<AgentCard> {
-    const response = await fetch(`${this.agentUrl}/.well-known/agent.json`);
-    return response.json();
-  }
-
-  async callSkill(skillId: string, args: any): Promise<any> {
-    return await this.client.callTool(skillId, args);
-  }
-
-  async getAvailableSkills(): Promise<string[]> {
-    const tools = await this.client.listTools();
-    return tools.tools.map(tool => tool.name);
-  }
-
-  async disconnect(): Promise<void> {
-    await this.client.close();
-  }
-}
-
-// Usage
-const client = new AgentClient('http://localhost:3000');
-await client.connect();
-
-const card = await client.getAgentCard();
-console.log(`Connected to: ${card.name} v${card.version}`);
-
-const result = await client.callSkill('token-swapping', {
-  instruction: 'Swap 100 USDC for ETH',
-  walletAddress: '0x123...',
+  // Service dependencies
+  EMBER_ENDPOINT: z.string().optional(),
+  QUICKNODE_API_KEY: z.string().optional(),
 });
+
+export function validateConfig(): z.infer<typeof configSchema> {
+  try {
+    return configSchema.parse(process.env);
+  } catch (error) {
+    console.error('Configuration validation failed:');
+    if (error instanceof z.ZodError) {
+      error.errors.forEach(err => {
+        console.error(`  ${err.path.join('.')}: ${err.message}`);
+      });
+    }
+    process.exit(1);
+  }
+}
+
+// Use in index.ts
+const config = validateConfig();
 ```
 
-#### **Frontend Integration**
+#### **Multi-Environment Setup**
 
-Integrate with web frontends using agent cards:
+Organize configuration files by environment:
+
+```
+config/
+├── .env.development     # Local development
+├── .env.staging        # Staging environment
+├── .env.production     # Production environment
+└── .env.test          # Testing environment
+```
 
 ```ts
-// frontend/AgentIntegration.ts
-export class FrontendAgentManager {
-  private availableAgents: AgentCard[] = [];
+// config/loader.ts
+import 'dotenv/config';
+import path from 'path';
 
-  async discoverAgents(agentUrls: string[]): Promise<void> {
-    const discoveries = agentUrls.map(async url => {
-      try {
-        const response = await fetch(`${url}/.well-known/agent.json`);
-        const card: AgentCard = await response.json();
-        return { ...card, url };
-      } catch (error) {
-        console.warn(`Failed to discover agent at ${url}`);
-        return null;
-      }
-    });
+export function loadEnvironmentConfig(): void {
+  const env = process.env.NODE_ENV || 'development';
+  const configPath = path.join(process.cwd(), `config/.env.${env}`);
 
-    const results = await Promise.allSettled(discoveries);
-    this.availableAgents = results
-      .filter(result => result.status === 'fulfilled' && result.value)
-      .map(result => (result as PromiseFulfilledResult<AgentCard>).value);
-  }
-
-  getAgentsByCapability(tags: string[]): AgentCard[] {
-    return this.availableAgents.filter(agent =>
-      agent.skills.some(skill => tags.some(tag => skill.tags.includes(tag)))
-    );
-  }
-
-  getSkillsForUI(): UISkill[] {
-    return this.availableAgents.flatMap(agent =>
-      agent.skills.map(skill => ({
-        id: skill.id,
-        name: skill.name,
-        description: skill.description,
-        examples: skill.examples,
-        agentName: agent.name,
-        agentUrl: agent.url,
-      }))
-    );
+  try {
+    require('dotenv').config({ path: configPath });
+    console.log(`Loaded configuration for ${env} environment`);
+  } catch (error) {
+    console.warn(`No config file found at ${configPath}, using defaults`);
   }
 }
 ```
 
 ---
 
-### 🔧 Health Monitoring & Observability
+### 🐳 Containerization and Deployment
 
-#### **Built-in Health Endpoints**
+#### **Production Dockerfile**
 
-Every v2 agent provides health monitoring:
+```dockerfile
+# Dockerfile.prod
+FROM node:20-alpine AS builder
+
+# Install dependencies
+WORKDIR /app
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+
+# Build application
+COPY . .
+RUN pnpm build
+
+# Production stage
+FROM node:20-alpine AS production
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S agent -u 1001 -G nodejs
+
+# Install production dependencies only
+WORKDIR /app
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
+RUN npm install -g pnpm && \
+    pnpm install --frozen-lockfile --prod && \
+    pnpm store prune
+
+# Copy built application
+COPY --from=builder --chown=agent:nodejs /app/dist ./dist
+COPY --from=builder --chown=agent:nodejs /app/package.json ./
+
+# Security: run as non-root user
+USER agent
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Expose port
+EXPOSE 3000
+
+# Start application
+CMD ["node", "dist/index.js"]
+```
+
+#### **Docker Compose for Production**
+
+```yaml
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  lending-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    env_file:
+      - config/.env.production
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Optional: Redis for caching
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - '6379:6379'
+
+volumes:
+  redis-data:
+```
+
+---
+
+### 📊 Health Checks and Monitoring
+
+#### **Built-in Health Endpoint**
+
+Every v2 agent includes a health endpoint:
 
 ```ts
-// GET /health
-{
-  "status": "healthy",
-  "timestamp": "2025-01-15T10:30:00Z",
-  "version": "1.2.0",
-  "uptime": 3600,
-  "checks": {
-    "llmProvider": "ok",
-    "mcpServers": "ok",
-    "database": "ok"
-  },
-  "skills": [
-    {
-      "id": "token-swapping",
-      "status": "ready",
-      "lastUsed": "2025-01-15T10:25:00Z"
-    }
-  ]
+// The framework automatically provides /health endpoint
+// You can enhance it with custom health checks
+
+// src/health.ts (optional custom health checks)
+export async function customHealthChecks(): Promise<HealthStatus> {
+  const checks = await Promise.allSettled([
+    checkDatabaseConnection(),
+    checkExternalAPIs(),
+    checkLLMProvider(),
+    checkMCPServers(),
+  ]);
+
+  const failed = checks.filter(check => check.status === 'rejected');
+
+  return {
+    status: failed.length === 0 ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: checks[0].status === 'fulfilled' ? 'ok' : 'error',
+      externalAPIs: checks[1].status === 'fulfilled' ? 'ok' : 'error',
+      llmProvider: checks[2].status === 'fulfilled' ? 'ok' : 'error',
+      mcpServers: checks[3].status === 'fulfilled' ? 'ok' : 'error',
+    },
+    version: process.env.AGENT_VERSION || '1.0.0',
+    uptime: process.uptime(),
+  };
 }
 ```
 
-#### **Monitoring Integration**
+#### **Application Metrics**
 
-Monitor agent health across your infrastructure:
+Collect and expose metrics:
 
 ```ts
-// monitoring/HealthMonitor.ts
-export class HealthMonitor {
-  constructor(private registry: AgentRegistry) {}
+// monitoring/metrics.ts
+export class MetricsCollector {
+  private counters = new Map<string, number>();
+  private gauges = new Map<string, number>();
+  private histograms = new Map<string, number[]>();
 
-  async checkAllAgents(): Promise<HealthReport[]> {
-    const agents = this.registry.getAllAgents();
-
-    const healthChecks = agents.map(async agent => {
-      try {
-        const response = await fetch(`${agent.url}/health`);
-        const health = await response.json();
-
-        return {
-          agent: agent.name,
-          status: health.status,
-          lastCheck: new Date(),
-          uptime: health.uptime,
-          version: health.version,
-        };
-      } catch (error) {
-        return {
-          agent: agent.name,
-          status: 'unreachable',
-          lastCheck: new Date(),
-          error: error.message,
-        };
-      }
-    });
-
-    return Promise.all(healthChecks);
+  increment(name: string, value: number = 1): void {
+    this.counters.set(name, (this.counters.get(name) || 0) + value);
   }
 
-  async getSystemHealth(): Promise<SystemHealth> {
-    const reports = await this.checkAllAgents();
+  gauge(name: string, value: number): void {
+    this.gauges.set(name, value);
+  }
 
-    const healthy = reports.filter(r => r.status === 'healthy').length;
-    const total = reports.length;
+  histogram(name: string, value: number): void {
+    if (!this.histograms.has(name)) {
+      this.histograms.set(name, []);
+    }
+    this.histograms.get(name)!.push(value);
+  }
 
+  getMetrics(): Record<string, any> {
     return {
-      overall: healthy === total ? 'healthy' : 'degraded',
-      agentsTotal: total,
-      agentsHealthy: healthy,
-      agentsUnhealthy: total - healthy,
-      lastCheck: new Date(),
-      reports,
+      counters: Object.fromEntries(this.counters),
+      gauges: Object.fromEntries(this.gauges),
+      histograms: Object.fromEntries(
+        Array.from(this.histograms.entries()).map(([name, values]) => [
+          name,
+          {
+            count: values.length,
+            sum: values.reduce((a, b) => a + b, 0),
+            avg: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0,
+            min: Math.min(...values),
+            max: Math.max(...values),
+          },
+        ])
+      ),
+      timestamp: new Date().toISOString(),
     };
   }
 }
+
+// Use in hooks for automatic metrics collection
+export const metricsCollector = new MetricsCollector();
+```
+
+#### **Structured Logging**
+
+Implement structured logging:
+
+```ts
+// logging/logger.ts
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: {
+    service: 'lending-agent',
+    version: process.env.AGENT_VERSION || '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+  },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(winston.format.colorize(), winston.format.simple()),
+    }),
+    // In production, add file or cloud logging
+    ...(process.env.NODE_ENV === 'production'
+      ? [
+          new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+          new winston.transports.File({ filename: 'logs/combined.log' }),
+        ]
+      : []),
+  ],
+});
+
+export { logger };
+
+// Use in application
+logger.info('Agent starting', { port: 3000, skills: ['lending'] });
+logger.error('Tool execution failed', { tool: 'supplyToken', error: error.message });
+```
+
+---
+
+### 🔒 Security and Rate Limiting
+
+#### **Rate Limiting**
+
+Implement rate limiting for API protection:
+
+```ts
+// security/rateLimiting.ts
+import rateLimit from 'express-rate-limit';
+
+export const createRateLimit = () =>
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: parseInt(process.env.API_RATE_LIMIT || '100'), // requests per window
+    message: {
+      error: 'Too many requests',
+      message: 'Rate limit exceeded. Please try again later.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: req => {
+      // Skip rate limiting for health checks
+      return req.path === '/health' || req.path === '/.well-known/agent.json';
+    },
+  });
+```
+
+#### **Request Validation**
+
+Validate incoming requests:
+
+```ts
+// security/validation.ts
+import { body, validationResult } from 'express-validator';
+
+export const validateToolCall = [
+  body('tool').isString().isLength({ min: 1, max: 100 }),
+  body('arguments').isObject(),
+  body('arguments.walletAddress')
+    .optional()
+    .isEthereumAddress()
+    .withMessage('Invalid Ethereum address'),
+  (req: Request, res: Response, next: NextFunction) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+    next();
+  },
+];
+```
+
+---
+
+### 🚀 Deployment Strategies
+
+#### **Blue-Green Deployment**
+
+```bash
+#!/bin/bash
+# deploy.sh - Blue-green deployment script
+
+set -e
+
+NEW_VERSION=$1
+CURRENT_PORT=$(cat .current-port 2>/dev/null || echo "3000")
+NEW_PORT=$((CURRENT_PORT == 3000 ? 3001 : 3000))
+
+echo "Deploying version $NEW_VERSION to port $NEW_PORT"
+
+# Build and start new version
+docker build -t lending-agent:$NEW_VERSION .
+docker run -d \
+  --name lending-agent-$NEW_PORT \
+  -p $NEW_PORT:3000 \
+  --env-file config/.env.production \
+  lending-agent:$NEW_VERSION
+
+# Health check new version
+echo "Waiting for new version to be healthy..."
+for i in {1..30}; do
+  if curl -f http://localhost:$NEW_PORT/health; then
+    echo "New version is healthy"
+    break
+  fi
+  sleep 2
+done
+
+# Update load balancer to point to new version
+echo "Switching traffic to new version..."
+# Update nginx/load balancer configuration here
+
+# Stop old version
+if [ "$CURRENT_PORT" != "3000" ] || [ "$CURRENT_PORT" != "3001" ]; then
+  echo "Stopping old version on port $CURRENT_PORT"
+  docker stop lending-agent-$CURRENT_PORT || true
+  docker rm lending-agent-$CURRENT_PORT || true
+fi
+
+echo $NEW_PORT > .current-port
+echo "Deployment complete"
+```
+
+#### **Kubernetes Deployment**
+
+```yaml
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lending-agent
+  labels:
+    app: lending-agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: lending-agent
+  template:
+    metadata:
+      labels:
+        app: lending-agent
+    spec:
+      containers:
+        - name: lending-agent
+          image: lending-agent:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: 'production'
+            - name: PORT
+              value: '3000'
+          envFrom:
+            - secretRef:
+                name: lending-agent-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '250m'
+            limits:
+              memory: '512Mi'
+              cpu: '500m'
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lending-agent-service
+spec:
+  selector:
+    app: lending-agent
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: LoadBalancer
 ```
 
 ---
 
 ### ✅ Summary
 
-The v2 framework's modern transport and service discovery features enable:
+Production deployment of v2 agents requires attention to:
 
-- **Modern Performance**: StreamableHTTP transport with legacy SSE fallback
-- **Automatic Discovery**: Agent cards provide service metadata and capabilities
-- **Production Monitoring**: Built-in health checks and observability
-- **Integration Flexibility**: MCP clients, frontend integration, capability routing
-- **Service Architecture**: Registry patterns, load balancing, health monitoring
+- **Agent cards** provide automatic service discovery and capability advertising
+- **Environment configuration** should be validated and organized by deployment stage
+- **Containerization** enables consistent deployment across environments
+- **Health checks** and monitoring ensure operational visibility
+- **Security measures** protect against abuse and validate inputs
+- **Deployment strategies** enable zero-downtime updates
+- **Logging and metrics** provide operational insights
 
-These features make v2 agents production-ready and easily integrated into larger systems.
+Plan for production from the start: use environment variables, implement health checks, and design for observability and scalability.
 
-> "Modern transport makes agents fast. Service discovery makes them findable."
+> "Production readiness is not a destination, it's a practice."
 
-| Feature                | Benefit                         | Use Case                  |
-| ---------------------- | ------------------------------- | ------------------------- |
-| **StreamableHTTP**     | Better performance, reliability | New integrations          |
-| **Legacy SSE**         | Backwards compatibility         | Existing clients          |
-| **Agent Cards**        | Service discovery, metadata     | Registration, routing     |
-| **Health Endpoints**   | Monitoring, observability       | Production operations     |
-| **Capability Routing** | Dynamic service selection       | Multi-agent systems       |
-| **Registry Patterns**  | Centralized discovery           | Infrastructure management |
+| Aspect            | Development        | Production                       |
+| ----------------- | ------------------ | -------------------------------- |
+| **Configuration** | .env files         | Validated env vars + secrets     |
+| **Logging**       | Console output     | Structured logs + aggregation    |
+| **Monitoring**    | Basic health check | Metrics + alerting + dashboards  |
+| **Security**      | Basic validation   | Rate limiting + input validation |
+| **Deployment**    | Manual start       | Automated CI/CD + health checks  |
+| **Scaling**       | Single instance    | Load balanced + auto-scaling     |

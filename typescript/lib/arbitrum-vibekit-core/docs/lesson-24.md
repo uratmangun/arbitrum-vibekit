@@ -1,657 +1,570 @@
-# **Lesson 24: Production Deployment and Configuration**
+# **Lesson 24: Advanced Hooks and Artifacts**
 
 ---
 
 ### 🔍 Overview
 
-Deploying agents to production requires careful consideration of configuration management, service discovery, monitoring, and security. The v2 framework provides built-in features for production deployment, including agent cards, health endpoints, and flexible configuration patterns.
+**Hooks** and **artifacts** are powerful features that enhance the v2 framework beyond basic tool execution. Hooks let you add cross-cutting concerns like validation, logging, and data transformation without cluttering your core business logic. Artifacts enable rich, mixed-content responses that can include code, visualizations, and structured data.
 
-Understanding production deployment patterns, environment management, and operational concerns is crucial for running reliable agents that can be discovered and integrated by other systems.
+Understanding how to leverage hooks for clean architecture and artifacts for enhanced user experiences is crucial for building sophisticated, production-ready agents.
 
-This lesson covers production-ready deployment practices, monitoring, and the operational aspects of running v2 agents.
+This lesson covers advanced hook patterns and artifact creation techniques used in modern template agents.
 
 ---
 
-### 🌐 Agent Cards and Service Discovery
+### 🪝 Advanced Hook Patterns
 
-Every v2 agent automatically exposes an agent card at `/.well-known/agent.json` that describes its capabilities:
+Hooks run before or after tool execution, allowing you to enhance tools without modifying their core implementation:
 
-```json
-{
-  "name": "Lending Agent",
-  "version": "1.0.0",
-  "description": "A DeFi lending agent for Aave protocol",
-  "url": "https://api.myagent.com",
-  "capabilities": {
-    "streaming": false,
-    "pushNotifications": false,
-    "stateTransitionHistory": false
+```ts
+// hooks/index.ts
+import type { ToolContext } from 'arbitrum-vibekit-core';
+
+export const beforeHooks = {
+  toolName: async (context: ToolContext) => {
+    // Runs before tool execution
+    // Can modify context.input
   },
-  "skills": [
-    {
-      "id": "lending-operations",
-      "name": "Lending Operations",
-      "description": "Perform lending operations on Aave protocol",
-      "tags": ["defi", "lending", "aave"],
-      "examples": ["Supply 100 USDC", "Borrow 50 ETH"]
-    }
-  ],
-  "endpoints": {
-    "mcp": "/sse",
-    "health": "/health"
-  }
-}
+};
+
+export const afterHooks = {
+  toolName: async (context: ToolContext) => {
+    // Runs after tool execution
+    // Can modify context.result
+  },
+};
 ```
 
-#### **Service Discovery Integration**
+#### **Data Transformation Hooks**
 
-Use agent cards for automatic service discovery:
+Transform input/output data to match different interfaces:
 
 ```ts
-// discovery/agentRegistry.ts
-export class AgentRegistry {
-  private agents = new Map<string, AgentCard>();
+// hooks/pricePredictionHooks.ts
+export const beforeHooks = {
+  getPricePrediction: async (context: ToolContext) => {
+    // Transform natural language to structured input
+    const { input } = context;
 
-  async registerAgent(url: string): Promise<void> {
-    try {
-      const response = await fetch(`${url}/.well-known/agent.json`);
-      const agentCard: AgentCard = await response.json();
+    // Extract token from natural language
+    const tokenMatch = input.message.match(/\b(BTC|ETH|USDC|USDT)\b/i);
+    if (tokenMatch) {
+      context.input.token = tokenMatch[0].toUpperCase();
+    }
 
-      this.agents.set(agentCard.name, {
-        ...agentCard,
-        url,
-        lastSeen: new Date(),
-        status: 'active',
+    // Extract timeframe
+    const timeframeMatch = input.message.match(/(\d+)\s*(hour|day|week)s?/i);
+    if (timeframeMatch) {
+      context.input.timeframe = `${timeframeMatch[1]}${timeframeMatch[2][0].toLowerCase()}`;
+    }
+
+    console.log('[Hook] Transformed input:', context.input);
+  },
+};
+
+export const afterHooks = {
+  getPricePrediction: async (context: ToolContext) => {
+    // Enhance response with formatting and emojis
+    if (context.result && typeof context.result === 'object') {
+      const prediction = context.result as any;
+
+      context.result = {
+        ...prediction,
+        formatted:
+          `📈 **${prediction.token} Price Prediction**\n\n` +
+          `🔮 Predicted Price: $${prediction.price}\n` +
+          `📊 Confidence: ${prediction.confidence}%\n` +
+          `⏱️ Timeframe: ${prediction.timeframe}\n` +
+          `📅 Updated: ${new Date().toLocaleString()}`,
+      };
+    }
+  },
+};
+```
+
+#### **Validation and Security Hooks**
+
+Implement validation and security checks:
+
+```ts
+// hooks/securityHooks.ts
+export const beforeHooks = {
+  supplyToken: async (context: ToolContext) => {
+    const { walletAddress, amount, token } = context.input;
+
+    // Validate wallet address format
+    if (!isValidEthereumAddress(walletAddress)) {
+      throw new VibkitError('InvalidWallet', 'Invalid Ethereum wallet address');
+    }
+
+    // Check amount limits
+    if (amount <= 0) {
+      throw new VibkitError('InvalidAmount', 'Amount must be positive');
+    }
+
+    if (amount > 1000000) {
+      throw new VibkitError('AmountTooLarge', 'Amount exceeds maximum limit');
+    }
+
+    // Validate token is supported
+    const supportedTokens = ['USDC', 'ETH', 'USDT', 'DAI'];
+    if (!supportedTokens.includes(token.toUpperCase())) {
+      throw new VibkitError('UnsupportedToken', `Token ${token} is not supported`);
+    }
+
+    console.log('[Security] Validation passed for supply operation');
+  },
+
+  borrowToken: async (context: ToolContext) => {
+    // Additional checks for borrowing
+    const { walletAddress, amount } = context.input;
+
+    // Check user's collateral ratio
+    const collateralRatio = await checkCollateralRatio(walletAddress);
+    if (collateralRatio < 1.5) {
+      throw new VibkitError('InsufficientCollateral', 'Insufficient collateral for borrowing');
+    }
+
+    console.log('[Security] Collateral check passed');
+  },
+};
+```
+
+#### **Caching and Performance Hooks**
+
+Implement caching to improve performance:
+
+```ts
+// hooks/cachingHooks.ts
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const beforeHooks = {
+  getTokenPrice: async (context: ToolContext) => {
+    const cacheKey = `price_${context.input.token}`;
+    const cached = cache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      // Return cached result and skip tool execution
+      context.result = cached.data;
+      context.skipExecution = true;
+      console.log('[Cache] Using cached price data');
+    }
+  },
+};
+
+export const afterHooks = {
+  getTokenPrice: async (context: ToolContext) => {
+    // Cache successful results
+    if (context.result && !context.result.error) {
+      const cacheKey = `price_${context.input.token}`;
+      cache.set(cacheKey, {
+        data: context.result,
+        timestamp: Date.now(),
       });
-
-      console.log(`Registered agent: ${agentCard.name} at ${url}`);
-    } catch (error) {
-      console.error(`Failed to register agent at ${url}:`, error.message);
+      console.log('[Cache] Cached price data');
     }
-  }
-
-  async discoverAgents(urls: string[]): Promise<AgentCard[]> {
-    const discoveries = urls.map(url => this.registerAgent(url));
-    await Promise.allSettled(discoveries);
-    return Array.from(this.agents.values());
-  }
-
-  findAgentsByCapability(capability: string): AgentCard[] {
-    return Array.from(this.agents.values()).filter(agent =>
-      agent.skills.some(
-        skill =>
-          skill.tags.includes(capability) ||
-          skill.description.toLowerCase().includes(capability.toLowerCase())
-      )
-    );
-  }
-}
+  },
+};
 ```
 
----
+#### **Logging and Analytics Hooks**
 
-### 🔧 Environment Configuration
-
-#### **Environment Variable Patterns**
-
-Organize environment variables by category:
-
-```bash
-# .env.production
-# ================
-# LLM Provider Configuration
-OPENROUTER_API_KEY=sk-or-v1-...
-LLM_MODEL=google/gemini-2.5-flash-preview
-
-# Agent Identity
-AGENT_NAME=Production Lending Agent
-AGENT_VERSION=1.2.3
-AGENT_DESCRIPTION=Production-ready DeFi lending agent for Arbitrum
-AGENT_URL=https://lending-agent.mycompany.com
-
-# Server Configuration
-PORT=3000
-ENABLE_CORS=true
-BASE_PATH=/api/v1
-
-# Feature Flags
-ENABLE_STREAMING=false
-ENABLE_NOTIFICATIONS=true
-ENABLE_HISTORY=true
-ENABLE_ANALYTICS=true
-
-# External Service Dependencies
-EMBER_ENDPOINT=@https://api.emberai.xyz/mcp
-QUICKNODE_API_KEY=qn_...
-ALCHEMY_API_KEY=alch_...
-
-# Security
-JWT_SECRET=your-secure-jwt-secret
-API_RATE_LIMIT=100
-MAX_REQUEST_SIZE=10mb
-
-# Monitoring & Logging
-LOG_LEVEL=info
-METRICS_ENABLED=true
-HEALTH_CHECK_INTERVAL=30000
-
-# Database (if needed)
-DATABASE_URL=postgresql://user:pass@host:port/db
-REDIS_URL=redis://host:port
-```
-
-#### **Configuration Validation**
-
-Validate configuration at startup:
+Track usage and performance:
 
 ```ts
-// config/validation.ts
-import { z } from 'zod';
-
-const configSchema = z.object({
-  // Required configuration
-  OPENROUTER_API_KEY: z.string().min(10),
-  PORT: z
-    .string()
-    .transform(val => parseInt(val, 10))
-    .refine(val => val > 0 && val < 65536),
-
-  // Optional with defaults
-  NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
-  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  ENABLE_CORS: z
-    .string()
-    .transform(val => val === 'true')
-    .default('true'),
-
-  // Service dependencies
-  EMBER_ENDPOINT: z.string().optional(),
-  QUICKNODE_API_KEY: z.string().optional(),
-});
-
-export function validateConfig(): z.infer<typeof configSchema> {
-  try {
-    return configSchema.parse(process.env);
-  } catch (error) {
-    console.error('Configuration validation failed:');
-    if (error instanceof z.ZodError) {
-      error.errors.forEach(err => {
-        console.error(`  ${err.path.join('.')}: ${err.message}`);
-      });
-    }
-    process.exit(1);
-  }
-}
-
-// Use in index.ts
-const config = validateConfig();
-```
-
-#### **Multi-Environment Setup**
-
-Organize configuration files by environment:
-
-```
-config/
-├── .env.development     # Local development
-├── .env.staging        # Staging environment
-├── .env.production     # Production environment
-└── .env.test          # Testing environment
-```
-
-```ts
-// config/loader.ts
-import 'dotenv/config';
-import path from 'path';
-
-export function loadEnvironmentConfig(): void {
-  const env = process.env.NODE_ENV || 'development';
-  const configPath = path.join(process.cwd(), `config/.env.${env}`);
-
-  try {
-    require('dotenv').config({ path: configPath });
-    console.log(`Loaded configuration for ${env} environment`);
-  } catch (error) {
-    console.warn(`No config file found at ${configPath}, using defaults`);
-  }
-}
-```
-
----
-
-### 🐳 Containerization and Deployment
-
-#### **Production Dockerfile**
-
-```dockerfile
-# Dockerfile.prod
-FROM node:20-alpine AS builder
-
-# Install dependencies
-WORKDIR /app
-COPY package*.json ./
-COPY pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
-
-# Build application
-COPY . .
-RUN pnpm build
-
-# Production stage
-FROM node:20-alpine AS production
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S agent -u 1001 -G nodejs
-
-# Install production dependencies only
-WORKDIR /app
-COPY package*.json ./
-COPY pnpm-lock.yaml ./
-RUN npm install -g pnpm && \
-    pnpm install --frozen-lockfile --prod && \
-    pnpm store prune
-
-# Copy built application
-COPY --from=builder --chown=agent:nodejs /app/dist ./dist
-COPY --from=builder --chown=agent:nodejs /app/package.json ./
-
-# Security: run as non-root user
-USER agent
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
-
-# Expose port
-EXPOSE 3000
-
-# Start application
-CMD ["node", "dist/index.js"]
-```
-
-#### **Docker Compose for Production**
-
-```yaml
-# docker-compose.prod.yml
-version: '3.8'
-
-services:
-  lending-agent:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
-    ports:
-      - '3000:3000'
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-    env_file:
-      - config/.env.production
-    restart: unless-stopped
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 256M
-          cpus: '0.25'
-
-  # Optional: Redis for caching
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-    ports:
-      - '6379:6379'
-
-volumes:
-  redis-data:
-```
-
----
-
-### 📊 Health Checks and Monitoring
-
-#### **Built-in Health Endpoint**
-
-Every v2 agent includes a health endpoint:
-
-```ts
-// The framework automatically provides /health endpoint
-// You can enhance it with custom health checks
-
-// src/health.ts (optional custom health checks)
-export async function customHealthChecks(): Promise<HealthStatus> {
-  const checks = await Promise.allSettled([
-    checkDatabaseConnection(),
-    checkExternalAPIs(),
-    checkLLMProvider(),
-    checkMCPServers(),
-  ]);
-
-  const failed = checks.filter(check => check.status === 'rejected');
-
-  return {
-    status: failed.length === 0 ? 'healthy' : 'unhealthy',
-    timestamp: new Date().toISOString(),
-    checks: {
-      database: checks[0].status === 'fulfilled' ? 'ok' : 'error',
-      externalAPIs: checks[1].status === 'fulfilled' ? 'ok' : 'error',
-      llmProvider: checks[2].status === 'fulfilled' ? 'ok' : 'error',
-      mcpServers: checks[3].status === 'fulfilled' ? 'ok' : 'error',
-    },
-    version: process.env.AGENT_VERSION || '1.0.0',
-    uptime: process.uptime(),
-  };
-}
-```
-
-#### **Application Metrics**
-
-Collect and expose metrics:
-
-```ts
-// monitoring/metrics.ts
-export class MetricsCollector {
-  private counters = new Map<string, number>();
-  private gauges = new Map<string, number>();
-  private histograms = new Map<string, number[]>();
-
-  increment(name: string, value: number = 1): void {
-    this.counters.set(name, (this.counters.get(name) || 0) + value);
-  }
-
-  gauge(name: string, value: number): void {
-    this.gauges.set(name, value);
-  }
-
-  histogram(name: string, value: number): void {
-    if (!this.histograms.has(name)) {
-      this.histograms.set(name, []);
-    }
-    this.histograms.get(name)!.push(value);
-  }
-
-  getMetrics(): Record<string, any> {
-    return {
-      counters: Object.fromEntries(this.counters),
-      gauges: Object.fromEntries(this.gauges),
-      histograms: Object.fromEntries(
-        Array.from(this.histograms.entries()).map(([name, values]) => [
-          name,
-          {
-            count: values.length,
-            sum: values.reduce((a, b) => a + b, 0),
-            avg: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0,
-            min: Math.min(...values),
-            max: Math.max(...values),
-          },
-        ])
-      ),
+// hooks/analyticsHooks.ts
+export const beforeHooks = {
+  // Apply to all tools using wildcard pattern
+  '*': async (context: ToolContext) => {
+    context.startTime = Date.now();
+    console.log(`[Analytics] Tool ${context.toolName} started`, {
+      input: context.input,
       timestamp: new Date().toISOString(),
-    };
-  }
-}
+    });
+  },
+};
 
-// Use in hooks for automatic metrics collection
-export const metricsCollector = new MetricsCollector();
+export const afterHooks = {
+  '*': async (context: ToolContext) => {
+    const duration = Date.now() - (context.startTime || 0);
+    const success = !context.result?.error;
+
+    // Log to analytics service
+    await logToolUsage({
+      toolName: context.toolName,
+      duration,
+      success,
+      inputSize: JSON.stringify(context.input).length,
+      outputSize: JSON.stringify(context.result).length,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(`[Analytics] Tool ${context.toolName} completed in ${duration}ms`);
+  },
+};
 ```
 
-#### **Structured Logging**
+---
 
-Implement structured logging:
+### 🎨 Artifacts: Rich Response Content
+
+Artifacts enable you to return rich, mixed-content responses that enhance the user experience:
 
 ```ts
-// logging/logger.ts
-import winston from 'winston';
+import { createArtifact, createSuccessTask } from 'arbitrum-vibekit-core';
 
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  defaultMeta: {
-    service: 'lending-agent',
-    version: process.env.AGENT_VERSION || '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
-  },
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(winston.format.colorize(), winston.format.simple()),
-    }),
-    // In production, add file or cloud logging
-    ...(process.env.NODE_ENV === 'production'
-      ? [
-          new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-          new winston.transports.File({ filename: 'logs/combined.log' }),
-        ]
-      : []),
+// Create an artifact with mixed content
+const artifact = createArtifact(
+  [
+    { kind: 'text', text: 'Portfolio Analysis Results' },
+    { kind: 'text', text: '\n\n**Current Holdings:**\n' },
+    { kind: 'text', text: `• ETH: ${balances.ETH} ($${values.ETH})\n` },
+    { kind: 'text', text: `• USDC: ${balances.USDC} ($${values.USDC})\n` },
   ],
+  'Portfolio Analysis',
+  'Detailed breakdown of your current portfolio',
+  {
+    totalValue: values.total,
+    lastUpdated: new Date().toISOString(),
+  }
+);
+
+return createSuccessTask('portfolio-analysis', [artifact], 'Analysis complete');
+```
+
+#### **Code Artifacts**
+
+Return executable code or configurations:
+
+```ts
+// tools/generateSwapCode.ts
+const generateSwapCodeParams = z.object({
+  fromToken: z.string(),
+  toToken: z.string(),
+  amount: z.number(),
 });
 
-export { logger };
+export const generateSwapCodeTool: VibkitToolDefinition<typeof generateSwapCodeParams> = {
+  name: 'generateSwapCode',
+  description: 'Generate TypeScript code for token swap',
+  parameters: generateSwapCodeParams,
+  execute: async input => {
+    const swapCode = `
+// Generated swap code for ${input.fromToken} → ${input.toToken}
+import { ethers } from 'ethers';
 
-// Use in application
-logger.info('Agent starting', { port: 3000, skills: ['lending'] });
-logger.error('Tool execution failed', { tool: 'supplyToken', error: error.message });
-```
+async function swapTokens() {
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+  
+  // Swap ${input.amount} ${input.fromToken} for ${input.toToken}
+  const swapParams = {
+    fromToken: '${input.fromToken}',
+    toToken: '${input.toToken}',  
+    amount: ethers.parseUnits('${input.amount}', 18),
+    slippage: 0.5, // 0.5%
+  };
+  
+  console.log('Executing swap:', swapParams);
+  // Implementation depends on your DEX integration
+}
 
----
+swapTokens().catch(console.error);
+`;
 
-### 🔒 Security and Rate Limiting
+    const codeArtifact = createArtifact(
+      [{ kind: 'text', text: swapCode }],
+      'Swap Code',
+      `TypeScript code to swap ${input.amount} ${input.fromToken} for ${input.toToken}`,
+      {
+        language: 'typescript',
+        executable: true,
+        fromToken: input.fromToken,
+        toToken: input.toToken,
+        amount: input.amount,
+      }
+    );
 
-#### **Rate Limiting**
-
-Implement rate limiting for API protection:
-
-```ts
-// security/rateLimiting.ts
-import rateLimit from 'express-rate-limit';
-
-export const createRateLimit = () =>
-  rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.API_RATE_LIMIT || '100'), // requests per window
-    message: {
-      error: 'Too many requests',
-      message: 'Rate limit exceeded. Please try again later.',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: req => {
-      // Skip rate limiting for health checks
-      return req.path === '/health' || req.path === '/.well-known/agent.json';
-    },
-  });
-```
-
-#### **Request Validation**
-
-Validate incoming requests:
-
-```ts
-// security/validation.ts
-import { body, validationResult } from 'express-validator';
-
-export const validateToolCall = [
-  body('tool').isString().isLength({ min: 1, max: 100 }),
-  body('arguments').isObject(),
-  body('arguments.walletAddress')
-    .optional()
-    .isEthereumAddress()
-    .withMessage('Invalid Ethereum address'),
-  (req: Request, res: Response, next: NextFunction) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: errors.array(),
-      });
-    }
-    next();
+    return createSuccessTask(
+      'code-generation',
+      [codeArtifact],
+      `Generated swap code for ${input.fromToken} → ${input.toToken}`
+    );
   },
-];
+};
+```
+
+#### **Data Visualization Artifacts**
+
+Create charts and visualizations:
+
+```ts
+// tools/createPortfolioChart.ts
+const portfolioChartParams = z.object({
+  holdings: z.record(z.number()),
+});
+
+export const createPortfolioChartTool: VibkitToolDefinition<typeof portfolioChartParams> = {
+  name: 'createPortfolioChart',
+  description: 'Create portfolio allocation chart',
+  parameters: portfolioChartParams,
+  execute: async input => {
+    // Generate chart data
+    const chartData = {
+      type: 'pie',
+      data: {
+        labels: Object.keys(input.holdings),
+        datasets: [
+          {
+            data: Object.values(input.holdings),
+            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: 'Portfolio Allocation',
+          },
+        },
+      },
+    };
+
+    // Create chart configuration artifact
+    const chartArtifact = createArtifact(
+      [
+        { kind: 'text', text: '## Portfolio Allocation\n\n' },
+        { kind: 'text', text: JSON.stringify(chartData, null, 2) },
+      ],
+      'Portfolio Chart',
+      'Interactive pie chart showing portfolio allocation',
+      {
+        type: 'chart',
+        chartType: 'pie',
+        data: chartData,
+      }
+    );
+
+    return createSuccessTask(
+      'chart-creation',
+      [chartArtifact],
+      'Portfolio chart created successfully'
+    );
+  },
+};
+```
+
+#### **Mixed Content Artifacts**
+
+Combine text, code, and data in single responses:
+
+````ts
+// tools/analyzeLendingPosition.ts
+const analyzeLendingParams = z.object({
+  walletAddress: z.string(),
+});
+
+export const analyzeLendingPositionTool: VibkitToolDefinition<typeof analyzeLendingParams> = {
+  name: 'analyzeLendingPosition',
+  description: 'Analyze lending position for a wallet',
+  parameters: analyzeLendingParams,
+  execute: async input => {
+    const position = await getLendingPosition(input.walletAddress);
+
+    // Create comprehensive analysis artifact
+    const analysisArtifact = createArtifact(
+      [
+        { kind: 'text', text: '# Lending Position Analysis\n\n' },
+        { kind: 'text', text: `**Wallet:** \`${input.walletAddress}\`\n` },
+        { kind: 'text', text: `**Total Supplied:** $${position.totalSupplied.toLocaleString()}\n` },
+        { kind: 'text', text: `**Total Borrowed:** $${position.totalBorrowed.toLocaleString()}\n` },
+        { kind: 'text', text: `**Health Factor:** ${position.healthFactor}\n\n` },
+
+        { kind: 'text', text: '## Risk Assessment\n\n' },
+        { kind: 'text', text: position.healthFactor > 2.0 ? '✅ Low Risk' : '⚠️ Medium Risk' },
+        { kind: 'text', text: '\n\n## Recommendations\n\n' },
+
+        ...position.recommendations.map(rec => ({
+          kind: 'text' as const,
+          text: `• ${rec}\n`,
+        })),
+
+        { kind: 'text', text: '\n\n## Position Details\n\n```json\n' },
+        { kind: 'text', text: JSON.stringify(position, null, 2) },
+        { kind: 'text', text: '\n```' },
+      ],
+      'Lending Analysis',
+      'Comprehensive analysis of your lending position',
+      {
+        walletAddress: input.walletAddress,
+        healthFactor: position.healthFactor,
+        riskLevel: position.healthFactor > 2.0 ? 'low' : 'medium',
+        totalValue: position.totalSupplied,
+        generatedAt: new Date().toISOString(),
+      }
+    );
+
+    return createSuccessTask(
+      'lending-analysis',
+      [analysisArtifact],
+      'Lending position analysis completed'
+    );
+  },
+};
+````
+
+---
+
+### 🔧 Hook Integration with Skills
+
+Hooks are automatically applied when tools are used within skills:
+
+```ts
+// skills/enhancedLending.ts
+export const enhancedLendingSkill = defineSkill({
+  id: 'enhanced-lending',
+  name: 'Enhanced Lending',
+  description: 'Lending operations with security, caching, and analytics',
+
+  tools: [
+    supplyTool, // Will use security + analytics hooks
+    borrowTool, // Will use security + analytics hooks
+    withdrawTool, // Will use security + analytics hooks
+  ],
+
+  // Hooks are applied automatically based on tool names
+});
+```
+
+#### **Conditional Hook Application**
+
+Apply hooks based on context or configuration:
+
+```ts
+// hooks/conditionalHooks.ts
+export const beforeHooks = {
+  supplyToken: async (context: ToolContext) => {
+    // Only apply validation in production
+    if (process.env.NODE_ENV === 'production') {
+      await validateProductionSafety(context.input);
+    }
+
+    // Only cache in development for testing
+    if (process.env.NODE_ENV === 'development') {
+      await applyCaching(context);
+    }
+
+    // Always log in staging
+    if (process.env.NODE_ENV === 'staging') {
+      await logDetailedAnalytics(context);
+    }
+  },
+};
+```
+
+#### **Hook Composition**
+
+Combine multiple hook functions:
+
+```ts
+// hooks/composedHooks.ts
+import { securityHooks } from './securityHooks.js';
+import { analyticsHooks } from './analyticsHooks.js';
+import { cachingHooks } from './cachingHooks.js';
+
+// Compose multiple hook modules
+export const beforeHooks = {
+  ...securityHooks.beforeHooks,
+  ...analyticsHooks.beforeHooks,
+  ...cachingHooks.beforeHooks,
+
+  // Custom composition for specific tools
+  supplyToken: async (context: ToolContext) => {
+    await securityHooks.beforeHooks.supplyToken?.(context);
+    await analyticsHooks.beforeHooks['*']?.(context);
+    await cachingHooks.beforeHooks.supplyToken?.(context);
+  },
+};
 ```
 
 ---
 
-### 🚀 Deployment Strategies
+### 🎯 Best Practices
 
-#### **Blue-Green Deployment**
+#### **Hook Design Principles**
 
-```bash
-#!/bin/bash
-# deploy.sh - Blue-green deployment script
+1. **Single Responsibility**: Each hook should have one clear purpose
+2. **Non-Invasive**: Don't modify core business logic
+3. **Error Handling**: Hooks should fail gracefully
+4. **Performance**: Keep hooks lightweight
+5. **Composability**: Design hooks to work together
 
-set -e
+#### **Artifact Design Principles**
 
-NEW_VERSION=$1
-CURRENT_PORT=$(cat .current-port 2>/dev/null || echo "3000")
-NEW_PORT=$((CURRENT_PORT == 3000 ? 3001 : 3000))
+1. **Rich Content**: Use mixed content types for better UX
+2. **Metadata**: Include useful metadata for processing
+3. **Structure**: Organize content logically
+4. **Accessibility**: Ensure content is readable and usable
+5. **Context**: Provide relevant context and timestamps
 
-echo "Deploying version $NEW_VERSION to port $NEW_PORT"
+#### **Testing Hooks and Artifacts**
 
-# Build and start new version
-docker build -t lending-agent:$NEW_VERSION .
-docker run -d \
-  --name lending-agent-$NEW_PORT \
-  -p $NEW_PORT:3000 \
-  --env-file config/.env.production \
-  lending-agent:$NEW_VERSION
+```ts
+// test/hooks.test.ts
+import { beforeHooks, afterHooks } from '../src/hooks/index.js';
 
-# Health check new version
-echo "Waiting for new version to be healthy..."
-for i in {1..30}; do
-  if curl -f http://localhost:$NEW_PORT/health; then
-    echo "New version is healthy"
-    break
-  fi
-  sleep 2
-done
+describe('Price Prediction Hooks', () => {
+  it('should transform natural language input', async () => {
+    const context = {
+      input: { message: 'What will BTC price be in 24 hours?' },
+      toolName: 'getPricePrediction',
+    };
 
-# Update load balancer to point to new version
-echo "Switching traffic to new version..."
-# Update nginx/load balancer configuration here
+    await beforeHooks.getPricePrediction(context);
 
-# Stop old version
-if [ "$CURRENT_PORT" != "3000" ] || [ "$CURRENT_PORT" != "3001" ]; then
-  echo "Stopping old version on port $CURRENT_PORT"
-  docker stop lending-agent-$CURRENT_PORT || true
-  docker rm lending-agent-$CURRENT_PORT || true
-fi
+    expect(context.input.token).toBe('BTC');
+    expect(context.input.timeframe).toBe('24h');
+  });
 
-echo $NEW_PORT > .current-port
-echo "Deployment complete"
-```
+  it('should format response with emojis', async () => {
+    const context = {
+      result: { token: 'ETH', price: 3000, confidence: 85 },
+      toolName: 'getPricePrediction',
+    };
 
-#### **Kubernetes Deployment**
+    await afterHooks.getPricePrediction(context);
 
-```yaml
-# k8s/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: lending-agent
-  labels:
-    app: lending-agent
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: lending-agent
-  template:
-    metadata:
-      labels:
-        app: lending-agent
-    spec:
-      containers:
-        - name: lending-agent
-          image: lending-agent:latest
-          ports:
-            - containerPort: 3000
-          env:
-            - name: NODE_ENV
-              value: 'production'
-            - name: PORT
-              value: '3000'
-          envFrom:
-            - secretRef:
-                name: lending-agent-secrets
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 30
-            periodSeconds: 30
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests:
-              memory: '256Mi'
-              cpu: '250m'
-            limits:
-              memory: '512Mi'
-              cpu: '500m'
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: lending-agent-service
-spec:
-  selector:
-    app: lending-agent
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 3000
-  type: LoadBalancer
+    expect(context.result.formatted).toContain('📈');
+    expect(context.result.formatted).toContain('ETH');
+  });
+});
 ```
 
 ---
 
 ### ✅ Summary
 
-Production deployment of v2 agents requires attention to:
+Advanced hooks and artifacts enhance the v2 framework:
 
-- **Agent cards** provide automatic service discovery and capability advertising
-- **Environment configuration** should be validated and organized by deployment stage
-- **Containerization** enables consistent deployment across environments
-- **Health checks** and monitoring ensure operational visibility
-- **Security measures** protect against abuse and validate inputs
-- **Deployment strategies** enable zero-downtime updates
-- **Logging and metrics** provide operational insights
+- **Hooks** provide clean separation of concerns for cross-cutting functionality
+- **Data transformation** hooks adapt interfaces without changing core logic
+- **Security hooks** implement validation and safety checks
+- **Analytics hooks** track usage and performance metrics
+- **Artifacts** enable rich, mixed-content responses
+- **Code artifacts** return executable code and configurations
+- **Visualization artifacts** create charts and interactive content
 
-Plan for production from the start: use environment variables, implement health checks, and design for observability and scalability.
+Use hooks to keep your tools focused on business logic while adding essential capabilities like security, caching, and analytics. Use artifacts to create engaging, informative responses that go beyond simple text.
 
-> "Production readiness is not a destination, it's a practice."
+> "Hooks are the seasoning. Artifacts are the presentation."
 
-| Aspect            | Development        | Production                       |
-| ----------------- | ------------------ | -------------------------------- |
-| **Configuration** | .env files         | Validated env vars + secrets     |
-| **Logging**       | Console output     | Structured logs + aggregation    |
-| **Monitoring**    | Basic health check | Metrics + alerting + dashboards  |
-| **Security**      | Basic validation   | Rate limiting + input validation |
-| **Deployment**    | Manual start       | Automated CI/CD + health checks  |
-| **Scaling**       | Single instance    | Load balanced + auto-scaling     |
+| Feature             | Purpose                 | Benefits                   | Use Cases                         |
+| ------------------- | ----------------------- | -------------------------- | --------------------------------- |
+| **Before Hooks**    | Pre-processing          | Validation, transformation | Security checks, input formatting |
+| **After Hooks**     | Post-processing         | Enhancement, logging       | Response formatting, analytics    |
+| **Text Artifacts**  | Rich content            | Better UX                  | Analysis reports, documentation   |
+| **Code Artifacts**  | Executable content      | Developer tools            | Generated scripts, configurations |
+| **Mixed Artifacts** | Comprehensive responses | Complete information       | Analysis + recommendations + data |

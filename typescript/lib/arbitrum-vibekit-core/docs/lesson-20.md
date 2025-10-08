@@ -1,294 +1,274 @@
-# **Lesson 20: LLM Orchestration vs Manual Handlers**
+# **Lesson 20: Skills - The v2 Foundation**
 
 ---
 
 ### 🔍 Overview
 
-One of the most important architectural decisions in v2 is choosing between **LLM orchestration** and **manual handlers** for your skills. This choice fundamentally affects how your agent processes user requests and coordinates between tools.
+**Skills** are the cornerstone of the v2 framework. They define what your agent can do and serve as the public interface that other agents, LLMs, and users interact with. Each skill represents a cohesive capability (like "lending operations" or "price prediction") and groups related tools under intelligent LLM orchestration.
 
-**LLM orchestration** (the default) lets the LLM intelligently route user requests to appropriate tools and handle complex workflows. **Manual handlers** bypass the LLM entirely for deterministic, simple operations where you want complete control.
-
-Understanding when to use each approach is crucial for building effective agents that balance AI intelligence with predictable behavior.
+Understanding skills is essential because they fundamentally changed how agents are architected in v2. Instead of exposing individual tools directly, you expose skills that intelligently coordinate multiple tools to accomplish user goals.
 
 ---
 
-### 🧠 LLM Orchestration (Default & Recommended)
+### 🎯 What Makes a Skill
 
-When you define a skill without a `handler`, the framework uses **LLM orchestration**. The LLM becomes your intelligent coordinator:
+A skill is defined using `defineSkill()` and contains:
+
+- **Metadata**: ID, name, description that identify the capability
+- **Interface**: Input schema, tags, and examples for discovery
+- **Implementation**: Tools that perform the actual work
+- **Dependencies**: MCP servers needed for external data/services
+- **Orchestration**: LLM routing (default) or manual handler (optional)
 
 ```ts
-export const lendingSkill = defineSkill({
-  id: 'lending-operations',
-  name: 'Lending Operations',
-  description: 'Perform lending operations on Aave protocol',
-  tags: ['defi', 'lending'],
-  examples: ['Supply 100 USDC', 'Borrow 50 ETH', 'What is my debt?'],
+// skills/greeting.ts
+import { defineSkill } from 'arbitrum-vibekit-core';
+import { getFormalGreetingTool, getCasualGreetingTool } from '../tools/index.js';
 
+export const greetingSkill = defineSkill({
+  // Skill identity
+  id: 'greeting-skill',
+  name: 'Greeting Generator',
+  description: 'Generate personalized greetings in different styles',
+
+  // Discovery metadata (required)
+  tags: ['greeting', 'personalization'],
+  examples: ['Greet Alice formally', 'Say hello to Bob casually'],
+
+  // Interface definition
   inputSchema: z.object({
-    instruction: z.string().describe('Natural language lending request'),
-    walletAddress: z.string(),
+    name: z.string(),
+    style: z.enum(['formal', 'casual']),
   }),
 
-  tools: [supplyTool, borrowTool, repayTool, withdrawTool, getBalancesTool],
+  // Implementation
+  tools: [getFormalGreetingTool, getCasualGreetingTool],
 
+  // External dependencies
+  mcpServers: [
+    {
+      command: 'tsx',
+      moduleName: './mock-servers/translation.ts',
+      env: { API_KEY: process.env.TRANSLATE_API_KEY },
+    },
+  ],
+
+  // Orchestration: LLM routing (default) or manual handler
   // No handler = LLM orchestration
 });
 ```
 
-#### **How LLM Orchestration Works**
+---
 
-1. **Intent Analysis**: LLM analyzes natural language input
-2. **Tool Selection**: Chooses appropriate tool(s) based on intent
-3. **Parameter Extraction**: Extracts and validates tool parameters
-4. **Execution**: Calls tool(s) with proper arguments
-5. **Result Processing**: Formats and returns coherent response
+### 🧠 LLM Orchestration (Default)
+
+When you don't provide a `handler`, the skill uses **LLM orchestration**. The LLM acts as an intelligent router that:
+
+1. **Analyzes** user input to understand intent
+2. **Routes** to appropriate tools based on context
+3. **Coordinates** multi-tool workflows when needed
+4. **Aggregates** results into coherent responses
 
 ```ts
-// User: "I want to supply 100 USDC and then borrow 50 ETH"
+// User: "Give me a formal greeting for Sarah"
 // LLM orchestration:
-// 1. Analyzes: Two operations - supply USDC, then borrow ETH
-// 2. Routes: First to supplyTool, then to borrowTool
-// 3. Executes: supplyTool({ token: "USDC", amount: 100, ... })
-// 4. Then: borrowTool({ token: "ETH", amount: 50, ... })
-// 5. Returns: "Successfully supplied 100 USDC and borrowed 50 ETH"
+// 1. Analyzes: user wants formal style, name is Sarah
+// 2. Routes to: getFormalGreetingTool
+// 3. Calls: getFormalGreetingTool({ name: "Sarah" })
+// 4. Returns: "Good day, Sarah. I hope you are well."
+
+export const smartGreetingSkill = defineSkill({
+  id: 'smart-greeting',
+  name: 'Smart Greeting',
+  description: 'Intelligently generate greetings based on context',
+  tags: ['greeting', 'smart'],
+  examples: ['Greet John professionally', 'Say hi to Alice in Spanish'],
+
+  inputSchema: z.object({
+    instruction: z.string().describe('Natural language greeting request'),
+  }),
+
+  tools: [
+    getFormalGreetingTool,
+    getCasualGreetingTool,
+    getLocalizedGreetingTool,
+    getTimeAwareGreetingTool,
+  ],
+
+  // No handler = LLM orchestration handles routing
+});
 ```
-
-#### **LLM Orchestration Benefits**
-
-- ✅ **Natural Language Processing**: Handles varied user input gracefully
-- ✅ **Multi-Tool Workflows**: Coordinates complex operations automatically
-- ✅ **Context Awareness**: Understands relationships between operations
-- ✅ **Error Recovery**: Can adapt when tools fail or need clarification
-- ✅ **Future-Proof**: Adding new tools extends capability automatically
 
 ---
 
-### ⚙️ Manual Handlers (Explicit Control)
+### ⚙️ Manual Handlers (Optional)
 
 For simple, deterministic operations, you can provide a manual `handler` that bypasses LLM orchestration:
 
 ```ts
 export const timeSkill = defineSkill({
   id: 'get-time',
-  name: 'Get Current Time',
-  description: 'Get the current time in specified format',
+  name: 'Time Service',
+  description: 'Get current time in various formats',
   tags: ['utility', 'time'],
   examples: ['What time is it?', 'Get current timestamp'],
 
   inputSchema: z.object({
     format: z.enum(['iso', 'unix', 'human']).default('iso'),
-    timezone: z.string().optional(),
   }),
 
-  tools: [getTimeTool], // Still required for consistency
+  tools: [getTimeTool], // Required even with manual handler
 
-  // Manual handler - bypasses LLM completely
+  // Manual handler - bypasses LLM
   handler: async input => {
     const now = new Date();
 
     switch (input.format) {
       case 'unix':
-        return {
-          timestamp: Math.floor(now.getTime() / 1000),
-          format: 'unix',
-        };
+        return createSuccessTask(
+          'get-time',
+          undefined,
+          Math.floor(now.getTime() / 1000).toString()
+        );
       case 'human':
-        return {
-          timestamp: now.toLocaleString('en-US', {
-            timeZone: input.timezone || 'UTC',
-          }),
-          format: 'human',
-        };
+        return createSuccessTask('get-time', undefined, now.toLocaleString());
       case 'iso':
       default:
-        return {
-          timestamp: now.toISOString(),
-          format: 'iso',
-        };
+        return createSuccessTask('get-time', undefined, now.toISOString());
     }
   },
 });
 ```
 
-#### **Manual Handler Benefits**
+---
 
-- ✅ **Predictable Behavior**: Always executes exactly as programmed
-- ✅ **Performance**: No LLM latency or cost
-- ✅ **Deterministic**: Same input always produces same output
-- ✅ **Simple Logic**: Straightforward control flow
-- ✅ **Edge Case Handling**: You control all error scenarios
+### 🔗 Skills vs Tools Relationship
+
+- **Skills** = Public interface (what users/agents see)
+- **Tools** = Internal implementation (how work gets done)
+
+```ts
+// PUBLIC: Other agents call this skill
+export const lendingSkill = defineSkill({
+  id: 'lending-operations',
+  name: 'Lending Operations',
+  description: 'Perform lending operations on Aave protocol',
+  tags: ['defi', 'lending'],
+  examples: ['Supply 100 USDC', 'Borrow 50 ETH'],
+
+  inputSchema: z.object({
+    instruction: z.string(),
+    walletAddress: z.string(),
+  }),
+
+  // PRIVATE: Internal tools that implement the capability
+  tools: [supplyTool, borrowTool, repayTool, withdrawTool],
+});
+```
+
+This separation allows you to:
+
+- **Refactor tools** without changing the public interface
+- **Add new tools** to expand capability
+- **Change implementation** while maintaining compatibility
+- **Hide complexity** from users
 
 ---
 
-### 🤔 When to Choose Each Approach
+### 📋 Skill Design Patterns
 
-#### **Use LLM Orchestration When:**
+#### **Single-Tool Skills**
 
-- **Multiple tools** need coordination
-- **Natural language** input is important
-- **Complex workflows** with conditional logic
-- **User intent** varies significantly
-- **Tools relationship** changes based on context
+For focused capabilities that might expand later:
 
 ```ts
-// Perfect for LLM orchestration
+export const swapSkill = defineSkill({
+  id: 'token-swap',
+  name: 'Token Swap',
+  description: 'Swap tokens on DEX',
+  tools: [executeSwapWorkflow], // One tool now, easy to add more
+});
+```
+
+#### **Multi-Tool Skills**
+
+For complex capabilities with multiple operations:
+
+```ts
 export const portfolioSkill = defineSkill({
   id: 'portfolio-management',
-  inputSchema: z.object({
-    instruction: z.string(), // "Rebalance my portfolio to 60% ETH, 40% USDC"
-  }),
-  tools: [getBalancesTool, calculateRebalanceTool, executeSwapTool, analyzeRiskTool],
-  // LLM coordinates: get balances → calculate needed swaps → execute trades
+  name: 'Portfolio Management',
+  description: 'Manage your crypto portfolio',
+  tools: [getBalancesTool, rebalancePortfolioTool, analyzePerformanceTool, setAllocationTool],
 });
 ```
 
-#### **Use Manual Handlers When:**
+#### **Workflow Skills**
 
-- **Simple, deterministic** operations
-- **Performance** is critical
-- **Complete control** over logic flow is needed
-- **No coordination** between tools required
-- **Predefined input/output** mapping
+For coordinated multi-step processes:
 
 ```ts
-// Perfect for manual handler
-export const calculatorSkill = defineSkill({
-  id: 'calculator',
-  inputSchema: z.object({
-    expression: z.string(), // "2 + 2 * 3"
-  }),
-  tools: [calculateTool],
-  handler: async input => {
-    // Simple, deterministic calculation
-    const result = evaluateExpression(input.expression);
-    return { result, expression: input.expression };
-  },
-});
-```
-
----
-
-### 🔄 Hybrid Patterns
-
-You can also mix approaches for different skills in the same agent:
-
-```ts
-export const agentConfig: AgentConfig = {
-  name: 'Multi-Modal Agent',
-  skills: [
-    // LLM orchestration for complex operations
-    lendingSkill, // "Supply ETH and borrow USDC"
-    portfolioSkill, // "Rebalance my portfolio optimally"
-
-    // Manual handlers for simple operations
-    timeSkill, // "What time is it?"
-    calculatorSkill, // "Calculate 15% of 1000"
-    echoSkill, // "Echo this message"
+export const tradingSkill = defineSkill({
+  id: 'advanced-trading',
+  name: 'Advanced Trading',
+  tools: [
+    executeMarketOrderWorkflow, // Multi-step: validate → execute → confirm
+    executeLimitOrderWorkflow, // Multi-step: place → monitor → execute
+    cancelOrder, // Single action
+    getOrderStatus, // Single action
   ],
-};
+});
 ```
 
 ---
 
-### 📊 Decision Framework
+### 🏗️ Required Skill Metadata
 
-| Factor                   | LLM Orchestration                 | Manual Handler                |
-| ------------------------ | --------------------------------- | ----------------------------- |
-| **Input Complexity**     | Natural language, varied requests | Structured, predictable input |
-| **Tool Coordination**    | Multiple tools, workflows         | Single operation              |
-| **Performance**          | Acceptable latency                | Critical performance          |
-| **Predictability**       | Flexible, adaptive                | Deterministic required        |
-| **Future Extensibility** | Easy to add tools                 | Manual code changes           |
-
-#### **Quick Decision Tree**
-
-```
-Does the skill need to coordinate multiple tools?
-├─ YES → LLM Orchestration
-└─ NO → Is the operation simple and deterministic?
-   ├─ YES → Manual Handler
-   └─ NO → LLM Orchestration (for flexibility)
-```
-
----
-
-### 🎯 Best Practices
-
-#### **For LLM Orchestration:**
-
-1. **Clear tool descriptions** - Help LLM understand when to use each tool
-2. **Good examples** - Provide diverse use cases in skill metadata
-3. **Descriptive schemas** - Use Zod descriptions for better parameter extraction
-4. **Error handling** - Let tools return clear error messages
+Every skill **must** have:
 
 ```ts
-tools: [
-  // Good: Clear, specific descriptions
-  defineTool({
-    name: 'supplyToken',
-    description: 'Supply tokens to Aave lending pool to earn interest',
-    inputSchema: z.object({
-      token: z.string().describe('Token symbol like USDC, ETH'),
-      amount: z.number().describe('Amount to supply'),
-    }),
-  }),
-];
-```
+export const mySkill = defineSkill({
+  // Core identity
+  id: 'unique-skill-id',           // Required: unique identifier
+  name: 'Human Readable Name',     // Required: display name
+  description: 'What this does',   // Required: clear capability description
 
-#### **For Manual Handlers:**
+  // Discovery (required)
+  tags: ['tag1', 'tag2'],         // Required: minimum 1 tag
+  examples: ['Example 1'],         // Required: minimum 1 example
 
-1. **Simple input schemas** - Avoid natural language fields
-2. **Comprehensive validation** - Handle all edge cases explicitly
-3. **Clear return types** - Return structured, typed responses
-4. **Error boundaries** - Catch and format all exceptions
+  // Interface
+  inputSchema: z.object({...}),    // Required: input validation
 
-```ts
-handler: async (input) => {
-  try {
-    // Validate business logic
-    if (input.amount <= 0) {
-      throw new VibkitError('InvalidAmount', 'Amount must be positive');
-    }
+  // Implementation
+  tools: [tool1, tool2],          // Required: minimum 1 tool
 
-    // Execute deterministic logic
-    const result = performCalculation(input);
-
-    // Return structured response
-    return {
-      success: true,
-      result,
-      timestamp: new Date().toISOString(),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-    };
-  }
-},
+  // Optional
+  mcpServers: [...],              // External dependencies
+  handler: async (input) => {...} // Manual override
+});
 ```
 
 ---
 
 ### ✅ Summary
 
-The choice between LLM orchestration and manual handlers shapes your agent's behavior:
+Skills are the foundation of v2 architecture:
 
-- **LLM orchestration** provides intelligence, flexibility, and natural language handling
-- **Manual handlers** provide control, performance, and predictability
-- **Most skills** should use LLM orchestration for maximum capability
-- **Simple operations** benefit from manual handlers for reliability
-- **Hybrid approaches** let you optimize each skill individually
+- **Skills define capabilities** - what your agent can do
+- **Tools implement functionality** - how capabilities work
+- **LLM orchestration** handles intelligent routing between tools
+- **Manual handlers** bypass LLM for simple operations
+- **Required metadata** makes skills discoverable and usable
 
-Start with LLM orchestration by default, and reach for manual handlers only when you need deterministic control or critical performance.
+By organizing your agent around skills rather than individual tools, you create a more maintainable, discoverable, and powerful architecture.
 
-> "Let the LLM coordinate complexity. Take control for simplicity."
+> "Skills are promises. Tools are implementations."
 
-| Decision                                 | Rationale                                                                  |
-| ---------------------------------------- | -------------------------------------------------------------------------- |
-| **LLM orchestration as default**         | Maximizes agent capability and handles varied user input gracefully        |
-| **Tools required even with handlers**    | Maintains consistent architecture and enables future migration             |
-| **Clear decision criteria**              | Prevents over-engineering simple operations or under-powering complex ones |
-| **Hybrid approach encouraged**           | Lets you optimize each skill for its specific requirements                 |
-| **Performance vs flexibility trade-off** | Explicit choice based on use case requirements                             |
+| Decision                                   | Rationale                                                             |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| **Skills as primary abstraction**          | Creates clear public interface while hiding implementation complexity |
+| **Required metadata (tags, examples)**     | Ensures all skills are discoverable and provide usage guidance        |
+| **LLM orchestration by default**           | Leverages AI for intelligent routing without requiring manual logic   |
+| **Tools always required**                  | Maintains consistency even when using manual handlers                 |
+| **Separation of interface/implementation** | Allows refactoring tools without breaking public contracts            |

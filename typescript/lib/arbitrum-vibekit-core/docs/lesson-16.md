@@ -1,302 +1,216 @@
-# **Lesson 16: Validations and Tool Enhancement with Hooks**
+# **Lesson 16: Observability and Metrics in V2**
 
 ---
 
 ### 🔍 Overview
 
-The v2 framework provides powerful hook-based patterns for tool enhancement, validation, and cross-cutting concerns. Understanding how to use `withHooks`, before/after hooks, and validation patterns is essential for building robust, production-ready agents.
+The v2 framework provides comprehensive observability features for monitoring agent health, tracking performance metrics, and debugging agent behavior. Understanding these patterns is crucial for running production agents and maintaining reliable service operations.
 
-Hooks allow you to add validation, logging, metrics collection, and response formatting without cluttering your core business logic. This lesson covers the hook patterns actively used in v2 templates and production agents.
+V2 agents include built-in health endpoints, agent cards for service discovery, and hook-based metrics collection. You can start with lightweight monitoring and scale up to full observability platforms like OpenTelemetry and Grafana.
 
 ---
 
-### 🪝 Hook-Based Tool Enhancement
+### 🏥 Built-in Health Endpoints
 
-The v2 framework uses `withHooks` to enhance tools with before/after hooks:
-
-```ts
-// Enhanced tool with validation and response formatting
-export const supplyTool = withHooks(baseSupplyTool, {
-  before: [tokenResolutionHook, balanceCheckHook],
-  after: [responseParserHook, metricsHook],
-});
-```
-
-### 🎯 Before Hooks for Validation
-
-Before hooks run validation and transformation logic before tool execution:
+Every v2 agent automatically provides a health endpoint:
 
 ```ts
-// Token resolution hook from lending-agent
-export async function tokenResolutionHook<Args extends TokenResolutionHookArgs>(
-  args: Args,
-  context: AgentContext<LendingAgentContext, any>
-): Promise<(Args & { resolvedToken: TokenInfo }) | Task | Message> {
-  const { tokenName } = args;
-  const findResult = findTokenInfo(context.custom.tokenMap, tokenName);
-
-  switch (findResult.type) {
-    case 'notFound':
-      return {
-        id: createTaskId(),
-        kind: 'task' as const,
-        status: {
-          state: TaskState.Failed,
-          message: {
-            role: 'agent',
-            parts: [{ type: 'text', text: `Token '${tokenName}' not supported.` }],
-          },
-        },
-      } as Task;
-
-    case 'clarificationNeeded':
-      const optionsText = findResult.options
-        .map(opt => `- ${tokenName} on chain ${opt.chainId}`)
-        .join('\n');
-      return {
-        id: createTaskId(),
-        kind: 'task' as const,
-        status: {
-          state: TaskState.InputRequired,
-          message: {
-            role: 'agent',
-            parts: [
-              {
-                type: 'text',
-                text: `Which ${tokenName} do you want to use?\n${optionsText}`,
-              },
-            ],
-          },
-        },
-      } as Task;
-
-    case 'found':
-      return { ...args, resolvedToken: findResult.token };
-  }
-}
-```
-
-### 🔍 Balance and Permission Validation
-
-Before hooks can validate external conditions like wallet balances:
-
-```ts
-// Balance check hook from lending-agent
-export async function balanceCheckHook<Args extends BalanceCheckHookArgs>(
-  args: Args,
-  context: AgentContext<LendingAgentContext, any>
-): Promise<Args | Task> {
-  const { resolvedToken, amount } = args;
-  const walletAddress = context.skillInput?.walletAddress;
-
-  if (!walletAddress) {
-    return {
-      id: createTaskId(),
-      kind: 'task' as const,
-      status: {
-        state: TaskState.Failed,
-        message: {
-          role: 'agent',
-          parts: [{ type: 'text', text: 'Wallet address is required.' }],
-        },
-      },
-    } as Task;
-  }
-
-  try {
-    const balance = await checkTokenBalance(
-      walletAddress,
-      resolvedToken.address,
-      context.custom.rpcProvider
-    );
-
-    if (balance < parseFloat(amount)) {
-      return {
-        id: createTaskId(),
-        kind: 'task' as const,
-        status: {
-          state: TaskState.Failed,
-          message: {
-            role: 'agent',
-            parts: [
-              {
-                type: 'text',
-                text: `Insufficient balance. You have ${balance} ${resolvedToken.symbol}, but need ${amount}.`,
-              },
-            ],
-          },
-        },
-      } as Task;
+// GET /health - automatically available
+{
+  "status": "healthy",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "version": "1.2.0",
+  "uptime": 3600,
+  "checks": {
+    "llmProvider": "ok",
+    "mcpServers": "ok",
+    "database": "ok"
+  },
+  "skills": [
+    {
+      "id": "token-swapping",
+      "status": "ready",
+      "lastUsed": "2025-01-15T10:25:00Z"
     }
+  ]
+}
+```
 
-    return args; // Validation passed
-  } catch (error) {
-    return {
-      id: createTaskId(),
-      kind: 'task' as const,
-      status: {
-        state: TaskState.Failed,
-        message: {
-          role: 'agent',
-          parts: [{ type: 'text', text: `Failed to check balance: ${error.message}` }],
-        },
-      },
-    } as Task;
+### 🆔 Agent Cards for Service Discovery
+
+V2 agents publish agent cards at `/.well-known/agent.json` for automatic discovery:
+
+```json
+{
+  "name": "Lending Agent",
+  "version": "1.0.0",
+  "description": "A DeFi lending agent for Aave protocol",
+  "skills": [...],
+  "endpoints": {
+    "mcp": "/mcp",
+    "health": "/health"
   }
 }
 ```
 
 ---
 
-### 🔄 After Hooks for Response Processing
+### 📊 Hook-Based Metrics Collection
 
-After hooks transform raw results into structured responses:
-
-```ts
-// Response parser hook from lending-agent
-export async function responseParserHook<ParsedResponse extends McpToolTxResponseData>(
-  mcpResult: any,
-  context: AgentContext<LendingAgentContext, any>,
-  toolArgs: { resolvedToken: TokenInfo; amount: string; [key: string]: any },
-  zodSchema: z.ZodType<ParsedResponse>,
-  action: LendingPreview['action']
-): Promise<Task> {
-  const { resolvedToken, amount } = toolArgs;
-
-  try {
-    // Validate MCP response
-    const parsedResponse = zodSchema.parse(mcpResult);
-
-    if (!parsedResponse.success) {
-      throw new Error(parsedResponse.error || 'Operation failed');
-    }
-
-    // Create structured response
-    return {
-      id: createTaskId(),
-      kind: 'task' as const,
-      status: {
-        state: TaskState.Completed,
-        message: {
-          role: 'agent',
-          parts: [
-            {
-              type: 'text',
-              text: `Successfully prepared ${action} transaction for ${amount} ${resolvedToken.symbol}`,
-            },
-            {
-              type: 'code',
-              language: 'json',
-              code: JSON.stringify(parsedResponse.data, null, 2),
-            },
-          ],
-        },
-      },
-    } as Task;
-  } catch (error) {
-    return {
-      id: createTaskId(),
-      kind: 'task' as const,
-      status: {
-        state: TaskState.Failed,
-        message: {
-          role: 'agent',
-          parts: [{ type: 'text', text: `Parsing failed: ${error.message}` }],
-        },
-      },
-    } as Task;
-  }
-}
-```
-
----
-
-### 🔗 Composing Multiple Hooks
-
-Use composition functions to combine multiple before hooks:
+Use before/after hooks to collect metrics without cluttering business logic:
 
 ```ts
-// From ember-agent
-export function composeBeforeHooks<TArgs extends object>(
-  ...hooks: Array<(args: TArgs, context: any) => Promise<TArgs | Task | Message>>
-): (args: TArgs, context: any) => Promise<TArgs | Task | Message> {
-  return async (args, context) => {
-    let currentArgs = args;
-    for (const hook of hooks) {
-      const result = await hook(currentArgs, context);
+// metrics/hooks.ts
+export const metricsCollector = new Map<string, number>();
 
-      // Check if the hook short-circuited with Task/Message
-      if (
-        typeof result === 'object' &&
-        result !== null &&
-        'kind' in result &&
-        (result.kind === 'task' || result.kind === 'message')
-      ) {
-        return result; // Short-circuit
-      }
+export const metricsHook: AfterHook<any> = async (result, context, args) => {
+  const toolName = context.tool || 'unknown';
+  metricsCollector.set(toolName, (metricsCollector.get(toolName) || 0) + 1);
 
-      currentArgs = result as TArgs; // Continue with modified args
-    }
-    return currentArgs;
-  };
-}
-
-// Usage: combine token resolution and balance checks
-export const swapTokensTool = withHooks(baseSwapTokensTool, {
-  before: composeBeforeHooks(resolveTokensHook, checkBalanceHook),
-  after: formatSwapResponseHook,
-});
-```
-
----
-
-### 🛡️ Security and Validation Patterns
-
-**Input Validation:**
-
-```ts
-export const inputValidationHook: BeforeHook<any> = async (args, context) => {
-  // Sanitize and validate input
-  const sanitized = {
-    ...args,
-    amount: Math.abs(parseFloat(args.amount)), // Ensure positive
-    tokenName: args.tokenName.trim().toUpperCase(), // Normalize
-  };
-
-  if (sanitized.amount <= 0) {
-    throw new VibkitError('InvalidAmount', -32602, 'Amount must be positive');
-  }
-
-  return sanitized;
+  return result;
 };
+
+// Apply to tools
+export const instrumentedTool = withHooks(baseTool, {
+  after: [metricsHook, formatResponseHook],
+});
 ```
 
-**Rate Limiting:**
+### 🛠 Examples of Useful Metrics
+
+**Performance Tracking:**
+
+- Tool execution time and success rates
+- LLM request latency and token usage
+- MCP server response times
+- Hook execution overhead
+
+**Business Metrics:**
+
+- Skill usage patterns and popular capabilities
+- Transaction success rates and error types
+- User interaction patterns
+- Resource utilization
+
+**Health Indicators:**
+
+- Error rates by tool and skill
+- External service availability
+- Memory and CPU usage trends
+- Rate limiting and throttling events
+
+---
+
+### 🧪 Production Monitoring Integration
+
+#### **Health Monitoring**
+
+Monitor agent health across your infrastructure:
 
 ```ts
-const rateLimiter = new Map<string, number>();
+export class HealthMonitor {
+  async checkAllAgents(): Promise<HealthReport[]> {
+    const agents = this.registry.getAllAgents();
 
-export const rateLimitHook: BeforeHook<any> = async (args, context) => {
-  const userKey = context.skillInput?.walletAddress || 'anonymous';
-  const now = Date.now();
-  const lastCall = rateLimiter.get(userKey) || 0;
+    const healthChecks = agents.map(async agent => {
+      try {
+        const response = await fetch(`${agent.url}/health`);
+        const health = await response.json();
 
-  if (now - lastCall < 1000) {
-    // 1 second rate limit
-    return {
-      id: createTaskId(),
-      kind: 'task' as const,
-      status: {
-        state: TaskState.Failed,
-        message: {
-          role: 'agent',
-          parts: [{ type: 'text', text: 'Rate limit exceeded. Please wait.' }],
-        },
-      },
-    } as Task;
+        return {
+          agent: agent.name,
+          status: health.status,
+          lastCheck: new Date(),
+          uptime: health.uptime,
+          version: health.version,
+        };
+      } catch (error) {
+        return {
+          agent: agent.name,
+          status: 'unreachable',
+          lastCheck: new Date(),
+          error: error.message,
+        };
+      }
+    });
+
+    return Promise.all(healthChecks);
+  }
+}
+```
+
+#### **Metrics Export**
+
+Export metrics for external monitoring systems:
+
+```ts
+// monitoring/metrics.ts
+export class MetricsCollector {
+  private counters = new Map<string, number>();
+  private gauges = new Map<string, number>();
+  private histograms = new Map<string, number[]>();
+
+  increment(name: string, value: number = 1): void {
+    this.counters.set(name, (this.counters.get(name) || 0) + value);
   }
 
-  rateLimiter.set(userKey, now);
+  getMetrics(): Record<string, any> {
+    return {
+      counters: Object.fromEntries(this.counters),
+      gauges: Object.fromEntries(this.gauges),
+      histograms: Object.fromEntries(
+        Array.from(this.histograms.entries()).map(([name, values]) => [
+          name,
+          {
+            count: values.length,
+            sum: values.reduce((a, b) => a + b, 0),
+            avg: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0,
+          },
+        ])
+      ),
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+```
+
+---
+
+### 🔧 Structured Logging
+
+Implement structured logging for better observability:
+
+```ts
+// logging/logger.ts
+import winston from 'winston';
+
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: {
+    service: process.env.AGENT_NAME || 'vibekit-agent',
+    version: process.env.AGENT_VERSION || '1.0.0',
+  },
+  transports: [
+    new winston.transports.Console({
+      format:
+        process.env.NODE_ENV === 'development' ? winston.format.simple() : winston.format.json(),
+    }),
+  ],
+});
+
+// Use in hooks
+export const loggingHook: BeforeHook<any> = async (args, context) => {
+  logger.info('Tool execution started', {
+    tool: context.tool,
+    args: args,
+    skillInput: context.skillInput,
+  });
+
   return args;
 };
 ```
@@ -307,34 +221,34 @@ export const rateLimitHook: BeforeHook<any> = async (args, context) => {
 
 **Do:**
 
-- Use hooks for cross-cutting concerns (validation, logging, metrics)
-- Return structured Task/Message objects from hooks for consistent error handling
-- Compose hooks to build complex validation pipelines
-- Keep business logic separate from validation logic
-- Use TypeScript types to ensure hook compatibility
+- Use hooks for automatic metrics collection
+- Monitor both business and technical metrics
+- Include correlation IDs for tracing
+- Set up alerting on critical metrics
+- Use structured logging in production
 
 **Don't:**
 
-- Mix business logic with validation in the same function
-- Ignore hook short-circuit returns (Task/Message objects)
-- Create hooks with side effects that can't be undone
-- Bypass validation hooks in production
-- Hardcode validation rules - use configuration where possible
+- Log sensitive data (private keys, personal info)
+- Block execution for metrics collection
+- Hard-code metric names - use constants
+- Ignore error rates and latency trends
+- Over-instrument - focus on key indicators
 
 ---
 
 ### ✅ Summary
 
-V2 hooks provide a clean, composable way to enhance tools with validation, transformation, and cross-cutting concerns. The `withHooks` utility and before/after hook patterns are fundamental to building robust agents.
+V2 observability is built around health endpoints, agent cards, and hook-based metrics. The framework provides production-ready monitoring out of the box, with clean patterns for extending to full observability platforms.
 
-Use before hooks for validation and transformation, after hooks for response formatting, and composition functions to build complex validation pipelines.
+Start with built-in health checks and hook-based metrics, then integrate with monitoring systems as your agent ecosystem grows.
 
-> "Hooks separate concerns cleanly. Validation stays out of business logic, and business logic stays focused."
+> "Observable agents are reliable agents. If you can't measure it, you can't improve it."
 
-| Pattern                   | Use Case                            | Benefits                        |
-| ------------------------- | ----------------------------------- | ------------------------------- |
-| **Before hooks**          | Input validation and transformation | Clean separation of concerns    |
-| **After hooks**           | Response formatting and metrics     | Consistent output structure     |
-| **Hook composition**      | Complex validation pipelines        | Reusable, testable validation   |
-| **Short-circuit returns** | Early validation failures           | Prevents unnecessary processing |
-| **Type safety**           | Hook argument and return types      | Compile-time validation         |
+| Feature                       | Benefit                            | Use Case                  |
+| ----------------------------- | ---------------------------------- | ------------------------- |
+| **Built-in health endpoints** | Zero-config monitoring             | Basic health checks       |
+| **Agent cards**               | Service discovery and metadata     | Multi-agent orchestration |
+| **Hook-based metrics**        | Non-intrusive performance tracking | Tool and skill monitoring |
+| **Structured logging**        | Searchable, queryable log data     | Debugging and analysis    |
+| **External integration**      | Enterprise monitoring and alerting | Production operations     |

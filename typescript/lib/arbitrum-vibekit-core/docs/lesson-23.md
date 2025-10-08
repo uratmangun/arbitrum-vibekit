@@ -1,557 +1,530 @@
-# **Lesson 23: Advanced Hooks and Artifacts**
+# **Lesson 23: Workflow Tools and Design Patterns**
 
 ---
 
 ### 🔍 Overview
 
-**Hooks** and **artifacts** are powerful features that enhance the v2 framework beyond basic tool execution. Hooks let you add cross-cutting concerns like validation, logging, and data transformation without cluttering your core business logic. Artifacts enable rich, mixed-content responses that can include code, visualizations, and structured data.
+As agents grow more sophisticated, you'll encounter scenarios where multiple operations need to be coordinated together. **Workflow tools** encapsulate multi-step processes that always occur together, while design patterns help you structure skills for maximum effectiveness and maintainability.
 
-Understanding how to leverage hooks for clean architecture and artifacts for enhanced user experiences is crucial for building sophisticated, production-ready agents.
+Understanding when to use workflow tools versus individual tools, and how to structure skills around common patterns, is crucial for building agents that are both powerful and easy to understand.
 
-This lesson covers advanced hook patterns and artifact creation techniques used in modern template agents.
+This lesson covers the key design patterns used in production agents and when to apply each approach.
 
 ---
 
-### 🪝 Advanced Hook Patterns
+### 🔄 Workflow Tools vs Individual Tools
 
-Hooks run before or after tool execution, allowing you to enhance tools without modifying their core implementation:
+#### **Individual Tools Pattern**
+
+Best for independent actions that users might want to perform separately:
 
 ```ts
-// hooks/index.ts
-import type { ToolContext } from 'arbitrum-vibekit-core';
+// Good: Independent lending operations
+const supplyParams = z.object({
+  token: z.string(),
+  amount: z.number(),
+  walletAddress: z.string(),
+});
 
-export const beforeHooks = {
-  toolName: async (context: ToolContext) => {
-    // Runs before tool execution
-    // Can modify context.input
+export const supplyTool: VibkitToolDefinition<typeof supplyParams> = {
+  name: 'supplyToken',
+  description: 'Supply tokens to Aave lending pool',
+  parameters: supplyParams,
+  execute: async input => {
+    // Just supply tokens
+    return await aave.supply(input.token, input.amount, input.walletAddress);
   },
 };
 
-export const afterHooks = {
-  toolName: async (context: ToolContext) => {
-    // Runs after tool execution
-    // Can modify context.result
+const borrowParams = z.object({
+  token: z.string(),
+  amount: z.number(),
+  walletAddress: z.string(),
+});
+
+export const borrowTool: VibkitToolDefinition<typeof borrowParams> = {
+  name: 'borrowToken',
+  description: 'Borrow tokens from Aave lending pool',
+  parameters: borrowParams,
+  execute: async input => {
+    // Just borrow tokens
+    return await aave.borrow(input.token, input.amount, input.walletAddress);
   },
 };
+
+// LLM can coordinate: "Supply 100 USDC then borrow 50 ETH"
+export const lendingSkill = defineSkill({
+  id: 'lending-operations',
+  tools: [supplyTool, borrowTool, repayTool, withdrawTool],
+  // LLM orchestrates the sequence
+});
 ```
 
-#### **Data Transformation Hooks**
+#### **Workflow Tools Pattern**
 
-Transform input/output data to match different interfaces:
+Best for multi-step processes that always occur together:
 
 ```ts
-// hooks/pricePredictionHooks.ts
-export const beforeHooks = {
-  getPricePrediction: async (context: ToolContext) => {
-    // Transform natural language to structured input
-    const { input } = context;
+// Good: Swap always requires quote → approve → execute
+const swapWorkflowParams = z.object({
+  fromToken: z.string(),
+  toToken: z.string(),
+  amount: z.number(),
+  walletAddress: z.string(),
+  slippage: z.number().default(0.5),
+});
 
-    // Extract token from natural language
-    const tokenMatch = input.message.match(/\b(BTC|ETH|USDC|USDT)\b/i);
-    if (tokenMatch) {
-      context.input.token = tokenMatch[0].toUpperCase();
-    }
+export const executeSwapWorkflow: VibkitToolDefinition<typeof swapWorkflowParams> = {
+  name: 'executeSwapWorkflow',
+  description: 'Complete token swap from quote to execution',
+  parameters: swapWorkflowParams,
+  execute: async input => {
+    try {
+      // Step 1: Get quote
+      const quote = await dex.getQuote({
+        fromToken: input.fromToken,
+        toToken: input.toToken,
+        amount: input.amount,
+      });
 
-    // Extract timeframe
-    const timeframeMatch = input.message.match(/(\d+)\s*(hour|day|week)s?/i);
-    if (timeframeMatch) {
-      context.input.timeframe = `${timeframeMatch[1]}${timeframeMatch[2][0].toLowerCase()}`;
-    }
+      // Step 2: Check allowance and approve if needed
+      const allowance = await token.getAllowance(
+        input.fromToken,
+        input.walletAddress,
+        DEX_ROUTER_ADDRESS
+      );
 
-    console.log('[Hook] Transformed input:', context.input);
-  },
-};
+      if (allowance < input.amount) {
+        await token.approve(input.fromToken, input.walletAddress, DEX_ROUTER_ADDRESS, input.amount);
+      }
 
-export const afterHooks = {
-  getPricePrediction: async (context: ToolContext) => {
-    // Enhance response with formatting and emojis
-    if (context.result && typeof context.result === 'object') {
-      const prediction = context.result as any;
+      // Step 3: Execute swap
+      const swapResult = await dex.executeSwap({
+        ...quote,
+        slippage: input.slippage,
+        walletAddress: input.walletAddress,
+      });
 
-      context.result = {
-        ...prediction,
-        formatted:
-          `📈 **${prediction.token} Price Prediction**\n\n` +
-          `🔮 Predicted Price: $${prediction.price}\n` +
-          `📊 Confidence: ${prediction.confidence}%\n` +
-          `⏱️ Timeframe: ${prediction.timeframe}\n` +
-          `📅 Updated: ${new Date().toLocaleString()}`,
+      return {
+        success: true,
+        quote,
+        swapResult,
+        fromAmount: input.amount,
+        toAmount: swapResult.outputAmount,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        step: 'Failed during workflow execution',
       };
     }
   },
 };
 ```
 
-#### **Validation and Security Hooks**
-
-Implement validation and security checks:
-
-```ts
-// hooks/securityHooks.ts
-export const beforeHooks = {
-  supplyToken: async (context: ToolContext) => {
-    const { walletAddress, amount, token } = context.input;
-
-    // Validate wallet address format
-    if (!isValidEthereumAddress(walletAddress)) {
-      throw new VibkitError('InvalidWallet', 'Invalid Ethereum wallet address');
-    }
-
-    // Check amount limits
-    if (amount <= 0) {
-      throw new VibkitError('InvalidAmount', 'Amount must be positive');
-    }
-
-    if (amount > 1000000) {
-      throw new VibkitError('AmountTooLarge', 'Amount exceeds maximum limit');
-    }
-
-    // Validate token is supported
-    const supportedTokens = ['USDC', 'ETH', 'USDT', 'DAI'];
-    if (!supportedTokens.includes(token.toUpperCase())) {
-      throw new VibkitError('UnsupportedToken', `Token ${token} is not supported`);
-    }
-
-    console.log('[Security] Validation passed for supply operation');
-  },
-
-  borrowToken: async (context: ToolContext) => {
-    // Additional checks for borrowing
-    const { walletAddress, amount } = context.input;
-
-    // Check user's collateral ratio
-    const collateralRatio = await checkCollateralRatio(walletAddress);
-    if (collateralRatio < 1.5) {
-      throw new VibkitError('InsufficientCollateral', 'Insufficient collateral for borrowing');
-    }
-
-    console.log('[Security] Collateral check passed');
-  },
-};
-```
-
-#### **Caching and Performance Hooks**
-
-Implement caching to improve performance:
-
-```ts
-// hooks/cachingHooks.ts
-const cache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-export const beforeHooks = {
-  getTokenPrice: async (context: ToolContext) => {
-    const cacheKey = `price_${context.input.token}`;
-    const cached = cache.get(cacheKey);
-
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      // Return cached result and skip tool execution
-      context.result = cached.data;
-      context.skipExecution = true;
-      console.log('[Cache] Using cached price data');
-    }
-  },
-};
-
-export const afterHooks = {
-  getTokenPrice: async (context: ToolContext) => {
-    // Cache successful results
-    if (context.result && !context.result.error) {
-      const cacheKey = `price_${context.input.token}`;
-      cache.set(cacheKey, {
-        data: context.result,
-        timestamp: Date.now(),
-      });
-      console.log('[Cache] Cached price data');
-    }
-  },
-};
-```
-
-#### **Logging and Analytics Hooks**
-
-Track usage and performance:
-
-```ts
-// hooks/analyticsHooks.ts
-export const beforeHooks = {
-  // Apply to all tools using wildcard pattern
-  '*': async (context: ToolContext) => {
-    context.startTime = Date.now();
-    console.log(`[Analytics] Tool ${context.toolName} started`, {
-      input: context.input,
-      timestamp: new Date().toISOString(),
-    });
-  },
-};
-
-export const afterHooks = {
-  '*': async (context: ToolContext) => {
-    const duration = Date.now() - (context.startTime || 0);
-    const success = !context.result?.error;
-
-    // Log to analytics service
-    await logToolUsage({
-      toolName: context.toolName,
-      duration,
-      success,
-      inputSize: JSON.stringify(context.input).length,
-      outputSize: JSON.stringify(context.result).length,
-      timestamp: new Date().toISOString(),
-    });
-
-    console.log(`[Analytics] Tool ${context.toolName} completed in ${duration}ms`);
-  },
-};
-```
-
 ---
 
-### 🎨 Artifacts: Rich Response Content
+### 📋 Common Design Patterns
 
-Artifacts enable you to return rich, mixed-content responses that enhance the user experience:
+#### **1. Single-Tool Skills (Focused Capability)**
 
-```ts
-import { createArtifact, createSuccessTask } from 'arbitrum-vibekit-core';
-
-// Create an artifact with mixed content
-const artifact = createArtifact(
-  [
-    { kind: 'text', text: 'Portfolio Analysis Results' },
-    { kind: 'text', text: '\n\n**Current Holdings:**\n' },
-    { kind: 'text', text: `• ETH: ${balances.ETH} ($${values.ETH})\n` },
-    { kind: 'text', text: `• USDC: ${balances.USDC} ($${values.USDC})\n` },
-  ],
-  'Portfolio Analysis',
-  'Detailed breakdown of your current portfolio',
-  {
-    totalValue: values.total,
-    lastUpdated: new Date().toISOString(),
-  }
-);
-
-return createSuccessTask('portfolio-analysis', [artifact], 'Analysis complete');
-```
-
-#### **Code Artifacts**
-
-Return executable code or configurations:
+For specialized capabilities that might expand later:
 
 ```ts
-// tools/generateSwapCode.ts
-export const generateSwapCodeTool = defineTool({
-  name: 'generateSwapCode',
-  description: 'Generate TypeScript code for token swap',
+export const priceSkill = defineSkill({
+  id: 'price-prediction',
+  name: 'Price Prediction',
+  description: 'Get AI-powered price predictions for tokens',
+  tags: ['prediction', 'market-data'],
+  examples: ['What will BTC price be?', 'Get ETH price prediction'],
+
   inputSchema: z.object({
-    fromToken: z.string(),
-    toToken: z.string(),
-    amount: z.number(),
+    message: z.string().describe('Natural language price query'),
   }),
-  handler: async input => {
-    const swapCode = `
-// Generated swap code for ${input.fromToken} → ${input.toToken}
-import { ethers } from 'ethers';
 
-async function swapTokens() {
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-  
-  // Swap ${input.amount} ${input.fromToken} for ${input.toToken}
-  const swapParams = {
-    fromToken: '${input.fromToken}',
-    toToken: '${input.toToken}',  
-    amount: ethers.parseUnits('${input.amount}', 18),
-    slippage: 0.5, // 0.5%
-  };
-  
-  console.log('Executing swap:', swapParams);
-  // Implementation depends on your DEX integration
-}
+  tools: [getPricePredictionTool], // Single focused tool
 
-swapTokens().catch(console.error);
-`;
-
-    const codeArtifact = createArtifact(
-      [{ kind: 'text', text: swapCode }],
-      'Swap Code',
-      `TypeScript code to swap ${input.amount} ${input.fromToken} for ${input.toToken}`,
-      {
-        language: 'typescript',
-        executable: true,
-        fromToken: input.fromToken,
-        toToken: input.toToken,
-        amount: input.amount,
-      }
-    );
-
-    return createSuccessTask(
-      'code-generation',
-      [codeArtifact],
-      `Generated swap code for ${input.fromToken} → ${input.toToken}`
-    );
-  },
+  mcpServers: [
+    {
+      command: 'node',
+      moduleName: '@alloralabs/mcp-server',
+      env: { ALLORA_API_KEY: process.env.ALLORA_API_KEY },
+    },
+  ],
 });
 ```
 
-#### **Data Visualization Artifacts**
+**When to use:**
 
-Create charts and visualizations:
+- Single focused capability
+- Might expand with more tools later
+- Clear, specific user intent
+- External service integration
 
-```ts
-// tools/createPortfolioChart.ts
-export const createPortfolioChartTool = defineTool({
-  name: 'createPortfolioChart',
-  description: 'Create portfolio allocation chart',
-  handler: async input => {
-    // Generate chart data
-    const chartData = {
-      type: 'pie',
-      data: {
-        labels: Object.keys(input.holdings),
-        datasets: [
-          {
-            data: Object.values(input.holdings),
-            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          title: {
-            display: true,
-            text: 'Portfolio Allocation',
-          },
-        },
-      },
-    };
+#### **2. Multi-Tool Skills (Complex Operations)**
 
-    // Create chart configuration artifact
-    const chartArtifact = createArtifact(
-      [
-        { kind: 'text', text: '## Portfolio Allocation\n\n' },
-        { kind: 'text', text: JSON.stringify(chartData, null, 2) },
-      ],
-      'Portfolio Chart',
-      'Interactive pie chart showing portfolio allocation',
-      {
-        type: 'chart',
-        chartType: 'pie',
-        data: chartData,
-      }
-    );
-
-    return createSuccessTask(
-      'chart-creation',
-      [chartArtifact],
-      'Portfolio chart created successfully'
-    );
-  },
-});
-```
-
-#### **Mixed Content Artifacts**
-
-Combine text, code, and data in single responses:
-
-````ts
-// tools/analyzeLendingPosition.ts
-export const analyzeLendingPositionTool = defineTool({
-  name: 'analyzeLendingPosition',
-  handler: async input => {
-    const position = await getLendingPosition(input.walletAddress);
-
-    // Create comprehensive analysis artifact
-    const analysisArtifact = createArtifact(
-      [
-        { kind: 'text', text: '# Lending Position Analysis\n\n' },
-        { kind: 'text', text: `**Wallet:** \`${input.walletAddress}\`\n` },
-        { kind: 'text', text: `**Total Supplied:** $${position.totalSupplied.toLocaleString()}\n` },
-        { kind: 'text', text: `**Total Borrowed:** $${position.totalBorrowed.toLocaleString()}\n` },
-        { kind: 'text', text: `**Health Factor:** ${position.healthFactor}\n\n` },
-
-        { kind: 'text', text: '## Risk Assessment\n\n' },
-        { kind: 'text', text: position.healthFactor > 2.0 ? '✅ Low Risk' : '⚠️ Medium Risk' },
-        { kind: 'text', text: '\n\n## Recommendations\n\n' },
-
-        ...position.recommendations.map(rec => ({
-          kind: 'text' as const,
-          text: `• ${rec}\n`,
-        })),
-
-        { kind: 'text', text: '\n\n## Position Details\n\n```json\n' },
-        { kind: 'text', text: JSON.stringify(position, null, 2) },
-        { kind: 'text', text: '\n```' },
-      ],
-      'Lending Analysis',
-      'Comprehensive analysis of your lending position',
-      {
-        walletAddress: input.walletAddress,
-        healthFactor: position.healthFactor,
-        riskLevel: position.healthFactor > 2.0 ? 'low' : 'medium',
-        totalValue: position.totalSupplied,
-        generatedAt: new Date().toISOString(),
-      }
-    );
-
-    return createSuccessTask(
-      'lending-analysis',
-      [analysisArtifact],
-      'Lending position analysis completed'
-    );
-  },
-});
-````
-
----
-
-### 🔧 Hook Integration with Skills
-
-Hooks are automatically applied when tools are used within skills:
+For comprehensive capabilities with multiple related operations:
 
 ```ts
-// skills/enhancedLending.ts
-export const enhancedLendingSkill = defineSkill({
-  id: 'enhanced-lending',
-  name: 'Enhanced Lending',
-  description: 'Lending operations with security, caching, and analytics',
+export const portfolioSkill = defineSkill({
+  id: 'portfolio-management',
+  name: 'Portfolio Management',
+  description: 'Comprehensive portfolio analysis and management',
+  tags: ['portfolio', 'analysis', 'defi'],
+  examples: [
+    'What are my current holdings?',
+    'Rebalance my portfolio to 60% ETH, 40% USDC',
+    'Analyze my portfolio performance',
+  ],
+
+  inputSchema: z.object({
+    instruction: z.string(),
+    walletAddress: z.string(),
+  }),
 
   tools: [
-    supplyTool, // Will use security + analytics hooks
-    borrowTool, // Will use security + analytics hooks
-    withdrawTool, // Will use security + analytics hooks
+    getPortfolioBalancesTool, // "What do I own?"
+    analyzePerformanceTool, // "How am I doing?"
+    suggestRebalanceTool, // "How should I rebalance?"
+    executeRebalanceWorkflow, // "Rebalance to target allocation"
+    calculateRiskTool, // "What's my risk exposure?"
   ],
 
-  // Hooks are applied automatically based on tool names
+  // LLM coordinates based on user intent
 });
 ```
 
-#### **Conditional Hook Application**
+**When to use:**
 
-Apply hooks based on context or configuration:
+- Multiple related operations
+- Complex user intents
+- Needs intelligent routing
+- Comprehensive capability area
+
+#### **3. Workflow-Dominant Skills (Process-Oriented)**
+
+For skills built around coordinated multi-step processes:
 
 ```ts
-// hooks/conditionalHooks.ts
+export const tradingSkill = defineSkill({
+  id: 'advanced-trading',
+  name: 'Advanced Trading',
+  description: 'Execute complex trading strategies',
+  tags: ['trading', 'strategy', 'defi'],
+  examples: [
+    'Execute market buy for 1000 USDC of ETH',
+    'Place limit order: buy ETH at $3000',
+    'Cancel order #123',
+  ],
+
+  tools: [
+    // Workflows for complex operations
+    executeMarketOrderWorkflow, // Market buy/sell with validation
+    executeLimitOrderWorkflow, // Place and monitor limit orders
+    executeDCAWorkflow, // Dollar cost averaging strategy
+
+    // Simple tools for quick operations
+    cancelOrderTool, // Cancel existing order
+    getOrderStatusTool, // Check order status
+    getOrderHistoryTool, // View past orders
+  ],
+});
+```
+
+**When to use:**
+
+- Mix of complex workflows and simple operations
+- Process-heavy domain (trading, DeFi strategies)
+- Need both automation and manual control
+
+#### **4. Utility Skills (Support Functions)**
+
+For simple, deterministic operations that support other capabilities:
+
+```ts
+export const utilitySkill = defineSkill({
+  id: 'utility-functions',
+  name: 'Utility Functions',
+  description: 'Helper functions for calculations and formatting',
+  tags: ['utility', 'calculation'],
+  examples: ['What time is it?', 'Calculate 15% of 1000', 'Format this timestamp'],
+
+  tools: [getCurrentTimeTool, calculatePercentageTool, formatNumberTool, convertUnitsTool],
+
+  // Often uses manual handlers for performance
+  handler: async input => {
+    // Route to appropriate utility function
+    // Manual routing for deterministic operations
+  },
+});
+```
+
+**When to use:**
+
+- Simple, deterministic operations
+- Supporting other skills
+- Performance-critical functions
+- Pure computation
+
+---
+
+### 🎯 Design Decision Framework
+
+#### **Tool Granularity Decision Tree**
+
+```
+Is this a multi-step process that ALWAYS happens together?
+├─ YES → Workflow Tool
+│   └─ Example: Quote → Approve → Swap
+└─ NO → Individual Tools
+    └─ Example: Supply, Borrow, Repay (can be done separately)
+
+Do users need to perform steps independently?
+├─ YES → Individual Tools + LLM Orchestration
+└─ NO → Workflow Tool
+
+Is the process deterministic with clear steps?
+├─ YES → Workflow Tool
+└─ NO → Individual Tools + LLM Coordination
+```
+
+#### **Skill Structure Decision Tree**
+
+```
+How many tools does this capability need?
+├─ 1 Tool → Single-Tool Skill
+├─ 2-4 Related Tools → Multi-Tool Skill
+└─ 5+ Tools → Consider splitting into multiple skills
+
+Are the tools tightly coupled?
+├─ YES → Keep in same skill
+└─ NO → Split into separate skills
+
+Do the tools serve the same user intent?
+├─ YES → Same skill
+└─ NO → Separate skills
+```
+
+---
+
+### 🔧 Implementation Examples
+
+#### **Hook-Enhanced Workflow**
+
+Combine workflows with hooks for maximum flexibility:
+
+```ts
+// tools/executeSwapWorkflow.ts
+const swapSchema = z.object({
+  fromToken: z.string(),
+  toToken: z.string(),
+  amount: z.number(),
+});
+
+export const executeSwapWorkflow: VibkitToolDefinition<typeof swapSchema> = {
+  name: 'executeSwapWorkflow',
+  description: 'Execute token swap with validation and confirmation',
+  parameters: swapSchema,
+  execute: async input => {
+    // Core workflow logic
+    return await performSwap(input);
+  },
+};
+
+// hooks/swapHooks.ts
 export const beforeHooks = {
-  supplyToken: async (context: ToolContext) => {
-    // Only apply validation in production
-    if (process.env.NODE_ENV === 'production') {
-      await validateProductionSafety(context.input);
-    }
+  executeSwapWorkflow: async context => {
+    // Pre-validation
+    await validateSwapParameters(context.input);
+    await checkTokenBalances(context.input);
+    await verifySlippageLimits(context.input);
+  },
+};
 
-    // Only cache in development for testing
-    if (process.env.NODE_ENV === 'development') {
-      await applyCaching(context);
-    }
-
-    // Always log in staging
-    if (process.env.NODE_ENV === 'staging') {
-      await logDetailedAnalytics(context);
-    }
+export const afterHooks = {
+  executeSwapWorkflow: async context => {
+    // Post-processing
+    await logSwapTransaction(context.result);
+    await updatePortfolioCache(context.input.walletAddress);
+    await notifyUser(context.result);
   },
 };
 ```
 
-#### **Hook Composition**
+#### **Conditional Workflows**
 
-Combine multiple hook functions:
+Workflows that adapt based on conditions:
 
 ```ts
-// hooks/composedHooks.ts
-import { securityHooks } from './securityHooks.js';
-import { analyticsHooks } from './analyticsHooks.js';
-import { cachingHooks } from './cachingHooks.js';
+const rebalanceParams = z.object({
+  walletAddress: z.string(),
+  targetAllocation: z.record(z.number()),
+  maxSlippage: z.number().default(1.0),
+});
 
-// Compose multiple hook modules
-export const beforeHooks = {
-  ...securityHooks.beforeHooks,
-  ...analyticsHooks.beforeHooks,
-  ...cachingHooks.beforeHooks,
+export const smartRebalanceWorkflow: VibkitToolDefinition<typeof rebalanceParams> = {
+  name: 'smartRebalanceWorkflow',
+  description: 'Intelligently rebalance portfolio based on current state',
+  parameters: rebalanceParams,
+  execute: async input => {
+    // Step 1: Analyze current portfolio
+    const currentBalances = await getPortfolioBalances(input.walletAddress);
+    const analysis = await analyzeRebalanceNeeds(currentBalances, input.targetAllocation);
 
-  // Custom composition for specific tools
-  supplyToken: async (context: ToolContext) => {
-    await securityHooks.beforeHooks.supplyToken?.(context);
-    await analyticsHooks.beforeHooks['*']?.(context);
-    await cachingHooks.beforeHooks.supplyToken?.(context);
+    if (!analysis.needsRebalancing) {
+      return {
+        success: true,
+        action: 'no_rebalancing_needed',
+        message: 'Portfolio is already within target allocation',
+        currentAllocation: analysis.currentAllocation,
+      };
+    }
+
+    // Step 2: Plan trades
+    const tradePlan = await calculateRequiredTrades(analysis);
+
+    if (tradePlan.estimatedSlippage > input.maxSlippage) {
+      return {
+        success: false,
+        action: 'slippage_too_high',
+        message: `Estimated slippage ${tradePlan.estimatedSlippage}% exceeds limit ${input.maxSlippage}%`,
+        tradePlan,
+      };
+    }
+
+    // Step 3: Execute trades
+    const results = [];
+    for (const trade of tradePlan.trades) {
+      const result = await executeSwap(trade);
+      results.push(result);
+
+      if (!result.success) {
+        // Stop on first failure
+        return {
+          success: false,
+          action: 'trade_failed',
+          message: `Trade failed: ${result.error}`,
+          completedTrades: results,
+        };
+      }
+    }
+
+    return {
+      success: true,
+      action: 'rebalanced',
+      message: 'Portfolio successfully rebalanced',
+      completedTrades: results,
+      newAllocation: await getCurrentAllocation(input.walletAddress),
+    };
   },
 };
 ```
 
 ---
 
-### 🎯 Best Practices
+### 🎨 Advanced Patterns
 
-#### **Hook Design Principles**
+#### **Skill Composition**
 
-1. **Single Responsibility**: Each hook should have one clear purpose
-2. **Non-Invasive**: Don't modify core business logic
-3. **Error Handling**: Hooks should fail gracefully
-4. **Performance**: Keep hooks lightweight
-5. **Composability**: Design hooks to work together
-
-#### **Artifact Design Principles**
-
-1. **Rich Content**: Use mixed content types for better UX
-2. **Metadata**: Include useful metadata for processing
-3. **Structure**: Organize content logically
-4. **Accessibility**: Ensure content is readable and usable
-5. **Context**: Provide relevant context and timestamps
-
-#### **Testing Hooks and Artifacts**
+Building complex capabilities from simpler skills:
 
 ```ts
-// test/hooks.test.ts
-import { beforeHooks, afterHooks } from '../src/hooks/index.js';
-
-describe('Price Prediction Hooks', () => {
-  it('should transform natural language input', async () => {
-    const context = {
-      input: { message: 'What will BTC price be in 24 hours?' },
-      toolName: 'getPricePrediction',
-    };
-
-    await beforeHooks.getPricePrediction(context);
-
-    expect(context.input.token).toBe('BTC');
-    expect(context.input.timeframe).toBe('24h');
-  });
-
-  it('should format response with emojis', async () => {
-    const context = {
-      result: { token: 'ETH', price: 3000, confidence: 85 },
-      toolName: 'getPricePrediction',
-    };
-
-    await afterHooks.getPricePrediction(context);
-
-    expect(context.result.formatted).toContain('📈');
-    expect(context.result.formatted).toContain('ETH');
-  });
+// Simple skills
+export const swapSkill = defineSkill({
+  id: 'token-swap',
+  tools: [executeSwapWorkflow],
 });
+
+export const lendingSkill = defineSkill({
+  id: 'lending',
+  tools: [supplyTool, borrowTool],
+});
+
+// Composed skill that uses other skills
+export const yieldFarmingSkill = defineSkill({
+  id: 'yield-farming',
+  name: 'Yield Farming',
+  description: 'Automated yield farming strategies',
+  tools: [
+    // Workflow that coordinates swap + lending
+    executeYieldFarmWorkflow,
+  ],
+
+  // Can reference other skills' tools if needed
+  // Or delegate to other agents via A2A
+});
+```
+
+#### **Error Recovery Workflows**
+
+Workflows that handle failures gracefully:
+
+```ts
+const robustSwapParams = z.object({
+  fromToken: z.string(),
+  toToken: z.string(),
+  amount: z.number(),
+});
+
+export const robustSwapWorkflow: VibkitToolDefinition<typeof robustSwapParams> = {
+  name: 'robustSwapWorkflow',
+  description: 'Execute swap with automatic retry and fallback',
+  parameters: robustSwapParams,
+  execute: async input => {
+    const maxRetries = 3;
+    const fallbackDexes = ['uniswap', 'sushiswap', 'curve'];
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      for (const dex of fallbackDexes) {
+        try {
+          const result = await executeSwapOnDex(input, dex);
+          return {
+            success: true,
+            result,
+            dexUsed: dex,
+            attempt: attempt + 1,
+          };
+        } catch (error) {
+          console.warn(`Swap failed on ${dex}, attempt ${attempt + 1}:`, error.message);
+
+          if (dex === fallbackDexes[fallbackDexes.length - 1] && attempt === maxRetries - 1) {
+            // Last attempt on last DEX
+            return {
+              success: false,
+              error: 'All swap attempts failed',
+              attempts: maxRetries,
+              dexesTried: fallbackDexes,
+              lastError: error.message,
+            };
+          }
+        }
+      }
+    }
+  },
+};
 ```
 
 ---
 
 ### ✅ Summary
 
-Advanced hooks and artifacts enhance the v2 framework:
+Effective workflow and skill design requires understanding the trade-offs:
 
-- **Hooks** provide clean separation of concerns for cross-cutting functionality
-- **Data transformation** hooks adapt interfaces without changing core logic
-- **Security hooks** implement validation and safety checks
-- **Analytics hooks** track usage and performance metrics
-- **Artifacts** enable rich, mixed-content responses
-- **Code artifacts** return executable code and configurations
-- **Visualization artifacts** create charts and interactive content
+- **Workflow tools** encapsulate multi-step processes that always occur together
+- **Individual tools** provide flexibility for independent operations
+- **LLM orchestration** handles coordination between individual tools
+- **Design patterns** provide proven structures for common scenarios
+- **Mixed approaches** optimize each capability for its specific needs
 
-Use hooks to keep your tools focused on business logic while adding essential capabilities like security, caching, and analytics. Use artifacts to create engaging, informative responses that go beyond simple text.
+Choose workflow tools for coupled processes, individual tools for independent operations, and let LLM orchestration handle the coordination between them.
 
-> "Hooks are the seasoning. Artifacts are the presentation."
+> "Good design makes common things easy and complex things possible."
 
-| Feature             | Purpose                 | Benefits                   | Use Cases                         |
-| ------------------- | ----------------------- | -------------------------- | --------------------------------- |
-| **Before Hooks**    | Pre-processing          | Validation, transformation | Security checks, input formatting |
-| **After Hooks**     | Post-processing         | Enhancement, logging       | Response formatting, analytics    |
-| **Text Artifacts**  | Rich content            | Better UX                  | Analysis reports, documentation   |
-| **Code Artifacts**  | Executable content      | Developer tools            | Generated scripts, configurations |
-| **Mixed Artifacts** | Comprehensive responses | Complete information       | Analysis + recommendations + data |
+| Pattern                | Use Case             | Benefits                    | Trade-offs            |
+| ---------------------- | -------------------- | --------------------------- | --------------------- |
+| **Workflow Tools**     | Coupled processes    | Reliability, atomicity      | Less flexibility      |
+| **Individual Tools**   | Independent actions  | Flexibility, composability  | Requires coordination |
+| **Single-Tool Skills** | Focused capabilities | Simple, clear               | Limited scope         |
+| **Multi-Tool Skills**  | Complex domains      | Comprehensive               | More complex          |
+| **Utility Skills**     | Support functions    | Performance, predictability | Limited intelligence  |

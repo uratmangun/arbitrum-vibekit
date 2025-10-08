@@ -1,64 +1,90 @@
-# **Lesson 9: Adapting Third-Party Tools**
+# **Lesson 9: How Tool Hooks Work (`before` and `after`)**
 
 ---
 
 ### 🔍 Overview
 
-Not every tool your agent needs has to be written from scratch. Many core utilities—like price lookups, transaction builders, or explorer queries—already exist as third-party MCP tools. But you often need to slightly change how these tools behave:
+Tool hooks are optional functions you can define to run logic immediately **before** or **after** a tool’s main implementation (`impl`). They let you customize behavior without cluttering your business logic. Hooks apply whenever the agent invokes a tool—whether that invocation originates from an MCP request or as part of handling an A2A Task.
 
-- Translate inputs (e.g. map `symbol` to `chain/address`)
-- Insert side logic (e.g. fee checks, rate limits)
-- Modify the output (e.g. redact or reformat the result)
-
-To solve this, we use **adapters**: lightweight wrappers around existing tools that let you extend, remap, or customize their behavior.
+Each hook receives the same context object as the tool’s `impl`, giving it access to validated inputs, internal state, metadata, and return values—depending on hook type.
 
 ---
 
-### 🚂 When to Use an Adapter
+### 🌐 Hook Locations
 
-- You want to customize the interface of a third-party tool without forking or rewriting it
-- You want to run `before`/`after` logic around a third‑party tool you don’t own (you can’t add hooks inside its file). Creating an adapter gives you a place to attach those hooks.
-- You want to expose a simplified or opinionated version of an external tool to the LLM
-
----
-
-### 🔧 How Adapters Work
-
-Adapters are just tools themselves. You import the original tool, and then use the same `before`, `after`, and decorator patterns you already know:
+Hooks live next to the tool and are exported from the same file.
 
 ```ts
-// adapters/getTokenPrice.ts
-import { getPrice } from "arbitrum-vibekit/providers/price";
-import { withPaywall } from "arbitrum-vibekit/paywall";
-
 export const before = (ctx) => {
-  ctx.args = { ...ctx.args, symbol: ctx.args.symbol.toUpperCase() };
+  ctx.args.symbol = ctx.args.symbol.toUpperCase();
 };
 
-export default withPaywall(getPrice, { pct: 0.01 });
+export const after = (ctx) => {
+  logToolCall(ctx.tool, ctx.args, ctx.result);
+};
 ```
 
-This lets you wrap behavior cleanly while keeping the underlying tool untouched.
+You can export one or both. If neither is present, the tool behaves normally.
 
 ---
 
-### 🚪 What Not to Do
+### 🔠 What Hooks Can Do
 
-- Don’t duplicate a tool just to change one argument format
-- Don’t fork third-party tools when a hook or adapter would suffice
-- Don’t mix too many unrelated concerns into one adapter—compose adapters if needed
+**Before Hook**:
+
+- Normalize or coerce input values
+- Validate conditions or deny access
+- Load data into `ctx.meta` for later use
+- Trigger early returns (abort with error)
+
+**After Hook**:
+
+- Log or trace the result
+- Cache the response
+- Modify output (e.g. redact fields)
+- Update task or global state
+
+Hooks have full access to:
+
+- `ctx.args` (input)
+- `ctx.meta` (shared across hooks/tool)
+- `ctx.result` (after only)
+- `ctx.taskId`, `ctx.getTaskState()`, `ctx.setTaskState()`
+
+---
+
+### ⚠️ When Not to Use Hooks
+
+Hooks are powerful, but you should avoid them for:
+
+- Core logic (that belongs in `impl`)
+- Anything you expect to unit test independently
+- Using hooks to perform input validation that belongs in the tool’s schema (e.g., Zod or JSON Schema), rather than manual checks in `before()`
+
+  _Explanation:_ Input validation should be declared in the tool’s schema so the framework can provide automatic error handling, type inference, and clear documentation. Use hooks only for supplemental checks, not as a substitute for schema validation.
+
+Use hooks to extend behavior—not replace structure.
 
 ---
 
 ### ✅ Summary
 
-Adapters let you reshape third-party tools into the exact form your agent needs. Use them to modify input, output, or intermediate behavior in a clean, modular, and testable way.
+Hooks let you wrap tool logic with flexible pre/post behavior. They help with normalization, logging, validation, and light orchestration—but shouldn’t be abused to replace clean function structure.
 
-> "Don’t rewrite the wheel. Wrap it."
+> "Hooks are scaffolding, not the foundation. Use them to shape behavior—not to carry the building."
 
-| Decision                              | Rationale                                                                                                                          |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Adapter = wrapper tool**            | When you don’t control a provider’s source, an adapter file lets you attach hooks/decorators without modifying upstream code.      |
-| **Schema remapping in one place**     | Keeps input/output transformations (symbol→address, param renames) centralized, avoiding scattered logic across multiple tools.    |
-| **Single-purpose adapters**           | Encourages focused adapter files—each does one job (mapping, validation, paywall), so they remain small, testable, and composable. |
-| **Guidance on when _not_ to adapter** | Prevents over-engineering: if you control the source, use hooks directly; if no modification is needed, call the tool straight.    |
+> 📝 **Note on Design**
+> We chose **hooks** instead of middleware to support clean, transparent tool customization:
+>
+> • **File-local proximity** – Hooks live right beside each tool, so their effects are easy to see and maintain.
+> • **Implicit structure** – Hooks always run in a defined order: `before` → `impl` → `after`, with no need for `next()` calls or global chaining.
+> • **Typed and focused** – Hooks operate on a validated `ctx` object, reducing boilerplate and improving safety.
+>
+> Middleware could have achieved similar effects, but hooks keep behavior more modular, visible, and per-tool. They offer the simplest way to wrap logic without introducing system-wide coupling or ambiguity.
+
+| Decision                     | Rationale                                                                                                                                            |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **File-local hooks**         | Hooks live next to each tool file, making their effects discoverable in one place—no hunting through global registration or middleware chains.       |
+| **Implicit execution order** | Guarantees `before → impl → after` without explicit `next()` calls, avoiding common Express middleware mistakes and making control flow predictable. |
+| **Typed `ctx` object**       | Hooks operate on a schema-validated context, not raw `req`/`res`, reducing boilerplate and preventing type mismatches.                               |
+| **Decorator compatibility**  | Heavy cross-cutting concerns (e.g., paywall, rate-limit) stay in decorators outside the hook pipeline, preserving separation of responsibilities.    |

@@ -1,78 +1,236 @@
-# **Lesson 12: Error Handling**
+# **Lesson 12: Context Composition and Reusability**
 
 ---
 
 ### 🔍 Overview
 
-Good agents fail gracefully. This lesson shows you how to catch, wrap, and return errors in a way that works across MCP, A2A, and HTTP. The framework provides a lightweight system for structured error handling so that failures are consistent, traceable, and LLM-friendly.
+> 📝 **Note:** This lesson replaces the legacy "Reducers and Immutable Updates" pattern with v2's functional composition approach for building reusable context providers.
+
+In v2, instead of reducers and immutable state updates, we use **composable context providers** that can be combined, extended, and reused across different skills and agents. This approach provides better type safety and clearer data flow.
 
 ---
 
-### ⚡ The AgentError Class
+### 🧩 Composable Context Providers
 
-The framework includes a built-in `AgentError` class. Use it to throw consistent, typed errors that tools, hooks, and A2A handlers can interpret.
+#### **Base Provider Pattern**
 
-```ts
-import { AgentError } from "arbitrum-vibekit/errors";
+```typescript
+// src/context/base.ts
+export const baseWeb3Provider: ContextProvider<BaseWeb3Context> = async deps => {
+  const provider = new JsonRpcProvider(process.env.RPC_URL);
+  const signer = new Wallet(process.env.PRIVATE_KEY, provider);
 
-throw new AgentError("InvalidParams", "Symbol is missing", 400);
+  return {
+    provider,
+    signer,
+    chainId: await provider.getNetwork().then(n => n.chainId),
+  };
+};
 ```
 
-Arguments:
+#### **Extending Providers**
 
-- `code`: a short string like `InvalidParams`, `NotFound`, or `UpstreamFail`
-- `message`: a human-readable explanation
-- `status`: HTTP-compatible status code (used for formatting responses)
+```typescript
+// src/context/lending.ts
+import { baseWeb3Provider } from './base.js';
+
+export const lendingProvider: ContextProvider<LendingContext> = async deps => {
+  // Reuse base provider
+  const baseContext = await baseWeb3Provider(deps);
+
+  // Add lending-specific context
+  const aavePool = new Contract(AAVE_POOL_ADDRESS, AAVE_ABI, baseContext.signer);
+
+  const reserves = await fetchAaveReserves(aavePool);
+
+  return {
+    ...baseContext,
+    aavePool,
+    reserves,
+    tokenMap: buildTokenMap(reserves),
+  };
+};
+```
 
 ---
 
-### ✋ wrapAsync: Safe Async Tools
+### 🔄 Composition Patterns
 
-Most tools are `async` functions. To avoid unhandled errors, you can wrap them using `wrapAsync()`:
+#### **1. Merging Multiple Contexts**
 
-```ts
-import { wrapAsync } from "arbitrum-vibekit/errors";
+```typescript
+export const composedProvider: ContextProvider<ComposedContext> = async deps => {
+  const [web3, prices, external] = await Promise.all([
+    baseWeb3Provider(deps),
+    priceProvider(deps),
+    externalServicesProvider(deps),
+  ]);
 
-export default wrapAsync(async (ctx) => {
-  const price = await fetchPrice(ctx.args.symbol);
-  if (!price) throw new AgentError("NotFound", "Token not found");
-  return { price };
+  return {
+    ...web3,
+    ...prices,
+    ...external,
+  };
+};
+```
+
+#### **2. Conditional Context**
+
+```typescript
+export const contextProvider: ContextProvider<MyContext> = async deps => {
+  const baseCtx = await baseProvider(deps);
+
+  // Add features based on environment
+  if (process.env.ENABLE_MONITORING === 'true') {
+    return {
+      ...baseCtx,
+      metrics: await initMetrics(),
+      logger: createLogger(),
+    };
+  }
+
+  return baseCtx;
+};
+```
+
+#### **3. Factory Pattern**
+
+```typescript
+// Create specialized providers
+function createProtocolProvider(protocolName: string) {
+  return async (deps: RuntimeDependencies) => {
+    const base = await baseWeb3Provider(deps);
+    const config = await loadProtocolConfig(protocolName);
+
+    return {
+      ...base,
+      protocol: protocolName,
+      contracts: await initContracts(config, base.signer),
+    };
+  };
+}
+
+// Use factory
+export const aaveProvider = createProtocolProvider('aave');
+export const compoundProvider = createProtocolProvider('compound');
+```
+
+---
+
+### 🎯 Reusability Strategies
+
+#### **Shared Utilities Provider**
+
+```typescript
+// src/context/utils.ts
+export const utilsProvider: ContextProvider<UtilsContext> = async deps => {
+  return {
+    parseAmount: (amount: string, decimals: number) => parseUnits(amount, decimals),
+
+    formatAmount: (amount: bigint, decimals: number) => formatUnits(amount, decimals),
+
+    validateAddress: (address: string) => isAddress(address),
+  };
+};
+```
+
+#### **Cross-Agent Context Sharing**
+
+```typescript
+// shared/context/common.ts
+export const commonProvider: ContextProvider<CommonContext> = async deps => {
+  return {
+    rpcUrl: process.env.RPC_URL!,
+    chainId: parseInt(process.env.CHAIN_ID || '42161'),
+    wrappedNative: process.env.WRAPPED_NATIVE_TOKEN!,
+  };
+};
+
+// agents/lending-agent/src/context/index.ts
+import { commonProvider } from '../../../../shared/context/common.js';
+
+export const lendingContext: ContextProvider<LendingContext> = async deps => {
+  const common = await commonProvider(deps);
+  // Add lending-specific context
+  return { ...common /* lending extras */ };
+};
+```
+
+---
+
+### 💡 Type-Safe Composition
+
+```typescript
+// Define context types that compose
+interface BaseContext {
+  provider: JsonRpcProvider;
+  signer: Wallet;
+}
+
+interface PriceContext {
+  getPrices: (tokens: string[]) => Promise<Map<string, number>>;
+}
+
+interface TokenContext {
+  tokens: Map<string, TokenInfo>;
+}
+
+// Compose types
+type FullContext = BaseContext & PriceContext & TokenContext;
+
+// Provider with full type safety
+export const fullProvider: ContextProvider<FullContext> = async deps => {
+  const base = await baseProvider(deps);
+  const prices = await priceProvider(deps);
+  const tokens = await tokenProvider(deps);
+
+  return {
+    ...base,
+    ...prices,
+    ...tokens,
+  };
+};
+```
+
+---
+
+### 🧪 Testing Composed Contexts
+
+```typescript
+describe('Composed Context', () => {
+  it('should merge multiple providers', async () => {
+    const mockDeps = { mcpClients: {} };
+
+    const context = await composedProvider(mockDeps);
+
+    // Verify all provider outputs are present
+    expect(context.provider).toBeDefined();
+    expect(context.getPrices).toBeDefined();
+    expect(context.tokens).toBeDefined();
+  });
+
+  it('should allow selective mocking', async () => {
+    const mockContext: Partial<FullContext> = {
+      getPrices: vi.fn().mockResolvedValue(new Map([['ETH', 2000]])),
+      tokens: new Map([['ETH', { address: '0xETH' }]]),
+    };
+
+    // Use partial context in tests
+    const result = await toolImplementation(args, mockContext as FullContext);
+
+    expect(mockContext.getPrices).toHaveBeenCalled();
+  });
 });
 ```
 
-This wrapper automatically catches thrown errors and formats them as structured responses.
+---
+
+### 🔗 Related Resources
+
+- [Lesson 5: Stateless vs Stateful Logic with Context](./lesson-05.md)
+- [Lesson 11: State Management with Context Providers](./lesson-11.md)
+- [Lesson 12 (Legacy): Reducers and Immutable Updates](./lesson-12-legacy.md) - Old approach
 
 ---
 
-### 🚫 What Not to Do
-
-- Don’t throw raw `Error()` objects—always use `AgentError`
-- Don’t return vague messages like “Something went wrong”
-- Don’t forget to wrap `async` tools—even if they're small
-
----
-
-### ✉ Built-in Middleware
-
-The Express app automatically uses a framework-provided error handler. You don’t need to register it manually. It:
-
-- Converts `AgentError` into clean HTTP or MCP responses
-- Logs internal errors to stderr
-- Ensures consistent error shape for LLMs and agents
-
----
-
-### ✅ Summary
-
-- Throw `AgentError` for clear, typed exceptions
-- Wrap tools in `wrapAsync()` to avoid crashes
-- Let the middleware handle response formatting
-
-> "Failures are expected. Confusion is not."
-
-| Decision                                  | Rationale                                                                                                     |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **`AgentError` with `(code,msg,status)`** | Aligns with OpenAI SDK’s typed errors, so LLMs and dashboards can branch on `code` without regex on messages. |
-| **`wrapAsync()` helper**                  | One-liner to guarantee async errors bubble to Express middleware; prevents unawaited Promise crashes.         |
-| **Central error middleware**              | Formats HTTP, MCP, and A2A errors identically; ensures consistent JSON shape for clients and agents.          |
-| **Discourage raw `Error` throws**         | Forces every failure to carry machine-readable intent; eases monitoring and automatic retries.                |
+**Next:** [Lesson 13: Error Handling](./lesson-13.md)
