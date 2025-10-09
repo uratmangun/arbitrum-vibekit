@@ -50,8 +50,8 @@ pnpm test
 
 ### Legacy Architecture
 
-- **Location**: `typescript/examples/` - Older patterns, use templates for new development
-- **Note**: Examples use older architecture, always prefer V2 templates
+- **Location**: `typescript/community/` - Community-contributed agent implementations
+- **Note**: Community agents use older architecture patterns, always prefer V2 templates for new development
 
 ### Core Concepts
 
@@ -67,7 +67,7 @@ pnpm test
   - Unit tests: `*.unit.test.ts`
   - Integration tests: `*.int.test.ts`
   - Live tests: `*.live.test.ts`
-- **Mocha**: For legacy agents in examples
+- **Mocha**: For legacy agents in community
 - **Note**: We are migrating from Mocha to Vitest. All new tests should be written for Vitest
 - **Integration Tests**: Use real MCP connections and LLM calls
 - **Unit Tests**: Mock external dependencies
@@ -181,7 +181,6 @@ Required environment variables:
 - Keep PRs focused on a single feature or fix
 - Update PR description with summary and test plan before marking ready for review
 
-
 ## DeFi Domain Terminology
 
 ### Consistent Language
@@ -242,4 +241,3 @@ When creating tests, documentation, or handling errors, consider these standard 
 - `development/rationales.md` - Centralized architectural decision log
 - `typescript/lib/arbitrum-vibekit-core/README.md` - Core framework documentation
 - `typescript/templates/README.md` - V2 agent templates guide
-

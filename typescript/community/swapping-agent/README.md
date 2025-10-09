@@ -38,7 +38,7 @@ Below are some example user inputs that showcase the swapping agent's capabiliti
 
 ## Run Agent
 
-To run and interact with the agent, follow the instructions in the [`examples/README.md`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/examples/README.md) file.
+To run and interact with the agent, follow the instructions in the [`community/README.md`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/community/README.md) file.
 
 ### AI Provider Setup
 

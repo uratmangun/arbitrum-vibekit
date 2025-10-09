@@ -116,12 +116,14 @@ After setting up your wallet, you can interact with the lending and swapping age
 The Documentation RAG Agent enables you to index and query documentation websites using AI. This agent demonstrates retrieval-augmented generation (RAG) capabilities.
 
 **Features:**
+
 - Index documentation from any website (React, TypeScript, etc.)
 - Query indexed docs using natural language
 - Get answers with source citations
 - Manage your documentation index
 
 **Getting Started:**
+
 1. Start all services including the doc-rag-agent:
    ```bash
    docker compose up doc-rag-agent web db
@@ -131,6 +133,7 @@ The Documentation RAG Agent enables you to index and query documentation website
 4. Ask questions like "How do React hooks work?"
 
 **Requirements:**
+
 - `OPENAI_API_KEY` for embeddings (required)
 - `OPENROUTER_API_KEY` for LLM capabilities (required)
 
@@ -183,7 +186,7 @@ services:
   # liquidity-agent-no-wallet:
   #   build:
   #     context: ./
-  #     dockerfile: examples/liquidity-agent-no-wallet/Dockerfile
+  #     dockerfile: community/liquidity-agent-no-wallet/Dockerfile
   #   container_name: vibekit-liquidity-agent-no-wallet
   #   env_file:
   #     - .env
@@ -194,7 +197,7 @@ services:
   # pendle-agent:
   #   build:
   #     context: ./
-  #     dockerfile: examples/pendle-agent/Dockerfile
+  #     dockerfile: community/pendle-agent/Dockerfile
   #   container_name: vibekit-pendle-agent
   #   env_file:
   #     - .env

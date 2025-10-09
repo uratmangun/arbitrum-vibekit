@@ -1,6 +1,6 @@
 ## Introduction
 
-The `examples` directory contains some implementations of on-chain AI agents, illustrating how they are easily built and deployed using the Arbitrum Vibetkit. These agents can act as MCP tools for compatibility with any system.
+The `community` directory contains community-contributed implementations of on-chain AI agents, illustrating how they are easily built and deployed using the Arbitrum Vibetkit. These agents can act as MCP tools for compatibility with any system.
 
 ## Running an Existing Agent
 

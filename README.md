@@ -39,8 +39,8 @@ arbitrum-vibekit/
 ├── typescript/                     # Main monorepo workspace
 │   ├── clients/                    # Client applications
 │   │   └── web/                    # Vibekit frontend
-│   ├── templates/                  # Production-ready agent templates
-│   ├── examples/                   # [Legacy] Older architecture examples
+│   ├── templates/                  # Official Vibekit agent templates
+│   ├── community/                  # Community-contributed agent templates
 │   ├── lib/                        # Core framework libraries such as MCP tools, Ember API, etc.
 │   │   ├── a2a-types/              # Agent-to-Agent type definitions
 │   │   ├── arbitrum-vibekit-core/ # Core framework implementation
@@ -63,7 +63,9 @@ arbitrum-vibekit/
 
 ### Key Directories
 
-- **[`templates/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates)**: Production-ready agent templates with skills, tools, hooks, and modern deployment patterns.
+- **[`templates/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates)**: Official Vibekit agent templates featuring production-ready implementations with skills, tools, hooks, and modern deployment patterns. These serve as reference implementations for building your own agents.
+
+- **[`community/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/community)**: Community-contributed agent templates and external integrations. This is where developers can contribute their own specialized agents to expand Vibekit's ecosystem.
 
 - **[`clients/web`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/clients/web)**: Vibekit web frontend, featuring wallet integration, agent chat interface, and real-time MCP communication for DeFi agent interactions.
 
