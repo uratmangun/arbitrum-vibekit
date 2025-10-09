@@ -41,7 +41,7 @@ onchain-actions-plugins/
 
 Plugins are capabilities that expand Ember's functionality by integrating new DeFi protocols. The plugin created by developers must handle all smart contract interactions, from constructing transaction calldata to managing protocol-specific logic. Once a plugin is finalized, updates will be made to Ember's backend to fully integrate the new capabilities.
 
-### Benefits of the Plugin System
+### Why Build Plugins?
 
 The plugin system provides several key advantages for protocol integrations:
 
