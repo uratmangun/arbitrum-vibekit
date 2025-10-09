@@ -204,6 +204,13 @@ Vibekit provides AI guidance through rule files:
 - `commands/` - High-level command structures
 - `hooks/` - Development lifecycle scripts
 
+**Claude Code Guidance** (`CLAUDE.md`)
+
+- Comprehensive architecture and framework overview
+- Development standards and best practices
+- Code quality validation guidelines
+- Package management and testing strategies
+
 **Example Quick Reference:**
 
 ```typescript

@@ -48,12 +48,7 @@ arbitrum-vibekit/
 │   │   ├── ember-schemas/          # Schema definitions
 │   │   ├── mcp-tools/              # MCP tool server implementations
 │   │   └── test-utils/             # Testing utilities and helpers
-│   ├── onchain-actions-plugins/    # Ember plugin system
-│   ├── test/                       # Integration and end-to-end tests
-│   ├── scripts/                    # Build and utility scripts
-│   ├── compose.yml                 # Docker Compose configuration
-│   ├── package.json               # Workspace package configuration
-│   └── pnpm-workspace.yaml        # PNPM workspace configuration
+│   └── onchain-actions-plugins/    # Ember plugin system
 ├── CHANGELOG.md
 ├── CLAUDE.md
 ├── CONTRIBUTIONS.md
@@ -220,6 +215,8 @@ For Claude models, prompt engineering is handled through a set of dedicated file
 - **agents/**: Contains prompts for persona-driven agents that specialize in tasks like Test-Driven Development, documentation, and feature writing.
 - **commands/**: Includes prompts that define high-level command structures for planning, execution, and version control.
 - **hooks/**: Provides scripts that can be triggered at different stages of the development lifecycle, such as pre-task and post-task actions.
+
+Additionally, [`CLAUDE.md`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/CLAUDE.md) provides comprehensive guidance for Claude Code when working with the Vibekit codebase, including architecture overview, development standards, and code quality guidelines.
 
 ### Cursor
 
