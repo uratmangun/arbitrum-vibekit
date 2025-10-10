@@ -41,7 +41,7 @@ In a dynamic environment, you may want to use different models for different tas
 You can use `createProviderSelector` to get a specific provider's `LanguageModelV1` instance. The selector will automatically use the correct API key from your environment variables.
 
 ```typescript
-import { createProviderSelector } from '@arbitrum/vibekit-core';
+import { createProviderSelector } from 'arbitrum-vibekit-core';
 import 'dotenv/config';
 
 // Your .env file should contain the API keys:
@@ -88,7 +88,7 @@ if (providers.grok) {
 // You can now use these model instances with the Vibekit Framework
 // For example, using them in a Vibekit agent:
 
-import { Agent } from '@arbitrum/vibekit-core';
+import { Agent } from 'arbitrum-vibekit-core';
 
 // Minimal agent manifest (must include at least one skill in real usage)
 const myAgentConfig = {

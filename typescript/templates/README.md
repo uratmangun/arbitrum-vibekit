@@ -1,11 +1,11 @@
-# 🎯 Agent Templates
+# Agent Templates
 
 This directory contains production-ready AI agent templates that demonstrate how to build sophisticated, autonomous on-chain agents. Each template agent features the v2 framework's improved design with skills, tools, hooks, and enhanced MCP integrations. They serve as both working examples and starting points for building your own custom agents.
 
 Follow this guide to:
 
 - [Understand the v2 Architecture](#️-template-agent-architecture-overview)
-- [Get Started with Templates](#-get-started-with-templates)
+- [Run Template Agents](#-run-template-agents)
 - [Build Your Own Agent](#%EF%B8%8F-build-your-own-agent)
 
 ## 🏗️ Template Agent Architecture Overview
@@ -26,9 +26,13 @@ agent-name/
 │       ├── provider.ts   # Context provider
 │       └── types.ts      # Type definitions
 ├── test/                 # Test files
+├── Dockerfile            # Development Docker configuration
+├── Dockerfile.prod       # Production Docker configuration
 ├── package.json          # Agent dependencies
 ├── tsconfig.json         # TypeScript configuration
-└── README.md            # Agent documentation
+├── vitest.config.ts      # Vitest configuration (optional)
+├── .env.example          # Example environment variables
+└── README.md             # Agent documentation
 ```
 
 ### Core Concepts
@@ -40,19 +44,11 @@ agent-name/
 - **LLM Orchestration**: Intelligent routing and coordination between tools within skills
 - **Transaction Signing**: All blockchain transactions should be signed and executed using Vibekit's `withHooks` after hook feature for secure transaction handling
 
-## 🚀 Get Started with Templates
+## 🚀 Run Template Agents
 
 ### 1. Set Up Your IDE
 
-We recommend using [Cursor IDE](https://www.cursor.com/) for the best development experience. Cursor provides an AI-powered environment designed for seamless collaboration between you and your AI assistant.
-
-With Cursor, you can:
-
-- Define your project context using [rule files](https://docs.cursor.com/context/rules) in the `.cursor/rules` folder
-- Run Vibekit agents locally or remotely within your development environment
-- Integrate [MCP-powered](https://docs.cursor.com/context/model-context-protocol) tools and workflows
-
-To clone Vibekit in Cursor:
+We recommend using [Cursor IDE](https://www.cursor.com/) for the best development experience. Cursor provides an AI-powered environment designed for seamless collaboration between you and your AI assistant. To clone Vibekit in Cursor:
 
 1. Open Cursor and click "Clone repo" in the welcome screen
 2. Paste the repository URL: https://github.com/EmberAGI/arbitrum-vibekit.git
@@ -82,8 +78,6 @@ claude execute
 
 Because the `.claude/` folder is part of this repository, the CLI automatically applies all prompts and hooks, ensuring a consistent developer experience.
 
-To learn more about Claude Code, visit [their official docs](https://docs.anthropic.com/en/docs/claude-code/overview).
-
 ### 2. Set Up Your Environment
 
 First, ensure that [`Node.js 22+`](https://nodejs.org/) and [`pnpm`](https://pnpm.io/) are installed on your system.
@@ -93,7 +87,7 @@ node -v # Should be 22+
 pnpm -v # Check that pnpm is installed
 ```
 
-Next, navigate to your desired template agent's directory and create an `.env` file. Copy the contents of `.env.example` into the `.env` file and fill in any required secrets or configuration variables.
+Next, navigate to your desired template agent's directory and create an `.env` file. by copying the `.env.example` and fill in any required secrets or configuration variables.
 
 ### 3. Install Packages
 
@@ -105,13 +99,9 @@ cd typescript && pnpm install
 
 ### 4. Start Your Agent
 
-You can start any template agent in three different ways. Choose the approach that best fits your preferences and project setup:
+You can start any template agent in two different ways. Choose the approach that best fits your preferences and project setup:
 
-**1. Cursor's AI Assistant (Vibe Coding)**:
-
-Ask Cursor's integrated AI assistant to run your desired agent. Make sure to add the desired agent's directory to Cursor's chat context.
-
-**2. Docker Compose**:
+**1. Docker Compose**:
 
 To use this option, make sure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) with Docker Compose `v2.24` or greater installed on your system. Run the following command in the [`typescript`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript) directory. Replace `"agent-name"` with the name of your desired template agent, for example: `"quickstart-agent"`.
 
@@ -139,7 +129,7 @@ To stop the agent afterwards, use the following command:
 pnpm --filter "agent-name" docker:compose:down
 ```
 
-**3. Local Development**:
+**2. Local Development**:
 
 Run the following `pnpm` commands in the [`typescript`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript) directory to build and run your agent. Replace `"agent-name"` with the name of your desired template agent, for example: `"quickstart-agent"`.
 
@@ -180,42 +170,22 @@ You might need to restart Cursor to apply the new configuration. Upon successful
 
 Before building your agent, we highly recommend reviewing these key lessons that cover the v2 framework architecture and best practices:
 
-- **[Lesson 19: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-19.md)** - Understand the core `defineSkill` pattern and agent architecture.
-- **[Lesson 06: v2 Agent Structure and File Layout](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-06.md)** - Learn the template agent directory structure and organization.
-- **[Lesson 20: LLM Orchestration vs Manual Handlers](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md)** - Master the decision framework for when to use tools vs handlers.
+- **[Lesson 20: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md)** - Understand the core `defineSkill` pattern and agent architecture.
+- **[Lesson 07: v2 Agent Structure and File Layout](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-07.md)** - Learn the template agent directory structure and organization.
+- **[Lesson 21: LLM Orchestration vs Manual Handlers](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-21.md)** - Master the decision framework for when to use tools vs handlers.
 
-### Start with the Quickstart Agent
+### Start with `quickstart-agent`
 
-We recommend starting with the [`quickstart-agent`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates/quickstart-agent) template. It's a comprehensive example that demonstrates all v2 framework features and serves as both an integration test and a developer template. The Quickstart agent has the following features:
-
-**Skills:**
-
-1. **greet** (LLM-orchestrated) - Takes name and greeting style, uses multiple tools for personalized greetings
-2. **getTime** (Manual handler) - Returns current time without LLM, shows manual handler patterns
-3. **echo** (Manual handler with artifacts) - Demonstrates error handling and artifact creation
-
-**Tools:**
-
-1. `getFormalGreeting` - Returns formal greetings
-2. `getCasualGreeting` - Returns casual greetings
-3. `getLocalizedGreeting` - Enhanced with timestamps via hooks
-
-**Mock MCP Servers:**
-
-1. `mock-mcp-translate` - Translation services
-2. `mock-mcp-language` - Supported languages
-3. `mock-mcp-time` - Timezone support
-
-### Modify Quickstart Agent
-
-Follow these steps to transform the quickstart agent into your own custom agent:
+We recommend modifying the [`quickstart-agent`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates/quickstart-agent) template to make your agent. It's a comprehensive example that demonstrates all v2 framework features and serves as both an integration test and a developer template. Follow these steps to transform the quickstart agent into your own custom agent:
 
 1. Copy the Quickstart Agent
 
+   > [!NOTE]  
+   > If you are contributing an agent template, make sure to create it in the [`community`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/community) directory.
+
    ```bash
-   cd typescript/templates
-   cp -r quickstart-agent my-custom-agent
-   cd my-custom-agent
+   cp -r typescript/templates/quickstart-agent typescript/community/my-custom-agent
+   cd typescript/community/my-custom-agent
    ```
 
 2. Update Package Configuration
@@ -269,8 +239,3 @@ Follow these steps to transform the quickstart agent into your own custom agent:
    - Document your agent's skills, tools, and capabilities
    - Include setup instructions, environment variables, and usage examples
    - Add any specific deployment or configuration notes
-
-10. Deploy Your Agent
-    - Update the Dockerfile if needed for your dependencies
-    - Configure Docker Compose or your preferred deployment method
-    - Follow the deployment instructions in the main repository

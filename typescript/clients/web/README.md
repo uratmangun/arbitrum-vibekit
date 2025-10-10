@@ -79,13 +79,6 @@ From the [typescript](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typ
 docker compose up
 ```
 
-> [!NOTE]  
-> If you get a `permission denied error`, try running the above command with `sudo`:
->
-> ```bash
-> sudo docker compose up
-> ```
-
 > [!WARNING]
 > If you previously ran `docker compose up` with an older version of this repository and encounter frontend errors or database-related errors in the `docker service logs`, follow these steps:
 >
@@ -108,34 +101,6 @@ After setting up your wallet, you can interact with the lending and swapping age
 <p align="left">
   <img src="../../../img/frontend.png" width="700px" alt="frontend"/>
 </p>
-
-## Available Agents
-
-### Documentation RAG Agent (ember-docs)
-
-The Documentation RAG Agent enables you to index and query documentation websites using AI. This agent demonstrates retrieval-augmented generation (RAG) capabilities.
-
-**Features:**
-
-- Index documentation from any website (React, TypeScript, etc.)
-- Query indexed docs using natural language
-- Get answers with source citations
-- Manage your documentation index
-
-**Getting Started:**
-
-1. Start all services including the doc-rag-agent:
-   ```bash
-   docker compose up doc-rag-agent web db
-   ```
-2. Select "Documentation RAG" from the agent dropdown
-3. Try the suggested actions like "Index React docs from react.dev"
-4. Ask questions like "How do React hooks work?"
-
-**Requirements:**
-
-- `OPENAI_API_KEY` for embeddings (required)
-- `OPENROUTER_API_KEY` for LLM capabilities (required)
 
 ## Agent Configuration
 
@@ -296,5 +261,3 @@ This configuration allows the frontend to dynamically discover, list, and connec
 ## Contributing
 
 We welcome contributions from the community! If you'd like to help improve Vibekit, please check out our [Contribution Guidelines](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/CONTRIBUTIONS.md).
-
-To show our appreciation, we have launched an [incentive program](https://docs.google.com/forms/d/e/1FAIpQLSe-GF7UcUOuyEMsgnVpLFrG_W83RAchaPPqOCD83pZaZXskgw/viewform) that rewards [valuable contributions](https://github.com/orgs/EmberAGI/projects/13) to the Vibekit. Checkout our [blog post](https://www.emberai.xyz/blog/introducing-arbitrum-vibekit-and-the-trailblazer-fund-2-0) to learn more!

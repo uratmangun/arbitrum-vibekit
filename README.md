@@ -17,7 +17,7 @@
 
 Welcome to Vibekit, the polyglot toolkit for vibe coding smart, autonomous DeFi agents that can perform complex on-chain operations. Whether you're automating trades, managing liquidity, or integrating with blockchain data, Vibekit makes it simple to create intelligent agents that understand natural language and execute sophisticated workflows.
 
-At its core, Vibekit uses the Model Context Protocol (MCP) to standardize how agents connect with tools and data. It includes built-in Agent2Agent (A2A) integration, so the agents can easily work together. Vibekit also works smoothly with popular frameworks like Eliza and LangGraph, allowing you to enhance your existing agents with our specialized DeFi tools.
+At its core, Vibekit uses the Model Context Protocol (MCP) to standardize how agents connect with tools and data, with built-in Agent2Agent (A2A) integration enabling seamless collaboration. The Ember Plugin System extends this foundation with a modular architecture for DeFi protocols, providing standardized entity mapping, comprehensive type safety, and intelligent routing for optimized execution across multiple protocols.
 
 Here's an overview of how everything fits together:
 

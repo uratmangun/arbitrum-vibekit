@@ -3,16 +3,16 @@
 A comprehensive example demonstrating all features of the Arbitrum Vibekit Core framework.
 You can use this agent as a template for building your own.
 
-**📚 Learn the concepts**: Check out [Lesson 6: Agent Structure](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-06.md), [Lesson 19: Skills Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-19.md), and [Lesson 20: LLM Orchestration](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md) to understand the architecture demonstrated here.
+**📚 Learn the concepts**: Check out [Lesson 7: v2 Agent Structure and File Layout](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-07.md), [Lesson 20: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md), and [Lesson 21: LLM Orchestration vs Manual Handlers](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-21.md) to understand the architecture demonstrated here.
 
 ## Overview
 
 The Quickstart Agent showcases:
 
-- **Multiple Skills**: LLM-orchestrated and manual handlers ([Lesson 20](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md))
+- **Multiple Skills**: LLM-orchestrated and manual handlers ([Lesson 21](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-21.md))
 - **Internal Tools**: Context-aware business logic tools
-- **MCP Integration**: Multiple mock MCP servers ([Lesson 2](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-02.md))
-- **Hook System**: Tool enhancement with `withHooks` for validation and transaction signing ([Lesson 16](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-16.md))
+- **MCP Integration**: Multiple mock MCP servers ([Lesson 3](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-03.md))
+- **Hook System**: Tool enhancement with `withHooks` for validation and transaction signing ([Lesson 17](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md))
 - **Context Management**: Custom context loading and type safety
 - **Error Handling**: Comprehensive error scenarios
 - **HTTP Endpoints**: Full REST API and MCP over SSE
@@ -20,11 +20,13 @@ The Quickstart Agent showcases:
 ### Skills
 
 1. **greet** (LLM-orchestrated)
+
    - Takes name and greeting style
    - Uses multiple tools to generate personalized greetings
    - Demonstrates multi-step LLM execution
 
 2. **getTime** (Manual handler)
+
    - Returns current time without LLM
    - Shows manual handler bypass pattern
    - Uses utility functions
@@ -42,7 +44,7 @@ The Quickstart Agent showcases:
 - `createEchoTool`: For echo skill
 - `createArtifactTool`: For artifact creation
 
-> **Important**: For blockchain transactions, always use `withHooks` after hooks to handle transaction signing and execution securely. See [Lesson 16](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-16.md) for implementation details.
+> **Important**: For blockchain transactions, always use `withHooks` after hooks to handle transaction signing and execution securely. See [Lesson 17](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md) for implementation details.
 
 ## Project Structure
 
