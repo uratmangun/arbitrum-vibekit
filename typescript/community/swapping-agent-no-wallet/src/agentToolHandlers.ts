@@ -3,7 +3,7 @@ import Erc20Abi from '@openzeppelin/contracts/build/contracts/ERC20.json' with {
 import type { Task } from '@google-a2a/types';
 import { TaskState } from '@google-a2a/types';
 import { streamText, type LanguageModelV1 } from 'ai';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import {
   SwapTokensResponseSchema,
   type SwapTokensResponse,

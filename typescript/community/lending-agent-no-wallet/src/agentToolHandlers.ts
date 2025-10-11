@@ -12,7 +12,7 @@ import type { LanguageModelV1 } from 'ai';
 import type { Task } from '@google-a2a/types';
 import { TaskState } from '@google-a2a/types';
 import { streamText } from 'ai';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import { parseUnits } from 'viem';
 
 export interface HandlerContext {

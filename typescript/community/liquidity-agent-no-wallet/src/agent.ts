@@ -3,7 +3,7 @@ import path from 'path';
 import type { CoreMessage, Tool } from 'ai';
 import { tool } from 'ai';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import type { Task } from '@google-a2a/types';
 import { TaskState } from '@google-a2a/types';
 import { generateText, type CoreUserMessage, type CoreAssistantMessage } from 'ai';

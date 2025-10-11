@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import {
   generateText,
   tool,
@@ -16,7 +16,7 @@ import {
   type StepResult,
   type LanguageModelV1,
 } from 'ai';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import { type Address } from 'viem';
 import { z } from 'zod';
 import type { HandlerContext } from './agentToolHandlers.js';

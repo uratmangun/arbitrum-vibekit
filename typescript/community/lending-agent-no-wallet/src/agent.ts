@@ -29,7 +29,7 @@ import {
   handleAskEncyclopedia,
   type HandlerContext,
 } from './agentToolHandlers.js';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const __filename = fileURLToPath(import.meta.url);

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { evaluateProtocolTool } from '../src/tools/evaluateProtocol.js';
-import type { TaskContext } from 'arbitrum-vibekit-core';
+import type { TaskContext } from '@emberai/arbitrum-vibekit-core';
 
 describe('evaluateProtocol Tool', () => {
   let mockContext: TaskContext;

@@ -5,7 +5,7 @@
  */
 
 import 'dotenv/config';
-import { Agent, type AgentConfig, createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { Agent, type AgentConfig, createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import { pricePredictionSkill } from './skills/pricePrediction.js';
 
 // Initialize provider selector with all supported API keys

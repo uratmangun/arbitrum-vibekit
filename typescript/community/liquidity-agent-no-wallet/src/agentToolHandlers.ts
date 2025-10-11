@@ -4,7 +4,7 @@ import Erc20Abi from '@openzeppelin/contracts/build/contracts/ERC20.json' with {
 
 import { Task, TaskState, Artifact } from '@google-a2a/types';
 import { LiquidityPosition, LiquidityPair, getChainConfigById } from './agent.js';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import {
   GetLiquidityPoolsResponseSchema,

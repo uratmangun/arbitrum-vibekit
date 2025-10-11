@@ -6,7 +6,7 @@ import { describe, it, before, after } from 'mocha';
 import { expect } from 'chai';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import { Agent, createProviderSelector, type AgentConfig } from 'arbitrum-vibekit-core';
+import { Agent, createProviderSelector, type AgentConfig } from '@emberai/arbitrum-vibekit-core';
 import { pricePredictionSkill } from '../src/skills/pricePrediction.js';
 
 describe('Allora Price Prediction Agent - Integration Tests', () => {

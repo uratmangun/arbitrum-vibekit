@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import {
   generateText,
   tool,
@@ -16,7 +16,7 @@ import {
   type CoreAssistantMessage,
   type StepResult,
 } from 'ai';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import {
   type Address,
   type Hex,
