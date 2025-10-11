@@ -1,4 +1,4 @@
-import type { VibkitToolDefinition, AgentContext } from 'arbitrum-vibekit-core';
+import type { VibkitToolDefinition, AgentContext } from '@emberai/arbitrum-vibekit-core';
 import type { Task, Message, DataPart } from '@google-a2a/types';
 import { TaskState } from '@google-a2a/types';
 import { AskEncyclopediaSchema } from 'ember-schemas';

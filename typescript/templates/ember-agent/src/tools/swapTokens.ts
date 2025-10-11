@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { type VibkitToolDefinition } from 'arbitrum-vibekit-core';
+import { type VibkitToolDefinition } from '@emberai/arbitrum-vibekit-core';
 import type { Task, Message } from '@google-a2a/types';
 import type { EmberContext, TokenInfo } from '../context/types.js';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import { SwapTokensResponseSchema, type SwapTokensResponse, type TransactionPlan } from 'ember-api';
 import {
   parseUnits,

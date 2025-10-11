@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { z } from 'zod';
 import { streamText } from 'ai';
-import { VibkitToolDefinition } from 'arbitrum-vibekit-core';
+import { VibkitToolDefinition } from '@emberai/arbitrum-vibekit-core';
 import type { EmberContext } from '../context/types.js';
 import type { Task } from '@google-a2a/types';
 import { TaskState } from '@google-a2a/types';

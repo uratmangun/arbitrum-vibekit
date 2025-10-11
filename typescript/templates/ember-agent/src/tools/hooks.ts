@@ -1,4 +1,4 @@
-import type { AgentContext } from 'arbitrum-vibekit-core';
+import type { AgentContext } from '@emberai/arbitrum-vibekit-core';
 import type { Task, Message } from '@google-a2a/types';
 
 /**

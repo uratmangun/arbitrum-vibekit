@@ -1,4 +1,4 @@
-import type { VibkitToolDefinition, AgentContext } from 'arbitrum-vibekit-core';
+import type { VibkitToolDefinition, AgentContext } from '@emberai/arbitrum-vibekit-core';
 import type { Task, Message } from '@google-a2a/types';
 import type { LendingAgentContext } from '../agent.js';
 import { BorrowRepaySupplyWithdrawSchema } from 'ember-schemas';
