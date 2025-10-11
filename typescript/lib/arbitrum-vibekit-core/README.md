@@ -1,4 +1,6 @@
-# Arbitrum Vibekit Core
+# Arbitrum Vibekit Core (DEPRECATED)
+
+> ⚠️ **DEPRECATED**: This package is deprecated and no longer maintained. Please use [agent-node](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/lib/agent-node) instead.
 
 The `arbitrum-vibekit-core` package is the foundational library for building AI agents on the Arbitrum network using the Arbitrum Vibekit framework. It provides the core abstractions and utilities for creating agents, defining skills, and interacting with language models.
 
