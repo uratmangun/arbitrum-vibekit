@@ -1,5 +1,5 @@
-import { createSuccessTask, createErrorTask, createArtifact } from 'arbitrum-vibekit-core';
-import type { VibkitToolDefinition } from 'arbitrum-vibekit-core';
+import { createSuccessTask, createErrorTask, createArtifact } from '@emberai/arbitrum-vibekit-core';
+import type { VibkitToolDefinition } from '@emberai/arbitrum-vibekit-core';
 import { z } from 'zod';
 
 const CompareProtocolsSchema = z.object({

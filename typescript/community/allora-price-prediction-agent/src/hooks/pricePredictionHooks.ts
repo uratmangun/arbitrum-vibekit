@@ -4,8 +4,8 @@
  * Post-hook: Formats the prediction response
  */
 
-import type { HookFunction } from 'arbitrum-vibekit-core';
-import type { AgentContext } from 'arbitrum-vibekit-core';
+import type { HookFunction } from '@emberai/arbitrum-vibekit-core';
+import type { AgentContext } from '@emberai/arbitrum-vibekit-core';
 
 // Pre-hook: Discovers the topic ID for a given token
 export const topicDiscoveryHook: HookFunction<any, any, any, any> = async (args, context) => {

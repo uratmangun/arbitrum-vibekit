@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { agentConfig } from '../src/index.js';
-import { Agent } from 'arbitrum-vibekit-core';
+import { Agent } from '@emberai/arbitrum-vibekit-core';
 
 describe('DeFi Safety Agent Live Tests', () => {
   let agent: Agent;

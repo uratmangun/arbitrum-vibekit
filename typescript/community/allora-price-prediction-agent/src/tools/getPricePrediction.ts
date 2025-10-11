@@ -5,8 +5,8 @@
  */
 
 import { z } from 'zod';
-import type { VibkitToolDefinition } from 'arbitrum-vibekit-core';
-import { createSuccessTask, createErrorTask, withHooks, VibkitError } from 'arbitrum-vibekit-core';
+import type { VibkitToolDefinition } from '@emberai/arbitrum-vibekit-core';
+import { createSuccessTask, createErrorTask, withHooks, VibkitError } from '@emberai/arbitrum-vibekit-core';
 import { topicDiscoveryHook, formatResponseHook } from '../hooks/pricePredictionHooks.js';
 
 // Tool parameters schema

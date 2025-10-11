@@ -3,7 +3,7 @@
  */
 
 import { embedMany, embed } from 'ai';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import type { LanguageModelV1, EmbeddingModel } from 'ai';
 import type { DocumentChunk, EmbeddingOptions } from './types.js';
 

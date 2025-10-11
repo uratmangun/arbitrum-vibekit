@@ -7,8 +7,8 @@ import { isAddress } from 'viem';
 import { Agent } from './agent.js';
 import cors from 'cors';
 import { z } from 'zod';
-import type { Task } from '@google-a2a/types';
-import { TaskState } from '@google-a2a/types';
+import type { Task } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
+import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 
 const LendingAgentSchema = z.object({
   instruction: z
