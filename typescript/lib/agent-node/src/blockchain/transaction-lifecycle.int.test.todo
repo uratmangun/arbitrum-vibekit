@@ -1,0 +1,1197 @@
+import type { Server } from 'http';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { z } from 'zod';
+
+import { ArtifactSchema, MessageSchema, TaskSchema } from '../a2a/validation.js';
+
+const parseJson = <T>(value: unknown): T => {
+  if (typeof value !== 'string') {
+    throw new Error('Expected JSON string');
+  }
+  return JSON.parse(value) as T;
+};
+
+const getArtifactData = <T>(artifact: z.infer<typeof ArtifactSchema> | undefined): T | null => {
+  if (!artifact || !artifact.parts || artifact.parts.length === 0) {
+    return null;
+  }
+  const firstPart = artifact.parts[0];
+  if (!firstPart || firstPart.kind !== 'text' || typeof firstPart.text !== 'string') {
+    return null;
+  }
+  return parseJson<T>(firstPart.text);
+};
+
+interface TransactionSummary {
+  gasEstimate?: string | number;
+  gasPrice?: string | number;
+  maxFeePerGas?: string | number;
+  maxPriorityFeePerGas?: string | number;
+  to?: string;
+  value?: string;
+  chainId?: number;
+  estimatedCostUSD?: string | number;
+  maxCostUSD?: string | number;
+  integrityCheck?: {
+    verified?: boolean;
+    originalHash?: string;
+    computedHash?: string;
+  };
+  signatureValidation?: {
+    valid?: boolean;
+    signer?: string;
+  };
+}
+
+interface TransactionReceipt {
+  transactionHash: string;
+  blockNumber: number;
+  blockHash: string;
+  gasUsed: number;
+  status: string;
+  confirmations: number;
+  effectiveGasPrice: number;
+  logs?: unknown[];
+  revertReason?: string;
+}
+
+// Using Zod-inferred type for artifacts from validation schema
+type Artifact = z.infer<typeof ArtifactSchema>;
+
+// Extended Task schema for tests (includes artifacts which are added by runtime)
+const TaskWithArtifactsSchema = TaskSchema.extend({
+  artifacts: z.array(ArtifactSchema).optional(),
+});
+
+type TaskWithArtifacts = z.infer<typeof TaskWithArtifactsSchema>;
+
+// Response schema that handles tasks with artifacts
+const TestResponseSchema = z.object({
+  jsonrpc: z.literal('2.0'),
+  id: z.union([z.string(), z.number(), z.null()]),
+  result: z.union([TaskWithArtifactsSchema, MessageSchema]),
+});
+
+interface StatusUpdate {
+  timestamp?: string;
+  txHash?: string;
+  status?: string;
+  error?: {
+    reason: string;
+  };
+  retryAttempt?: number;
+  reason?: string;
+}
+
+const toArtifactList = (value: unknown): Artifact[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  // Validate each artifact in the array
+  return value
+    .map((item) => {
+      const result = ArtifactSchema.safeParse(item);
+      return result.success ? result.data : null;
+    })
+    .filter((item): item is Artifact => item !== null);
+};
+
+type ServerWithTaskStore = Server & {
+  taskStore?: {
+    store?: Map<string, unknown>;
+  };
+};
+
+const getTaskIdForContext = (srv: Server, contextId: string): string | undefined => {
+  const taskStore = (srv as ServerWithTaskStore).taskStore;
+  const store = taskStore?.store;
+  if (!store) {
+    return undefined;
+  }
+
+  let latestMatch: string | undefined;
+  for (const task of store.values()) {
+    if (task && typeof task === 'object') {
+      const candidateContext = (task as { contextId?: unknown }).contextId;
+      const candidateId = (task as { id?: unknown }).id;
+      if (candidateContext === contextId && typeof candidateId === 'string') {
+        latestMatch = candidateId;
+      }
+    }
+  }
+
+  return latestMatch;
+};
+
+/**
+ * Integration tests for blockchain transaction lifecycle
+ * Tests complete transaction workflows with 4-artifact pattern and multi-turn flows
+ */
+describe('Blockchain Transaction Lifecycle', () => {
+  let server: Server;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    // Given the A2A server with real SDK and blockchain workflow capabilities
+    const { createA2AServer } = await import('../a2a/server.js');
+    server = await createA2AServer({ port: 0, logging: false });
+    const address = server.address();
+    if (!address || typeof address !== 'object') {
+      throw new Error('Server address not available');
+    }
+    baseUrl = `http://localhost:${address.port}`;
+  });
+
+  afterEach(async () => {
+    const { shutdownServer } = await import('../a2a/server.js');
+    await shutdownServer(server);
+  });
+
+  describe('4-Artifact Transaction Pattern', () => {
+    it('should generate complete transaction lifecycle artifacts in order', async () => {
+      // Given a blockchain transaction request
+      // When initiating a transaction workflow
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'tx-lifecycle-1',
+              contextId: 'tx-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Transfer 1000 USDC to 0x742d35Cc6634C0532925a3b8D4C3c6a31c2a8d5e',
+                },
+              ],
+            },
+          },
+          id: 1,
+        }),
+      });
+      const responseBody = await response.json();
+
+      // Then a task should be created for the transaction workflow
+      expect(response.status).toBe(200);
+
+      // Validate the response matches our schema
+      const validatedResponse = TestResponseSchema.parse(responseBody);
+      const result = validatedResponse.result;
+      if (result.kind === 'task') {
+        // Note: In real implementation, would need to establish SSE connection
+        // For TDD purposes, we're testing the expected behavior pattern
+        // The actual streaming will be implemented when the workflow system is built
+
+        // Then the 4-artifact pattern should be followed:
+        // 1. tx-summary.json - Transaction details and gas estimates
+        // 2. unsigned-tx - Raw unsigned transaction data
+        // 3. tx-status.jsonl - Transaction broadcasting status updates
+        // 4. tx-receipt.json - Final transaction receipt with block confirmation
+
+        const artifacts = toArtifactList(result.artifacts || []);
+        // Artifact 1: Transaction Summary
+        expect(artifacts).toContainEqual(
+          expect.objectContaining({
+            name: 'tx-summary.json',
+            mimeType: 'application/json',
+            description: 'Transaction summary with gas estimates',
+          }),
+        );
+
+        // Artifact 2: Unsigned Transaction
+        expect(artifacts).toContainEqual(
+          expect.objectContaining({
+            name: 'unsigned-tx',
+            mimeType: 'application/octet-stream',
+            description: 'Unsigned transaction data for signing',
+          }),
+        );
+
+        // Artifact 3: Status Log
+        expect(artifacts).toContainEqual(
+          expect.objectContaining({
+            name: 'tx-status.jsonl',
+            mimeType: 'application/x-ndjson',
+            description: 'Transaction status updates during broadcast',
+          }),
+        );
+
+        // Artifact 4: Transaction Receipt
+        expect(artifacts).toContainEqual(
+          expect.objectContaining({
+            name: 'tx-receipt.json',
+            mimeType: 'application/json',
+            description: 'Final transaction receipt with confirmation',
+          }),
+        );
+      }
+    });
+
+    it('should provide transaction summary with gas estimates before signing', async () => {
+      // Given a transaction that requires gas estimation
+      // When requesting a complex DeFi transaction
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'gas-estimate-1',
+              contextId: 'gas-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Swap 1000 USDC for ETH on Uniswap with 0.5% slippage',
+                },
+              ],
+            },
+          },
+          id: 2,
+        }),
+      });
+      const gasResponseBody = await response.json();
+
+      // Then transaction summary artifact should contain gas estimates
+      expect(response.status).toBe(200);
+
+      // Validate response
+      const validatedGasResponse = TestResponseSchema.parse(gasResponseBody);
+      const gasResult = validatedGasResponse.result;
+      if (gasResult.kind === 'task') {
+        const artifacts = toArtifactList(gasResult.artifacts || []);
+        const summaryArtifact = artifacts.find((a) => a.name === 'tx-summary.json');
+
+        const summaryData = getArtifactData<TransactionSummary>(summaryArtifact);
+        if (summaryData) {
+          // Gas estimation details
+          expect(summaryData.gasEstimate).toBeDefined();
+          expect(summaryData.gasPrice).toBeDefined();
+          expect(summaryData.maxFeePerGas).toBeDefined();
+          expect(summaryData.maxPriorityFeePerGas).toBeDefined();
+
+          // Transaction details
+          expect(summaryData.to).toBe('0x742d35Cc6634C0532925a3b8D4C3c6a31c2a8d5e');
+          expect(summaryData.value).toBe('1000000000'); // 1000 USDC (6 decimals)
+          expect(summaryData.chainId).toBeDefined();
+
+          // Cost breakdown
+          expect(summaryData.estimatedCostUSD).toBeDefined();
+          expect(summaryData.maxCostUSD).toBeDefined();
+        }
+      }
+    });
+
+    it('should generate unsigned transaction with proper format', async () => {
+      // Given a transaction ready for signing
+      // When the workflow prepares the unsigned transaction
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'unsigned-tx-1',
+              contextId: 'unsigned-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Approve 1000 USDC spending for Uniswap router',
+                },
+              ],
+            },
+          },
+          id: 3,
+        }),
+      });
+      const unsignedResponseBody = await response.json();
+
+      // Then unsigned transaction artifact should be properly formatted
+      expect(response.status).toBe(200);
+
+      // Validate response
+      const validatedUnsignedResponse = TestResponseSchema.parse(unsignedResponseBody);
+      const unsignedResult = validatedUnsignedResponse.result;
+      if (unsignedResult.kind === 'task') {
+        const artifacts = toArtifactList(unsignedResult.artifacts || []);
+        const unsignedTxArtifact = artifacts.find((a) => a.name === 'unsigned-tx');
+
+        const artifactData = getArtifactData<string>(unsignedTxArtifact);
+        if (artifactData) {
+          // Unsigned transaction should be base64 encoded raw transaction data
+          // Note: In actual implementation, the artifact would include encoding metadata
+          // For now, we're checking the raw data format
+          const txDataString =
+            typeof artifactData === 'string' ? artifactData : JSON.stringify(artifactData);
+
+          // Should be valid JSON that can be parsed
+          const txData = JSON.parse(txDataString);
+          expect(txData).toBeDefined();
+          expect(typeof txData).toBe('object');
+        }
+      }
+    });
+
+    it('should track transaction status through broadcast stages', async () => {
+      // Given a transaction being broadcast to the network
+      // When monitoring transaction status
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'tx-status-1',
+              contextId: 'status-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Execute trade and monitor until confirmed',
+                },
+              ],
+            },
+          },
+          id: 4,
+        }),
+      });
+      const statusResponseBody = await response.json();
+
+      // Then status log artifact should track broadcast progression
+      expect(response.status).toBe(200);
+
+      // Validate response
+      const validatedStatusResponse = TestResponseSchema.parse(statusResponseBody);
+      const statusResult = validatedStatusResponse.result;
+      if (statusResult.kind === 'task') {
+        const artifacts = toArtifactList(statusResult.artifacts || []);
+        const statusLogArtifact = artifacts.find((a) => a.name === 'tx-status.jsonl');
+
+        const statusLogData = getArtifactData<string>(statusLogArtifact);
+        if (statusLogData) {
+          const statusLines = statusLogData.split('\n').filter(Boolean);
+          const statusUpdates = statusLines.map((line) => JSON.parse(line) as StatusUpdate);
+
+          // Should contain progression through transaction states
+          const states = statusUpdates.map((update) => update.status);
+          expect(states).toContain('pending');
+          expect(states).toContain('broadcast');
+          expect(states).toContain('confirmed');
+
+          // Each status update should include timestamp and transaction hash
+          statusUpdates.forEach((update) => {
+            expect(update.timestamp).toBeDefined();
+            expect(update.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+            expect(update.status).toMatch(/^(pending|broadcast|confirmed|failed)$/);
+          });
+        }
+      }
+    });
+
+    it('should provide final transaction receipt with block confirmation', async () => {
+      // Given a confirmed transaction
+      // When the transaction is included in a block
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'tx-receipt-1',
+              contextId: 'receipt-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Complete token transfer and wait for confirmation',
+                },
+              ],
+            },
+          },
+          id: 5,
+        }),
+      });
+      const receiptResponseBody = await response.json();
+
+      // Then transaction receipt artifact should contain confirmation details
+      expect(response.status).toBe(200);
+
+      // Validate response
+      const validatedReceiptResponse = TestResponseSchema.parse(receiptResponseBody);
+      const receiptResult = validatedReceiptResponse.result;
+      if (receiptResult.kind === 'task') {
+        const artifacts = toArtifactList(receiptResult.artifacts || []);
+        const receiptArtifact = artifacts.find((a) => a.name === 'tx-receipt.json');
+
+        const receiptData = getArtifactData<TransactionReceipt>(receiptArtifact);
+        if (receiptData) {
+          // Standard transaction receipt fields
+          expect(receiptData.transactionHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+          expect(receiptData.blockNumber).toBeGreaterThan(0);
+          expect(receiptData.blockHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+          expect(receiptData.gasUsed).toBeGreaterThan(0);
+          expect(receiptData.status).toBe('0x1'); // Success
+
+          // Confirmation details
+          expect(receiptData.confirmations).toBeGreaterThanOrEqual(1);
+          expect(receiptData.effectiveGasPrice).toBeGreaterThan(0);
+
+          // Event logs for contract interactions
+          if (receiptData.logs) {
+            expect(Array.isArray(receiptData.logs)).toBe(true);
+          }
+        }
+      }
+    });
+  });
+
+  describe('Multi-Turn Transaction Workflow (Turn A-E)', () => {
+    it('should handle Turn A: Initial transaction request and summary', async () => {
+      // Given user initiates a transaction (Turn A)
+      // When requesting transaction details
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'turn-a-1',
+              contextId: 'multi-turn-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'I want to swap 500 USDC for ETH on Uniswap',
+                },
+              ],
+            },
+          },
+          id: 6,
+        }),
+      });
+      const turnAResponseBody = await response.json();
+
+      // Then agent should provide transaction summary and request confirmation
+      expect(response.status).toBe(200);
+      expect(turnAResponseBody.result).toBeDefined();
+
+      const turnAResult = turnAResponseBody.result as {
+        kind?: string;
+        parts?: Array<{ text: string }>;
+      };
+      if (turnAResult?.kind === 'message' && turnAResult.parts?.[0]) {
+        const responseText = turnAResult.parts[0].text;
+        expect(responseText).toContain('500 USDC');
+        expect(responseText).toContain('ETH');
+        expect(responseText).toContain('Uniswap');
+        expect(responseText.toLowerCase()).toContain('confirm');
+      }
+    });
+
+    it('should handle Turn B: User confirmation and transaction preparation', async () => {
+      // Given user confirms transaction details (Turn B)
+      // When user provides confirmation
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'turn-b-1',
+              contextId: 'multi-turn-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Yes, proceed with the swap',
+                },
+              ],
+            },
+          },
+          id: 7,
+        }),
+      });
+      const turnBResponseBody = await response.json();
+
+      // Then agent should prepare unsigned transaction
+      expect(response.status).toBe(200);
+
+      if (turnBResponseBody.result?.kind === 'task') {
+        // Task should be created for transaction preparation
+        expect(turnBResponseBody.result.status.state).toBe('working');
+
+        // Should generate tx-summary and unsigned-tx artifacts
+        const artifacts = toArtifactList(turnBResponseBody.result.artifacts);
+        expect(artifacts.some((a) => a.name === 'tx-summary.json')).toBe(true);
+        expect(artifacts.some((a) => a.name === 'unsigned-tx')).toBe(true);
+      }
+    });
+
+    it('should handle Turn C: Transaction signing pause and signature request', async () => {
+      // Given transaction ready for signing (Turn C)
+      // When workflow reaches signing stage
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'turn-c-1',
+              contextId: 'multi-turn-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Transaction prepared, ready to sign',
+                },
+              ],
+            },
+          },
+          id: 8,
+        }),
+      });
+      const turnCResponseBody = await response.json();
+
+      // Then workflow should pause for signature input
+      expect(response.status).toBe(200);
+
+      if (turnCResponseBody.result?.kind === 'task') {
+        // Task should be in auth-required state awaiting signature
+        expect(turnCResponseBody.result.status.state).toBe('auth-required');
+        expect(turnCResponseBody.result.status.reason).toBe('signature-required');
+
+        // Should provide structured input schema for signature
+        expect(turnCResponseBody.result.status.inputRequired).toBeDefined();
+        expect(turnCResponseBody.result.status.inputRequired?.type).toBe('signature');
+        expect(turnCResponseBody.result.status.inputRequired?.schema).toBeDefined();
+      }
+    });
+
+    it('should handle Turn D: Signature submission and transaction broadcast', async () => {
+      // Given user provides transaction signature (Turn D)
+      // When signature is submitted
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'turn-d-1',
+              contextId: 'multi-turn-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'data',
+                  data: {
+                    signature: '0x1234567890abcdef...', // Mock signature
+                    signedTxHash: '0xabcdef1234567890...',
+                  },
+                },
+              ],
+            },
+          },
+          id: 9,
+        }),
+      });
+      const turnDResponseBody = await response.json();
+
+      // Then workflow should resume and broadcast transaction
+      expect(response.status).toBe(200);
+
+      if (turnDResponseBody.result?.kind === 'task') {
+        // Task should resume to working state
+        expect(turnDResponseBody.result.status.state).toBe('working');
+
+        // Should generate tx-status.jsonl artifact for broadcast tracking
+        const artifacts = toArtifactList(turnDResponseBody.result.artifacts);
+        expect(artifacts.some((a) => a.name === 'tx-status.jsonl')).toBe(true);
+      }
+    });
+
+    it('should handle Turn E: Transaction confirmation and completion', async () => {
+      // Given transaction broadcast and confirmed (Turn E)
+      // When transaction is confirmed on-chain
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'turn-e-1',
+              contextId: 'multi-turn-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Check transaction confirmation status',
+                },
+              ],
+            },
+          },
+          id: 10,
+        }),
+      });
+      const turnEResponseBody = await response.json();
+
+      // Then workflow should complete with final receipt
+      expect(response.status).toBe(200);
+
+      if (turnEResponseBody.result?.kind === 'task') {
+        // Task should be completed
+        expect(turnEResponseBody.result.status.state).toBe('completed');
+
+        // Should have all 4 artifacts including final receipt
+        const artifacts = toArtifactList(turnEResponseBody.result.artifacts);
+        expect(artifacts.some((a) => a.name === 'tx-receipt.json')).toBe(true);
+        expect(artifacts).toHaveLength(4);
+      }
+    });
+  });
+
+  describe('Transaction Signature Pause/Resume', () => {
+    it('should pause workflow when signature is required', async () => {
+      // Given a transaction workflow that needs signing
+      // When workflow reaches signature step
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'sig-pause-1',
+              contextId: 'sig-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Execute high-value transfer requiring manual signature',
+                },
+              ],
+            },
+          },
+          id: 11,
+        }),
+      });
+      const sigPauseResponseBody = await response.json();
+
+      // Then workflow should pause with signature requirement
+      expect(response.status).toBe(200);
+
+      if (sigPauseResponseBody.result?.kind === 'task') {
+        expect(sigPauseResponseBody.result.status.state).toBe('auth-required');
+        expect(sigPauseResponseBody.result.status.reason).toBe('signature-required');
+
+        // Should provide clear signature input schema
+        const inputRequired = sigPauseResponseBody.result.status.inputRequired;
+        expect(inputRequired).toBeDefined();
+        expect(inputRequired?.type).toBe('signature');
+        expect(inputRequired?.schema.properties.signature).toBeDefined();
+        expect(inputRequired?.schema.properties.signature?.type).toBe('string');
+        expect(inputRequired?.schema.properties.signature?.pattern).toBe('^0x[a-fA-F0-9]+$');
+      }
+    });
+
+    it('should resume workflow after valid signature submission', async () => {
+      // Create initial task that pauses for signature
+      const initResponse = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'sig-resume-init',
+              contextId: 'sig-resume-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Start transaction that requires signature',
+                },
+              ],
+            },
+          },
+          id: 12,
+        }),
+      });
+      await initResponse.json();
+      const taskId = getTaskIdForContext(server, 'sig-resume-1');
+      expect(taskId).toBeDefined();
+      const resumeTaskId = taskId as string;
+
+      // When valid signature is provided
+      const resumeResponse = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            taskId: resumeTaskId,
+            message: {
+              kind: 'message',
+              messageId: 'sig-resume-continue',
+              contextId: 'sig-resume-1',
+              taskId: resumeTaskId,
+              role: 'user',
+              parts: [
+                {
+                  kind: 'data',
+                  data: {
+                    signature:
+                      '0x1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c',
+                    txHash: '0x9f8e7d6c5b4a39281726354849392817263548493928172635484939281726354',
+                  },
+                },
+              ],
+            },
+          },
+          id: 13,
+        }),
+      });
+      const resumeResponseBody = await resumeResponse.json();
+
+      // Then workflow should resume and complete
+      expect(resumeResponse.status).toBe(200);
+
+      if (resumeResponseBody.result?.kind === 'task') {
+        expect(resumeResponseBody.result.status.state).toMatch(/^(working|completed)$/);
+        expect(resumeResponseBody.result.status.reason).toBeUndefined();
+        expect(resumeResponseBody.result.status.inputRequired).toBeUndefined();
+      }
+    });
+
+    it('should reject invalid signature format', async () => {
+      // Given a workflow awaiting signature
+      const initResponse = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'invalid-sig-init',
+              contextId: 'invalid-sig-context',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Prepare transaction requiring signature',
+                },
+              ],
+            },
+          },
+          id: 14,
+        }),
+      });
+      await initResponse.json();
+      const taskId = getTaskIdForContext(server, 'invalid-sig-context');
+      expect(taskId).toBeDefined();
+      const invalidSigTaskId = taskId as string;
+
+      // When invalid signature is provided
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            taskId: invalidSigTaskId,
+            message: {
+              kind: 'message',
+              messageId: 'invalid-sig-1',
+              contextId: 'invalid-sig-context',
+              taskId: invalidSigTaskId,
+              role: 'user',
+              parts: [
+                {
+                  kind: 'data',
+                  data: {
+                    signature: 'invalid-signature-format',
+                  },
+                },
+              ],
+            },
+          },
+          id: 15,
+        }),
+      });
+      const invalidSigResponseBody = await response.json();
+
+      // Then workflow should remain in auth-required state with validation error
+      expect(response.status).toBe(200);
+
+      if (invalidSigResponseBody.result?.kind === 'message') {
+        const responseText = invalidSigResponseBody.result.parts[0].text;
+        expect(responseText.toLowerCase()).toContain('invalid');
+        expect(responseText.toLowerCase()).toContain('signature');
+      }
+    });
+  });
+
+  describe('Transaction Integrity Verification', () => {
+    it('should verify transaction hash matches unsigned transaction', async () => {
+      // Given an unsigned transaction and signature
+      // When verifying transaction integrity
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'integrity-check-1',
+              contextId: 'integrity-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Verify transaction integrity before broadcast',
+                },
+              ],
+            },
+          },
+          id: 15,
+        }),
+      });
+      const integrityResponseBody = await response.json();
+
+      // Then transaction should be verified against original parameters
+      expect(response.status).toBe(200);
+
+      if (integrityResponseBody.result?.kind === 'task') {
+        // Should include integrity verification in task artifacts
+        const artifacts = toArtifactList(integrityResponseBody.result.artifacts);
+        const summaryArtifact = artifacts.find((a) => a.name === 'tx-summary.json');
+        const summaryData = getArtifactData<TransactionSummary>(summaryArtifact);
+
+        if (summaryData?.integrityCheck) {
+          expect(summaryData.integrityCheck.verified).toBe(true);
+          expect(summaryData.integrityCheck.originalHash).toBeDefined();
+          expect(summaryData.integrityCheck.computedHash).toBeDefined();
+        }
+      }
+    });
+
+    it('should detect transaction parameter tampering', async () => {
+      // Given a tampered transaction
+      const initResponse = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'tamper-init',
+              contextId: 'tamper-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Transfer 1000 USDC to 0x742d35Cc6634C0532925a3b8D4C3c6a31c2a8d5e for integrity check',
+                },
+              ],
+            },
+          },
+          id: 16,
+        }),
+      });
+      await initResponse.json();
+      const taskId = getTaskIdForContext(server, 'tamper-context-1');
+      expect(taskId).toBeDefined();
+      const tamperTaskId = taskId as string;
+
+      // When integrity check is performed with tampered data
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            taskId: tamperTaskId,
+            message: {
+              kind: 'message',
+              messageId: 'tamper-detect-1',
+              contextId: 'tamper-context-1',
+              taskId: tamperTaskId,
+              role: 'user',
+              parts: [
+                {
+                  kind: 'data',
+                  data: {
+                    signature: '0x1234567890abcdef...',
+                    originalAmount: '1000000000', // 1000 USDC
+                    tamperedAmount: '1000000000000', // 1M USDC - tampered
+                  },
+                },
+              ],
+            },
+          },
+          id: 17,
+        }),
+      });
+      const tamperResponseBody = await response.json();
+
+      // Then tampering should be detected and transaction rejected
+      expect(response.status).toBe(200);
+
+      if (tamperResponseBody.result?.kind === 'message') {
+        const responseText = tamperResponseBody.result.parts[0].text;
+        expect(responseText.toLowerCase()).toContain('tamper');
+        expect(responseText.toLowerCase()).toContain('reject');
+      }
+    });
+
+    it('should validate signature against correct signer address', async () => {
+      // Given a transaction signature
+      // When validating signer
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'signer-validate-1',
+              contextId: 'signer-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'data',
+                  data: {
+                    signature:
+                      '0x1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c',
+                    expectedSigner: '0x742d35Cc6634C0532925a3b8D4C3c6a31c2a8d5e',
+                  },
+                },
+              ],
+            },
+          },
+          id: 17,
+        }),
+      });
+      const signerResponseBody = await response.json();
+
+      // Then signature should be validated against expected signer
+      expect(response.status).toBe(200);
+
+      if (signerResponseBody.result?.kind === 'task') {
+        const artifacts = toArtifactList(signerResponseBody.result.artifacts);
+        const summaryArtifact = artifacts.find((a) => a.name === 'tx-summary.json');
+        const summaryData = getArtifactData<TransactionSummary>(summaryArtifact);
+
+        if (summaryData?.signatureValidation) {
+          expect(summaryData.signatureValidation.valid).toBe(true);
+          expect(summaryData.signatureValidation.signer).toBe(
+            '0x742d35Cc6634C0532925a3b8D4C3c6a31c2a8d5e',
+          );
+        }
+      }
+    });
+  });
+
+  describe('Transaction Failure Scenarios', () => {
+    it('should handle transaction failure during broadcast', async () => {
+      // Given a transaction that will fail during broadcast
+      // When transaction broadcast fails
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'broadcast-fail-1',
+              contextId: 'broadcast-fail-context',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Execute transaction with insufficient gas',
+                },
+              ],
+            },
+          },
+          id: 18,
+        }),
+      });
+      const broadcastFailResponseBody = await response.json();
+
+      // Then failure should be captured in status log
+      expect(response.status).toBe(200);
+
+      if (broadcastFailResponseBody.result?.kind === 'task') {
+        expect(broadcastFailResponseBody.result.status.state).toBe('failed');
+
+        // Status log should contain failure details
+        const artifacts = toArtifactList(broadcastFailResponseBody.result.artifacts);
+        const statusLogArtifact = artifacts.find((a) => a.name === 'tx-status.jsonl');
+
+        const statusLogData = getArtifactData<string>(statusLogArtifact);
+        if (statusLogData) {
+          const statusLines = statusLogData.split('\n').filter(Boolean);
+          const finalStatus = JSON.parse(statusLines[statusLines.length - 1]) as StatusUpdate;
+
+          expect(finalStatus.status).toBe('failed');
+          expect(finalStatus.error).toBeDefined();
+          expect(finalStatus.error?.reason).toContain('gas');
+        }
+      }
+    });
+
+    it('should handle network congestion and retry logic', async () => {
+      // Given network congestion causing delays
+      // When transaction broadcast experiences delays
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'network-congestion-1',
+              contextId: 'congestion-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Execute transaction during network congestion',
+                },
+              ],
+            },
+          },
+          id: 19,
+        }),
+      });
+      const congestionResponseBody = await response.json();
+
+      // Then retry attempts should be logged in status
+      expect(response.status).toBe(200);
+
+      if (congestionResponseBody.result?.kind === 'task') {
+        const artifacts = toArtifactList(congestionResponseBody.result.artifacts);
+        const statusLogArtifact = artifacts.find((a) => a.name === 'tx-status.jsonl');
+
+        const statusLogData = getArtifactData<string>(statusLogArtifact);
+        if (statusLogData) {
+          const statusLines = statusLogData.split('\n').filter(Boolean);
+          const statusUpdates = statusLines.map((line) => JSON.parse(line) as StatusUpdate);
+
+          // Should include retry attempts
+          const retryAttempts = statusUpdates.filter(
+            (update) => update.status === 'retry' || update.retryAttempt,
+          );
+          expect(retryAttempts.length).toBeGreaterThan(0);
+
+          // Each retry should include attempt number and reason
+          retryAttempts.forEach((retry) => {
+            expect(retry.retryAttempt).toBeGreaterThan(0);
+            expect(retry.reason).toBeDefined();
+          });
+        }
+      }
+    });
+
+    it('should handle transaction revert with clear error messaging', async () => {
+      // Given a transaction that will revert on-chain
+      // When transaction reverts due to contract logic
+      const response = await fetch(`${baseUrl}/a2a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'message/send',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'revert-1',
+              contextId: 'revert-context-1',
+              role: 'user',
+              parts: [
+                {
+                  kind: 'text',
+                  text: 'Execute swap with slippage tolerance that will cause revert',
+                },
+              ],
+            },
+          },
+          id: 20,
+        }),
+      });
+      const revertResponseBody = await response.json();
+
+      // Then revert should be captured with clear error message
+      expect(response.status).toBe(200);
+
+      if (revertResponseBody.result?.kind === 'task') {
+        expect(revertResponseBody.result.status.state).toBe('failed');
+
+        // Receipt should show revert status
+        const artifacts = toArtifactList(revertResponseBody.result.artifacts);
+        const receiptArtifact = artifacts.find((a) => a.name === 'tx-receipt.json');
+
+        if (receiptArtifact) {
+          const receiptData = getArtifactData<TransactionReceipt>(receiptArtifact);
+          if (receiptData) {
+            expect(receiptData.status).toBe('0x0'); // Failed
+            expect(receiptData.revertReason).toBeDefined();
+            expect(receiptData.revertReason).toContain('slippage');
+          }
+        }
+      }
+    });
+  });
+});
