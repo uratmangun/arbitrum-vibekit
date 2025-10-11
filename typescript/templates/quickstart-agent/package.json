@@ -17,7 +17,6 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx}\""
   },
   "dependencies": {
-    "@google-a2a/types": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "ai": "catalog:",
     "@emberai/arbitrum-vibekit-core": "catalog:",

@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 import { defineSkill, createInfoMessage, getCurrentTimestamp } from '@emberai/arbitrum-vibekit-core';
-import type { Message } from '@google-a2a/types';
+import type { Message } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
