@@ -28,7 +28,6 @@
     "@emberai/arbitrum-vibekit-core": "catalog:",
     "cors": "^2.8.5",
     "dotenv": "catalog:",
-    "ember-schemas": "workspace:*",
     "express": "catalog:",
     "viem": "^2.26.3",
     "zod": "catalog:"
