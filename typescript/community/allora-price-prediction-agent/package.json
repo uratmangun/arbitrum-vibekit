@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@alloralabs/mcp-server": "workspace:*",
-    "@google-a2a/types": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "ai": "catalog:",
     "@emberai/arbitrum-vibekit-core": "catalog:",

@@ -40,7 +40,7 @@ import {
   McpGetCapabilitiesResponseSchema,
   type TransactionPlan,
   type McpGetCapabilitiesResponse,
-} from 'ember-schemas';
+} from '@emberai/arbitrum-vibekit-core/ember-schemas';
 
 import { mainnet, arbitrum, optimism, polygon, base } from 'viem/chains';
 import type { Chain } from 'viem/chains';

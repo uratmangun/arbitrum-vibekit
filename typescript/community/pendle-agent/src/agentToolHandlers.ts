@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import type { Task } from '@google-a2a/types';
-import { TaskState } from '@google-a2a/types';
+import type { Task } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
+import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import {
   type SwapTokensRequest,

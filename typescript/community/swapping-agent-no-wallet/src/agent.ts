@@ -24,8 +24,8 @@ import { handleSwapTokens, handleAskEncyclopedia } from './agentToolHandlers.js'
 
 import * as chains from 'viem/chains';
 import type { Chain } from 'viem/chains';
-import type { Task } from '@google-a2a/types';
-import { TaskState } from '@google-a2a/types';
+import type { Task } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
+import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import { GetTokensResponseSchema, type Token } from 'ember-api';
 
 const providerSelector = createProviderSelector({
