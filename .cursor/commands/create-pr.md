@@ -1,8 +1,3 @@
----
-description: >-
-  Create a new branch and draft PR, analyzing git status to properly handle
-  modified vs new files
----
 # Create Pull Request
 
 Create a new feature branch and draft pull request following the project's PR-based workflow. All changes must be merged via PR - direct commits to main are not allowed.

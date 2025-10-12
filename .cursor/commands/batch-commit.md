@@ -1,8 +1,3 @@
----
-description: >-
-  Review and commit changes in logical batches following Angular commit
-  conventions
----
 # Batch Commit Changes - Angular Convention
 
 Review all current uncommitted changes and commit them in logical, atomic batches following [Angular's commit message conventions](https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md).
