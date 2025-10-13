@@ -46,7 +46,7 @@ serverless/
 *.tsbuildinfo
 
 # Test workspaces
-config/
+/config/
 
 # Environment files
 .env
