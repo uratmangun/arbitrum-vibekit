@@ -88,7 +88,7 @@ describe('Provider E2E Tests', () => {
       // Then response should contain text
       expect(result.text).toBeDefined();
       expect(result.text.length).toBeGreaterThan(0);
-    });
+    }, 10000); // 10 second timeout for slower xAI API responses
   });
 
   describe.todo('Hyperbolic provider - TODO: wait for Hyperbolic to support AI SDK 5', () => {
