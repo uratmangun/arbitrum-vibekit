@@ -4,7 +4,8 @@
     "rootDir": ".",
     "outDir": "dist",
     "verbatimModuleSyntax": false,
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "NodeNext",
+    "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*", "test/**/*", "mock-mcp-servers/**/*"],
   "exclude": ["node_modules", "dist"]
