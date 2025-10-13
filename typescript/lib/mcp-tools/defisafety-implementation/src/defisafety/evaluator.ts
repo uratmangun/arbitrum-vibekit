@@ -3,7 +3,7 @@ import type { VectorStore } from '../embeddings/vectorStore.js';
 import type { EmbeddingsGenerator } from '../embeddings/embeddings.js';
 import { generateText } from 'ai';
 import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
-import type { LanguageModelV1 } from 'ai';
+import type { LanguageModel } from 'ai';
 
 export interface QuestionResult {
   questionId: string;
@@ -40,10 +40,10 @@ export async function evaluateQuestions(
 ): Promise<QuestionResult[]> {
   // Create provider selector with available API keys
   const providers = createProviderSelector({
-    openRouterApiKey: process.env.OPENROUTER_API_KEY,
-    openaiApiKey: process.env.OPENAI_API_KEY,
-    xaiApiKey: process.env.XAI_API_KEY,
-    hyperbolicApiKey: process.env.HYPERBOLIC_API_KEY,
+    openRouterApiKey: process.env['OPENROUTER_API_KEY'],
+    openaiApiKey: process.env['OPENAI_API_KEY'],
+    xaiApiKey: process.env['XAI_API_KEY'],
+    hyperbolicApiKey: process.env['HYPERBOLIC_API_KEY'],
   });
 
   // Get available providers and select one
@@ -53,17 +53,17 @@ export async function evaluateQuestions(
   }
 
   // Use AI_PROVIDER env var or fallback to first available
-  const preferredProvider = process.env.AI_PROVIDER || availableProviders[0]!;
+  const preferredProvider = process.env['AI_PROVIDER'] || availableProviders[0]!;
   const selectedProvider = providers[preferredProvider as keyof typeof providers];
   if (!selectedProvider) {
     throw new Error(`Preferred provider '${preferredProvider}' not available. Available providers: ${availableProviders.join(', ')}`);
   }
 
   // Get the model instance - use fast model for evaluations
-  const modelOverride = process.env.AI_MODEL;
-  const model: LanguageModelV1 = modelOverride 
-    ? selectedProvider(modelOverride) 
-    : selectedProvider('gpt-5'); // Default to fast model
+  const modelOverride = process.env['AI_MODEL'];
+  const model = (modelOverride
+    ? selectedProvider(modelOverride)
+    : selectedProvider('gpt-5')) as unknown as LanguageModel; // Default to fast model
   
   // Process questions in parallel for massive speed improvement
   const evaluationPromises = questions.map(async (question) => {
@@ -101,7 +101,7 @@ Provide score and justification:`;
         model,
         prompt,
         temperature: 0.1, // Lower temperature for consistent scoring
-        maxTokens: 300 // Reduced tokens for faster response
+        maxOutputTokens: 300 // Reduced tokens for faster response
       });
       console.error(`LLM Response: ${llmResponse}`);
       

@@ -396,7 +396,7 @@ async function main() {
   try {
     console.error('Initializing Documentation RAG MCP server...');
     console.error(
-      `Environment check - OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`
+      `Environment check - OPENAI_API_KEY: ${process.env['OPENAI_API_KEY'] ? 'SET' : 'NOT SET'}`
     );
     await server.connect(transport);
     console.error('Documentation RAG MCP server started and connected.');
