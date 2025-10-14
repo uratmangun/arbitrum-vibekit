@@ -1,9 +1,9 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import Erc20Abi from '@openzeppelin/contracts/build/contracts/ERC20.json' with { type: 'json' };
-import type { Task } from '@google-a2a/types';
-import { TaskState } from '@google-a2a/types';
+import type { Task } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
+import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import { streamText, type LanguageModelV1 } from 'ai';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import {
   SwapTokensResponseSchema,
   type SwapTokensResponse,

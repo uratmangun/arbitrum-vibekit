@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import {
   generateText,
   tool,
@@ -16,7 +16,7 @@ import {
   type StepResult,
   type LanguageModelV1,
 } from 'ai';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import { type Address } from 'viem';
 import { z } from 'zod';
 import type { HandlerContext } from './agentToolHandlers.js';
@@ -24,8 +24,8 @@ import { handleSwapTokens, handleAskEncyclopedia } from './agentToolHandlers.js'
 
 import * as chains from 'viem/chains';
 import type { Chain } from 'viem/chains';
-import type { Task } from '@google-a2a/types';
-import { TaskState } from '@google-a2a/types';
+import type { Task } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
+import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import { GetTokensResponseSchema, type Token } from 'ember-api';
 
 const providerSelector = createProviderSelector({

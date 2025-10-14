@@ -1,4 +1,4 @@
-import { defineSkill } from 'arbitrum-vibekit-core';
+import { defineSkill } from '@emberai/arbitrum-vibekit-core';
 import { z } from 'zod';
 import { evaluateProtocolTool } from '../tools/evaluateProtocol.js';
 import { compareProtocolsTool } from '../tools/compareProtocols.js';

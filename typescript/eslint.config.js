@@ -2,20 +2,22 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
+import { globSync } from "glob";
+
+// Auto-discover tsconfig.json files from pnpm workspace packages
+const workspacePatterns = [
+  "lib/**/*",
+  "examples/*",
+  "templates/*",
+  "clients/*",
+  "onchain-actions-plugins/**/*"
+];
 
 const tsProjectPaths = [
   "./tsconfig.base.json",
-  "./lib/test-utils/tsconfig.json",
-  "./lib/ember-schemas/tsconfig.json",
-  "./lib/arbitrum-vibekit-core/tsconfig.json",
-  "./examples/pendle-agent/tsconfig.json",
-  "./lib/mcp-tools/emberai-mcp/tsconfig.json",
-  "./examples/lending-agent-no-wallet/tsconfig.json",
-  "./examples/swapping-agent-no-wallet/tsconfig.json",
-  "./examples/liquidity-agent-no-wallet/tsconfig.json",
-  "./lib/a2a/tsconfig.json",
-  "./lib/mcp-tools/allora-mcp-server/tsconfig.json",
-  "./examples/swapping-agent/tsconfig.json"
+  ...workspacePatterns.flatMap(pattern =>
+    globSync(`${pattern}/tsconfig.json`, { ignore: "**/node_modules/**" })
+  )
 ];
 
 export default tseslint.config(

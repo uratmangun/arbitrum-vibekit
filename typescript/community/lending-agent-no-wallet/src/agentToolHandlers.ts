@@ -6,13 +6,13 @@ import {
   GetWalletLendingPositionsResponseSchema,
   type TokenInfo,
   type LendingTransactionArtifact,
-} from 'ember-schemas';
+} from '@emberai/arbitrum-vibekit-core/ember-schemas';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { LanguageModelV1 } from 'ai';
-import type { Task } from '@google-a2a/types';
-import { TaskState } from '@google-a2a/types';
+import type { Task } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
+import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import { streamText } from 'ai';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
 import { parseUnits } from 'viem';
 
 export interface HandlerContext {

@@ -6,7 +6,7 @@ import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { getPricePredictionTool } from '../src/tools/getPricePrediction.js';
-import { VibkitError } from 'arbitrum-vibekit-core';
+import { VibkitError } from '@emberai/arbitrum-vibekit-core';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 
 // Note: Since getPricePredictionTool is wrapped with hooks, we'll test the complete flow

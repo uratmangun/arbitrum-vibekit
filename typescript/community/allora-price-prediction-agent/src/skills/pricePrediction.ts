@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { defineSkill } from 'arbitrum-vibekit-core';
+import { defineSkill } from '@emberai/arbitrum-vibekit-core';
 import { getPricePredictionTool } from '../tools/getPricePrediction.js';
 
 // Input schema for the price prediction skill - only accepts user message

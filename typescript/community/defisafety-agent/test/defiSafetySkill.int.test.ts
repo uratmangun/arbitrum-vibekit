@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { defiSafetyEvaluationSkill } from '../src/skills/defiSafetyEvaluation.js';
-import { Agent, type AgentConfig } from 'arbitrum-vibekit-core';
+import { Agent, type AgentConfig } from '@emberai/arbitrum-vibekit-core';
 
 describe('DeFi Safety Evaluation Skill Integration', () => {
   let agent: Agent;

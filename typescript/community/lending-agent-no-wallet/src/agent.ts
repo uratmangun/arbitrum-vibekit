@@ -3,8 +3,8 @@ import path from 'path';
 import type { CoreMessage, LanguageModelV1, Tool } from 'ai';
 import { tool } from 'ai';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import type { Task } from '@google-a2a/types';
-import { TaskState } from '@google-a2a/types';
+import type { Task } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
+import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import { promises as fs } from 'fs';
 import { generateText, type CoreUserMessage, type CoreAssistantMessage, type StepResult } from 'ai';
 import {
@@ -17,7 +17,7 @@ import {
   type UserReserve,
   UserReserveSchema,
   type GetWalletLendingPositionsResponse,
-} from 'ember-schemas';
+} from '@emberai/arbitrum-vibekit-core/ember-schemas';
 import * as chains from 'viem/chains';
 import type { Chain } from 'viem/chains';
 import {
@@ -29,7 +29,7 @@ import {
   handleAskEncyclopedia,
   type HandlerContext,
 } from './agentToolHandlers.js';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const __filename = fileURLToPath(import.meta.url);

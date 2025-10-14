@@ -3,8 +3,8 @@
  */
 
 import { embedMany, embed } from 'ai';
-import { createProviderSelector, getAvailableProviders } from 'arbitrum-vibekit-core';
-import type { LanguageModelV1, EmbeddingModel } from 'ai';
+import { createProviderSelector, getAvailableProviders } from '@emberai/arbitrum-vibekit-core';
+import type { EmbeddingModel } from 'ai';
 import type { DocumentChunk, EmbeddingOptions } from './types.js';
 
 export class EmbeddingsGenerator {
@@ -25,10 +25,10 @@ export class EmbeddingsGenerator {
   async initialize(): Promise<boolean> {
     // Create provider selector with available API keys
     const providers = createProviderSelector({
-      openRouterApiKey: process.env.OPENROUTER_API_KEY,
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      xaiApiKey: process.env.XAI_API_KEY,
-      hyperbolicApiKey: process.env.HYPERBOLIC_API_KEY,
+      openRouterApiKey: process.env['OPENROUTER_API_KEY'],
+      openaiApiKey: process.env['OPENAI_API_KEY'],
+      xaiApiKey: process.env['XAI_API_KEY'],
+      hyperbolicApiKey: process.env['HYPERBOLIC_API_KEY'],
     });
 
     // Get available providers
@@ -39,7 +39,7 @@ export class EmbeddingsGenerator {
     }
 
     // Use AI_PROVIDER env var or fallback to first available
-    const preferredProvider = process.env.AI_PROVIDER || availableProviders[0]!;
+    const preferredProvider = process.env['AI_PROVIDER'] || availableProviders[0]!;
     const selectedProvider = providers[preferredProvider as keyof typeof providers];
     if (!selectedProvider) {
       console.warn(`Preferred provider '${preferredProvider}' not available.`);
@@ -49,17 +49,17 @@ export class EmbeddingsGenerator {
     // Get embedding model - OpenAI provider has embedding support
     // For now, we'll use the text generation model as a fallback
     // In production, you'd want to use a proper embedding model
-    const modelOverride = process.env.AI_EMBEDDING_MODEL || this.options.model;
-    
+    const modelOverride = process.env['AI_EMBEDDING_MODEL'] || this.options.model;
+
     // Note: The AI SDK's embedding functionality requires specific embedding models
     // For now, we'll need to use OpenAI directly for embeddings
     // This is a temporary limitation until provider selector supports embeddings
-    if (process.env.OPENAI_API_KEY) {
+    if (process.env['OPENAI_API_KEY']) {
       try {
         // Dynamic import for OpenAI SDK
         const { createOpenAI } = await import('@ai-sdk/openai');
-        const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        this.embeddingModel = openai.embedding(modelOverride) as EmbeddingModel<string>;
+        const openai = createOpenAI({ apiKey: process.env['OPENAI_API_KEY'] });
+        this.embeddingModel = openai.embedding(modelOverride) as unknown as EmbeddingModel<string>;
         return true;
       } catch (error) {
         console.error('Failed to create OpenAI embedding model:', error);

@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { parseMcpToolResponsePayload } from 'arbitrum-vibekit-core';
-import { TransactionPlanSchema, type TransactionPlan } from 'ember-schemas';
+import { parseMcpToolResponsePayload } from '@emberai/arbitrum-vibekit-core';
+import { TransactionPlanSchema, type TransactionPlan } from '@emberai/arbitrum-vibekit-core/ember-schemas';
 import {
   parseUnits,
   createPublicClient,

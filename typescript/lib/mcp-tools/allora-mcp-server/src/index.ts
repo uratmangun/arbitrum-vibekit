@@ -18,7 +18,7 @@ async function main() {
     next();
   });
 
-  const apiKey = process.env.ALLORA_API_KEY;
+  const apiKey = process.env['ALLORA_API_KEY'];
   if (!apiKey) {
     console.error('Error: ALLORA_API_KEY environment variable is required');
     process.exit(1);
@@ -42,7 +42,7 @@ async function main() {
   });
 
   app.post('/messages', async (_req, res) => {
-    const sessionId = _req.query.sessionId as string;
+    const sessionId = _req.query['sessionId'] as string;
     console.log(`Received message for session: ${sessionId}`);
 
     let bodyBuffer = Buffer.alloc(0);
@@ -69,7 +69,7 @@ async function main() {
     await transport.handlePostMessage(_req, res);
   });
 
-  const PORT = process.env.PORT || 3001;
+  const PORT = process.env['PORT'] || 3001;
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
