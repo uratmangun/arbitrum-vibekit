@@ -34,7 +34,7 @@ describe.skip('Ember Agent E2E Swapping Integration', () => {
     const availableProviders = getAvailableProviders(providers);
     const selectedProviderKey = availableProviders[0] as keyof typeof providers;
     const selectedProvider = providers[selectedProviderKey]!;
-    const llmModel = selectedProvider();
+    const llmModel = selectedProvider() as any;
 
     // Create and start the agent
     agent = Agent.create(agentConfig, {

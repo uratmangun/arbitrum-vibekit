@@ -9,7 +9,6 @@ import {
   tokenResolutionHook,
   balanceCheckHook,
   responseParserHook,
-  composeBeforeHooks,
 } from './hooks.js';
 import {
   BorrowResponseSchema,

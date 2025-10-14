@@ -88,7 +88,7 @@ describe('Agent Integration', () => {
   });
 
   it('should validate framework requirements', async () => {
-    const { Agent, defineSkill } = await import('@emberai/arbitrum-vibekit-core');
+    const { Agent } = await import('@emberai/arbitrum-vibekit-core');
 
     // Test that agent creation fails without skills
     const emptyConfig = {

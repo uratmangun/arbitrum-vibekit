@@ -1,4 +1,4 @@
-import type { VibkitToolDefinition, AgentContext } from '@emberai/arbitrum-vibekit-core';
+import type { AgentContext } from '@emberai/arbitrum-vibekit-core';
 import type { Task, Message, DataPart } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import { TaskState } from '@emberai/arbitrum-vibekit-core/google-a2a-types';
 import {
@@ -273,7 +273,7 @@ export async function responseParserHook<
   TSkillInput = any,
 >(
   mcpResult: any,
-  context: AgentContext<LendingAgentContext, TSkillInput>,
+  _context: AgentContext<LendingAgentContext, TSkillInput>,
   toolArgs: { resolvedToken: TokenInfo; amount: string; tokenName: string; [key: string]: any }, // Args expected after tokenResolutionHook
   zodSchema: z.ZodType<ParsedResponse>,
   action: LendingPreview['action']

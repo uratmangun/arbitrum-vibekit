@@ -22,14 +22,6 @@ const GreetInputSchema = z.object({
   language: z.string().optional().describe('Language code for localized greetings'),
 });
 
-// Output schema
-const GreetOutputSchema = z.object({
-  greeting: z.string().describe('The generated greeting'),
-  style: z.string().describe('The style used'),
-  language: z.string().optional().describe('Language used if localized'),
-  timestamp: z.string().optional().describe('When the greeting was generated'),
-});
-
 export const greetSkill = defineSkill({
   // Skill metadata
   id: 'greet-skill', // Tests skill ID vs name
