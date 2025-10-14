@@ -1,7 +1,7 @@
 import { generateText, streamText } from 'ai';
 import { describe, it, expect, beforeAll } from 'vitest';
 
-import { createProviderSelector, DEFAULT_MODELS } from '../../src/ai/providers/index.js';
+import { createProviderSelector } from '../../src/ai/providers/index.js';
 
 /**
  * Integration tests for Provider Selector

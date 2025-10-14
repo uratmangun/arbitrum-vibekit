@@ -1,7 +1,7 @@
 import { generateText } from 'ai';
 import { describe, it, expect, beforeAll } from 'vitest';
 
-import { createProviderSelector, DEFAULT_MODELS } from '../../src/ai/providers/index.js';
+import { createProviderSelector } from '../../src/ai/providers/index.js';
 
 /**
  * E2E tests for AI providers using generateText
@@ -46,27 +46,23 @@ describe('Provider E2E Tests', () => {
   });
 
   describe('OpenAI provider', () => {
-    it(
-      'should perform generateText with real API',
-      async () => {
-        // Given OpenAI API key is configured
-        if (!process.env['OPENAI_API_KEY']) {
-          throw new Error('OPENAI_API_KEY is required for e2e tests');
-        }
+    it('should perform generateText with real API', async () => {
+      // Given OpenAI API key is configured
+      if (!process.env['OPENAI_API_KEY']) {
+        throw new Error('OPENAI_API_KEY is required for e2e tests');
+      }
 
-        // When performing generateText with default model
-        const model = selector.openai!();
-        const result = await generateText({
-          model,
-          prompt: 'What is 2+2?',
-        });
+      // When performing generateText with default model
+      const model = selector.openai!();
+      const result = await generateText({
+        model,
+        prompt: 'What is 2+2?',
+      });
 
-        // Then response should contain text
-        expect(result.text).toBeDefined();
-        expect(result.text.length).toBeGreaterThan(0);
-      },
-      10000,
-    );
+      // Then response should contain text
+      expect(result.text).toBeDefined();
+      expect(result.text.length).toBeGreaterThan(0);
+    }, 10000);
   });
 
   describe('xAI provider', () => {
