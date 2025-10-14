@@ -1,6 +1,6 @@
 ![Graphic](img/Banner.png)
 
-<p align="center"> 
+<p align="center">
    &nbsp&nbsp <a href="https://docs.emberai.xyz/vibekit/introduction">Documentation </a> &nbsp&nbsp | &nbsp&nbsp <a href="https://github.com/EmberAGI/arbitrum-vibekit/tree/main/CONTRIBUTIONS.md"> Contributions </a> &nbsp&nbsp | &nbsp&nbsp <a href="https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates"> Agent Templates</a>  &nbsp&nbsp |  &nbsp&nbsp   <a href="https://www.emberai.xyz/"> Ember AI</a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://discord.com/invite/bgxWQ2fSBR"> Support Discord </a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://t.me/EmberChat"> Ember Telegram</a>  &nbsp&nbsp | &nbsp&nbsp  <a href="https://x.com/EmberAGI"> 𝕏 </a> &nbsp&nbsp
 </p>
 
@@ -26,7 +26,7 @@ Here's an overview of how everything fits together:
 </p>
 
 > [!NOTE]
-> For deeper understanding of Vibekit concepts, explore our comprehensive [lesson series](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/lib/arbitrum-vibekit-core/docs).
+> For deeper understanding of Vibekit concepts, explore our comprehensive [lesson series](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/docs).
 
 ## 🧬 Repository Architecture
 
@@ -43,7 +43,7 @@ arbitrum-vibekit/
 │   ├── community/                  # Community-contributed agent templates
 │   ├── lib/                        # Core framework libraries such as MCP tools, Ember API, etc.
 │   │   ├── a2a-types/              # Agent-to-Agent type definitions
-│   │   ├── arbitrum-vibekit-core/ # Core framework implementation
+│   │   ├── agent-node/             # Agent Node framework (v3.0+) - Config-driven A2A-compliant agents
 │   │   ├── ember-api/              # Ember AI API client
 │   │   ├── ember-schemas/          # Schema definitions
 │   │   ├── mcp-tools/              # MCP tool server implementations
@@ -57,6 +57,8 @@ arbitrum-vibekit/
 ```
 
 ### Key Directories
+
+- **[`agent-node/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/lib/agent-node)**: The modern config-driven agent framework with full A2A protocol compliance, generator-based workflows, and embedded wallet support. This is the recommended framework for building new agents.
 
 - **[`templates/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates)**: Official Vibekit agent templates featuring production-ready implementations with skills, tools, hooks, and modern deployment patterns. These serve as reference implementations for building your own agents.
 
@@ -76,7 +78,7 @@ Follow these steps to build and run DeFi agents:
 
 Make sure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) with Docker Compose v2.24 or greater installed on your system.
 
-> [!TIP]  
+> [!TIP]
 > If you are on an M-series Mac, you need to install Docker using the [dmg package](https://docs.docker.com/desktop/setup/install/mac-install/) supplied officially by Docker rather than through Homebrew or other means to avoid build issues.
 
 ### Get the Code

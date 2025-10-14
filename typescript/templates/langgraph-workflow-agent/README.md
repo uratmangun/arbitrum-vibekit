@@ -2,7 +2,7 @@
 
 A hello-world agent demonstrating the evaluator-optimizer workflow pattern using LangGraph. This agent takes a simple greeting and iteratively improves it to be more friendly, engaging, and personalized.
 
-**📚 Learn the patterns**: This agent demonstrates workflow tool patterns covered in [Lesson 23: Workflow Tools and Design Patterns](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-23.md) and single-skill architecture from [Lesson 20: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md).
+**📚 Learn the patterns**: This agent demonstrates workflow patterns and skill architecture covered in [Lesson 28: Agent Node Framework](../../../docs/lesson-28.md).
 
 ## Overview
 
@@ -32,8 +32,8 @@ graph TD
 
 ### Key Components
 
-- **Single Skill**: `greeting-optimizer` - Optimizes greetings ([Lesson 20](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md))
-- **Single Tool**: `optimize-greeting` - Encapsulates the entire LangGraph workflow (workflow tool pattern from [Lesson 23](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-23.md))
+- **Single Skill**: `greeting-optimizer` - Optimizes greetings
+- **Single Tool**: `optimize-greeting` - Encapsulates the entire LangGraph workflow
 - **Three Nodes**:
   - **Generator**: Creates/improves greetings based on feedback
   - **Evaluator**: Rates on friendliness, engagement, and personalization

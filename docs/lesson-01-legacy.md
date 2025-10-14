@@ -1,3 +1,11 @@
+# **Lesson 1: What is an AI Agent in Our Framework?** ⚠️ LEGACY
+
+> **⚠️ DEPRECATED**: This lesson is for the legacy `arbitrum-vibekit-core` framework.
+>
+> **For Agent Node (v3.0+)**: See [Lesson 28: Agent Node Framework](./lesson-28.md)
+>
+> This lesson remains for reference but is no longer maintained.
+
 # **Lesson 1: What is an AI Agent in Our Framework?**
 
 ---
@@ -30,11 +38,11 @@ Skills define what your agent can do and serve as the public interface:
 
 ```ts
 export const lendingSkill = defineSkill({
-  id: 'lending-operations',
-  name: 'Lending Operations',
-  description: 'Perform lending operations on Aave protocol',
-  tags: ['defi', 'lending'],
-  examples: ['Supply 100 USDC', 'Borrow 50 ETH'],
+  id: "lending-operations",
+  name: "Lending Operations",
+  description: "Perform lending operations on Aave protocol",
+  tags: ["defi", "lending"],
+  examples: ["Supply 100 USDC", "Borrow 50 ETH"],
 
   inputSchema: z.object({
     instruction: z.string(),
@@ -58,8 +66,8 @@ const supplyParams = z.object({
 });
 
 export const supplyTool: VibkitToolDefinition<typeof supplyParams> = {
-  name: 'supplyToken',
-  description: 'Supply tokens to Aave lending pool',
+  name: "supplyToken",
+  description: "Supply tokens to Aave lending pool",
   parameters: supplyParams,
   execute: async (args, context) => {
     // Tool implementation here
@@ -135,7 +143,7 @@ Every v2 agent automatically publishes an agent card at `/.well-known/agent.json
 
 ```ts
 // Context provider example
-export const contextProvider: ContextProvider<MyContext> = async deps => {
+export const contextProvider: ContextProvider<MyContext> = async (deps) => {
   return {
     tokenMap: await loadTokenMap(),
     rpcProvider: createProvider(process.env.RPC_URL),
@@ -171,7 +179,7 @@ const providers = createProviderSelector({
 });
 
 const agent = Agent.create(agentConfig, {
-  llm: { model: providers.openrouter('google/gemini-2.5-flash') },
+  llm: { model: providers.openrouter("google/gemini-2.5-flash") },
 });
 ```
 

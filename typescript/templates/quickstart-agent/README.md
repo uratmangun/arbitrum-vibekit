@@ -3,16 +3,16 @@
 A comprehensive example demonstrating all features of the Arbitrum Vibekit Core framework.
 You can use this agent as a template for building your own.
 
-**📚 Learn the concepts**: Check out [Lesson 7: v2 Agent Structure and File Layout](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-07.md), [Lesson 20: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md), and [Lesson 21: LLM Orchestration vs Manual Handlers](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-21.md) to understand the architecture demonstrated here.
+**📚 Learn the concepts**: Check out [Lesson 28: Agent Node Framework](../../../docs/lesson-28.md) to understand the Agent Node architecture demonstrated here.
 
 ## Overview
 
 The Quickstart Agent showcases:
 
-- **Multiple Skills**: LLM-orchestrated and manual handlers ([Lesson 21](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-21.md))
+- **Multiple Skills**: LLM-orchestrated and manual handlers
 - **Internal Tools**: Context-aware business logic tools
-- **MCP Integration**: Multiple mock MCP servers ([Lesson 3](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-03.md))
-- **Hook System**: Tool enhancement with `withHooks` for validation and transaction signing ([Lesson 17](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md))
+- **MCP Integration**: Multiple mock MCP servers
+- **Hook System**: Tool enhancement with hooks for validation and transaction signing
 - **Context Management**: Custom context loading and type safety
 - **Error Handling**: Comprehensive error scenarios
 - **HTTP Endpoints**: Full REST API and MCP over SSE
@@ -44,7 +44,7 @@ The Quickstart Agent showcases:
 - `createEchoTool`: For echo skill
 - `createArtifactTool`: For artifact creation
 
-> **Important**: For blockchain transactions, always use `withHooks` after hooks to handle transaction signing and execution securely. See [Lesson 17](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md) for implementation details.
+> **Important**: For blockchain transactions, always use hooks to handle transaction signing and execution securely.
 
 ## Project Structure
 

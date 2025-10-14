@@ -1,3 +1,11 @@
+# **Lesson 2: Vibe Coding with Vibekit** ⚠️ LEGACY
+
+> **⚠️ DEPRECATED**: This lesson is for the legacy `arbitrum-vibekit-core` framework.
+>
+> **For Agent Node (v3.0+)**: See [Lesson 28: Agent Node Framework](./lesson-28.md)
+>
+> This lesson remains for reference but is no longer maintained.
+
 # **Lesson 2: Vibe Coding with Vibekit**
 
 ---
@@ -124,9 +132,9 @@ const enhancedPredictionTool = withHooks(basePredictionTool, {
 Write tests alongside implementation:
 
 ```typescript
-it('should predict price with valid input', async () => {
-  const result = await agent.executeSkill('price-prediction', {
-    instruction: 'Predict ETH price for next hour',
+it("should predict price with valid input", async () => {
+  const result = await agent.executeSkill("price-prediction", {
+    instruction: "Predict ETH price for next hour",
   });
 
   expect(result.success).toBe(true);
@@ -153,9 +161,9 @@ Connect your agent to the Vibekit frontend:
 // agents-config.ts
 export const agents = [
   {
-    name: 'Price Prediction Agent',
-    url: 'http://localhost:3001/mcp',
-    skills: ['price-prediction'],
+    name: "Price Prediction Agent",
+    url: "http://localhost:3001/mcp",
+    skills: ["price-prediction"],
   },
 ];
 ```

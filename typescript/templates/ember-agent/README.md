@@ -2,7 +2,7 @@
 
 A unified multi-skill DeFi agent supporting all EmberAI MCP tools such as swapping, lending, liquidity provision, perpetuals trading, and Pendle operations.
 
-**📚 Learn the architecture**: This agent demonstrates advanced multi-skill patterns covered in [Lesson 20: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md), [Lesson 23: Workflow Tools and Design Patterns](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-23.md), and [Lesson 17: Validations and Tool Enhancement with Hooks](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md).
+**📚 Learn the architecture**: This agent demonstrates advanced multi-skill patterns and workflows covered in [Lesson 28: Agent Node Framework](../../../docs/lesson-28.md).
 
 ## Features
 
@@ -17,10 +17,10 @@ A unified multi-skill DeFi agent supporting all EmberAI MCP tools such as swappi
 
 ### Architecture
 
-- **Skills-based**: Each capability is a separate skill with focused tools ([Lesson 20](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md))
-- **LLM Orchestration**: AI automatically routes to appropriate tools ([Lesson 21](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-21.md))
-- **Hook Enhancement**: Before/after hooks for validation and formatting ([Lesson 17](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md))
-- **Modern Transport**: StreamableHTTP with legacy SSE backwards compatibility ([Lesson 26](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-26.md))
+- **Skills-based**: Each capability is a separate skill with focused tools
+- **LLM Orchestration**: AI automatically routes to appropriate tools
+- **Hook Enhancement**: Before/after hooks for validation and formatting
+- **Modern Transport**: A2A protocol with streaming support
 - **External Integration**: Connects to Ember MCP server for blockchain operations
 
 ## Quick Start

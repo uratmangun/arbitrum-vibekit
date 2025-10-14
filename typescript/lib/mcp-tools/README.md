@@ -131,7 +131,7 @@ server.tool(
         content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
       };
     }
-  }
+  },
 );
 ```
 
@@ -148,7 +148,7 @@ For advanced use cases, you can enhance your MCP tools with hooks that run befor
 Vibekit provides a `withHooks` utility that wraps your tools with before/after functionality:
 
 ```typescript
-import { withHooks } from 'arbitrum-vibekit-core';
+import { withHooks } from 'agent-node';
 
 const enhancedTool = withHooks(myBaseTool, {
   before: async (args, context) => {
@@ -162,7 +162,7 @@ const enhancedTool = withHooks(myBaseTool, {
 });
 ```
 
-For detailed patterns and best practices, see our [hooks documentation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md) and refer to [Anthropic's hooks guide](https://docs.anthropic.com/en/docs/claude-code/hooks) for additional customization patterns.
+For detailed patterns and best practices, see our [Agent Node documentation](../../../typescript/lib/agent-node/README.md) and refer to [Anthropic's hooks guide](https://docs.anthropic.com/en/docs/claude-code/hooks) for additional customization patterns.
 
 ### 7. Run Your MCP Server
 

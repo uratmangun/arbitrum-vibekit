@@ -2,7 +2,7 @@
 
 An AI agent that provides price predictions using Allora's prediction markets data through the Model Context Protocol (MCP).
 
-**📚 Learn the concepts**: This agent demonstrates single-skill architecture from [Lesson 20: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md) and advanced hook patterns from [Lesson 17: Validations and Tool Enhancement with Hooks](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md).
+**📚 Learn the concepts**: This agent demonstrates single-skill architecture from [Lesson 19: Skills Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-19.md) and advanced hook patterns from [Lesson 16: Tool Enhancement](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-16.md).
 
 ## Overview
 
@@ -15,10 +15,10 @@ The Allora Price Prediction Agent leverages the Arbitrum Vibekit framework to cr
 
 ## Features
 
-- **Single Skill Design**: Streamlined price prediction skill with LLM orchestration ([Lesson 20](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md))
+- **Single Skill Design**: Streamlined price prediction skill with LLM orchestration ([Lesson 19](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-19.md))
 - **Smart Token Mapping**: Automatically maps token symbols to Allora topic IDs
-- **Hook-Based Architecture**: Clean separation of concerns using pre/post hooks ([Lesson 17](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md))
-- **MCP Integration**: Direct integration with Allora MCP server via STDIO ([Lesson 3](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-03.md))
+- **Hook-Based Architecture**: Clean separation of concerns using pre/post hooks ([Lesson 16](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-16.md))
+- **MCP Integration**: Direct integration with Allora MCP server via STDIO ([Lesson 2](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-02.md))
 - **Error Handling**: Comprehensive error handling for unknown tokens and API failures
 
 ## Architecture
@@ -34,7 +34,7 @@ The agent has one main skill:
 
 ### Tool Design
 
-The price prediction tool uses a hook-based approach ([Lesson 17](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-17.md)):
+The price prediction tool uses a hook-based approach ([Lesson 16](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-16.md)):
 
 1. **Pre-hook (Topic Discovery)**:
 

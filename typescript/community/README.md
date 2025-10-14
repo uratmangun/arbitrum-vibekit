@@ -10,7 +10,7 @@ Welcome to the community contributions directory! This is the place to submit yo
 
 ### 🚀 Running Community Agents
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > Most agents in this directory use the older Vibekit architecture. For new agent development, always use the [templates directory](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates) as your reference.The templates showcase the latest framework features including skills, tools, hooks, and LLM orchestration.
 
 Each agent has its own setup and configuration requirements. To run a specific agent, navigate to its directory and follow the instructions in its README file.
@@ -23,7 +23,7 @@ To build a custom agent for the community:
 
 2. **Follow the Template Guide**: See the [templates README](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates/README.md) for step-by-step instructions on creating agents.
 
-3. **Review Architecture Docs**: Check out the [lesson series](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/lib/arbitrum-vibekit-core/docs) for comprehensive framework documentation.
+3. **Review Architecture Docs**: Check out the [lesson series](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/docs) for comprehensive framework documentation.
 
 4. **Submit Your Agent**: Once your agent is ready, create a pull request to add it to this community directory. Make sure to include:
    - Comprehensive README with setup instructions

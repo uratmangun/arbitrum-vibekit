@@ -109,14 +109,14 @@ To use this option, make sure you have [Docker Desktop](https://www.docker.com/p
 pnpm --filter "agent-name" docker:compose:up
 ```
 
-> [!NOTE]  
+> [!NOTE]
 > If you get a `permission denied error`, try running the above command with `sudo`:
 >
 > ```bash
 > sudo pnpm --filter "agent-name" docker:compose:up
 > ```
 
-> [!TIP]  
+> [!TIP]
 > To run the agent in the background so you can keep using your terminal, use the `-d` flag:
 >
 > ```bash
@@ -147,7 +147,7 @@ To interact with the agent through the web interface, refer to [this quickstart]
 
 **2. Integrate with Cursor IDE**
 
-> [!TIP]  
+> [!TIP]
 > This configuration approach is also compatible with other graphical MCP clients like [Claude Desktop](https://modelcontextprotocol.io/quickstart/user) and [Windsurf](https://docs.windsurf.com/windsurf/mcp). Simply adjust the settings accordingly in their respective configuration files.
 
 To interact with the agent through Cursor, [create or update](https://docs.cursor.com/context/model-context-protocol) your `mcp.json` file through Cursor's MCP settings. If your agent is running on a different port than 3002, make sure to adjust it:
@@ -170,9 +170,7 @@ You might need to restart Cursor to apply the new configuration. Upon successful
 
 Before building your agent, we highly recommend reviewing these key lessons that cover the v2 framework architecture and best practices:
 
-- **[Lesson 20: Skills - The v2 Foundation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-20.md)** - Understand the core `defineSkill` pattern and agent architecture.
-- **[Lesson 07: v2 Agent Structure and File Layout](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-07.md)** - Learn the template agent directory structure and organization.
-- **[Lesson 21: LLM Orchestration vs Manual Handlers](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-21.md)** - Master the decision framework for when to use tools vs handlers.
+- **[Lesson 28: Agent Node Framework](../../../docs/lesson-28.md)** - Complete guide to the Agent Node framework including configuration, skills, workflows, and A2A protocol integration.
 
 ### Start with `quickstart-agent`
 
@@ -180,7 +178,7 @@ We recommend modifying the [`quickstart-agent`](https://github.com/EmberAGI/arbi
 
 1. Copy the Quickstart Agent
 
-   > [!NOTE]  
+   > [!NOTE]
    > If you are contributing an agent template, make sure to create it in the [`community`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/community) directory.
 
    ```bash
