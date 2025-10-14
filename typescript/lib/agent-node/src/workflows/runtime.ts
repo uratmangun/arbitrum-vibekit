@@ -1,7 +1,7 @@
 import { v7 as uuidv7 } from 'uuid';
 import type { TaskState } from '@a2a-js/sdk';
 
-import { ensureTransition } from '../a2a/tasks/stateMachine.js';
+import { ensureTransition } from './tasks/stateMachine.js';
 
 import type {
   WorkflowPlugin,
