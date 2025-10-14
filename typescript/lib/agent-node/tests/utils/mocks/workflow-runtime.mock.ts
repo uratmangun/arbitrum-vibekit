@@ -52,9 +52,17 @@ export class StubWorkflowRuntime extends WorkflowRuntime {
     this.pluginList = plugins;
   }
 
+  setPlugin(plugin: WorkflowPlugin): void {
+    this.testPlugins.set(plugin.id, plugin);
+  }
+
   override getTaskState(taskId: string): TaskStateRecord | undefined {
     this.getTaskStateCalls.push(taskId);
     return this.testTaskStates.get(taskId);
+  }
+
+  override getPlugin(pluginId: string): WorkflowPlugin | undefined {
+    return this.testPlugins.get(pluginId);
   }
 
   override async resumeWorkflow(taskId: string, input: unknown): Promise<ResumeResult> {

@@ -281,26 +281,26 @@ export class WorkflowHandler {
     params: unknown,
     contextId: string,
     eventBus: ExecutionEventBus,
-  ): Promise<void> {
+  ): Promise<{
+    taskId: string;
+    metadata: { workflowName: string; description: string; pluginId: string };
+  }> {
     this.logger.debug('dispatchWorkflow called', { workflowName, params, contextId });
     if (!this.workflowRuntime) {
       this.logger.error('Workflow runtime not available');
-      const errorMessage: Message = {
-        kind: 'message',
-        messageId: uuidv7(),
-        contextId,
-        role: 'agent',
-        parts: [{ kind: 'text', text: 'Workflow runtime not available' } as TextPart],
-      };
-      eventBus.publish(errorMessage);
-      eventBus.finished();
-      return;
+      throw new Error('Workflow runtime not available');
     }
 
     try {
       // Extract plugin ID from workflow name
       const pluginId = workflowName.replace('dispatch_workflow_', '');
       this.logger.debug('Extracted plugin ID', { pluginId });
+
+      // Get plugin metadata
+      const plugin = this.workflowRuntime.getPlugin(pluginId);
+      if (!plugin) {
+        throw new Error(`Plugin ${pluginId} not found`);
+      }
 
       // Dispatch workflow - this creates a task via the runtime
       const workflowParams =
@@ -533,23 +533,19 @@ export class WorkflowHandler {
       this.logger.debug('Starting execution monitor');
       void monitorExecution();
       await Promise.resolve();
-      return;
+
+      // Return task ID and workflow metadata
+      return {
+        taskId: execution.id,
+        metadata: {
+          workflowName: plugin.name,
+          description: plugin.description || `Dispatch ${plugin.name} workflow`,
+          pluginId: plugin.id,
+        },
+      };
     } catch (error: unknown) {
       this.logger.error('Error in dispatchWorkflow', error);
-      const errorMessage: Message = {
-        kind: 'message',
-        messageId: uuidv7(),
-        contextId,
-        role: 'agent',
-        parts: [
-          {
-            kind: 'text',
-            text: `Failed to dispatch workflow: ${error instanceof Error ? error.message : String(error)}`,
-          } as TextPart,
-        ],
-      };
-      eventBus.publish(errorMessage);
-      eventBus.finished();
+      throw error;
     }
   }
 
