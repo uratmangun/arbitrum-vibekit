@@ -1,10 +1,11 @@
 /**
  * Workflow Plugin Loader
  * Dynamic import of workflow plugins (ESM)
+ * Supports both TypeScript (.ts) and JavaScript (.js) workflows via jiti
  */
 
 import { resolve } from 'path';
-import { pathToFileURL } from 'url';
+import { createJiti } from 'jiti';
 
 import type { WorkflowPlugin } from '../../workflows/types.js';
 import type { EffectiveWorkflow } from '../composers/effective-set-composer.js';
@@ -55,21 +56,33 @@ export class WorkflowPluginLoader {
    */
   private async loadPlugin(workflow: EffectiveWorkflow, basePath: string): Promise<void> {
     const modulePath = resolve(basePath, workflow.entry.from);
-    const moduleUrl = pathToFileURL(modulePath).href;
 
     try {
       this.logger.debug(`Loading workflow plugin: ${workflow.id}`, { path: modulePath });
 
-      // Dynamic import (ESM)
-      const module = (await import(moduleUrl)) as { default: WorkflowPlugin };
+      // Use jiti for dynamic import - handles both .ts and .js files
+      const jiti = createJiti(import.meta.url, {
+        interopDefault: true,
+      });
 
-      if (!module.default) {
+      const module = (await jiti.import(modulePath)) as
+        | WorkflowPlugin
+        | { default: WorkflowPlugin };
+
+      // Check if module has a default export
+      if (!('default' in module)) {
         throw new Error(
           `Workflow module ${workflow.entry.from} does not export a default WorkflowPlugin`,
         );
       }
 
       const plugin = module.default;
+
+      if (!plugin) {
+        throw new Error(
+          `Workflow module ${workflow.entry.from} does not export a default WorkflowPlugin`,
+        );
+      }
 
       // Validate plugin structure
       if (!plugin.id || !plugin.name || !plugin.execute) {
