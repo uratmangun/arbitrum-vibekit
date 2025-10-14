@@ -52,7 +52,7 @@ export async function aggregateArtifacts(
           const incomingText = incoming[0] && 'text' in incoming[0] ? incoming[0].text : '';
           const existingText =
             entry.parts[idx] && 'text' in entry.parts[idx]
-              ? (entry.parts[idx] as { text?: string }).text ?? ''
+              ? ((entry.parts[idx] as { text?: string }).text ?? '')
               : '';
           if (incomingText) {
             entry.parts[idx] = { kind: 'text', text: existingText + incomingText };
