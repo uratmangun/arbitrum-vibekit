@@ -1,7 +1,7 @@
 import { v7 as uuidv7 } from 'uuid';
 
-import { ensureTransition } from '../tasks/stateMachine.js';
-import type { TaskState } from '../tasks/types.js';
+import { ensureTransition } from '../a2a/tasks/stateMachine.js';
+import type { TaskState } from '../a2a/tasks/types.js';
 
 import type {
   WorkflowPlugin,
@@ -12,10 +12,10 @@ import type {
   PauseInfo,
   ResumeResult,
   ToolExecutionResult,
-  WorkflowYield,
+  WorkflowState,
 } from './types.js';
 
-const isWorkflowYield = (value: unknown): value is WorkflowYield =>
+const isWorkflowState = (value: unknown): value is WorkflowState =>
   typeof value === 'object' && value !== null && 'type' in value;
 
 export class WorkflowRuntime {
@@ -290,7 +290,7 @@ export class WorkflowRuntime {
         }
 
         // Handle yielded values
-        if (isWorkflowYield(value)) {
+        if (isWorkflowState(value)) {
           const yieldValue = value;
           switch (yieldValue.type) {
             case 'artifact': {
@@ -608,7 +608,7 @@ export class WorkflowRuntime {
         const value = result.value;
 
         // Handle yielded values
-        if (isWorkflowYield(value)) {
+        if (isWorkflowState(value)) {
           const yieldValue = value;
           switch (yieldValue.type) {
             case 'artifact': {

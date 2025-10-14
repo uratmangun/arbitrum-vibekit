@@ -12,8 +12,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { createAgentExecutor } from '../src/a2a/agentExecutor.js';
 import type { AIService } from '../src/ai/service.js';
-import type { SessionManager } from '../src/sessions/manager.js';
-import type { WorkflowPlugin, WorkflowContext, WorkflowYield } from '../src/workflows/types.js';
+import type { SessionManager } from '../src/a2a/sessions/manager.js';
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../src/workflows/types.js';
 import { WorkflowRuntime } from '../src/workflows/runtime.js';
 import { RecordingEventBus } from './utils/mocks/event-bus.mock.js';
 import { StubAIService } from './utils/mocks/ai-service.mock.js';
@@ -38,7 +38,7 @@ function createTestWorkflowPlugin(
     name: `Test Workflow ${id}`,
     description: `A test workflow for ${id}`,
     version: '1.0.0',
-    async *execute(context: WorkflowContext): AsyncGenerator<WorkflowYield, unknown, unknown> {
+    async *execute(context: WorkflowContext): AsyncGenerator<WorkflowState, unknown, unknown> {
       // Yield initial status
       yield {
         type: 'status',
