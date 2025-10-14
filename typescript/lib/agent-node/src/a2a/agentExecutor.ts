@@ -1,7 +1,7 @@
 import { type AgentExecutor, type ExecutionEventBus, RequestContext } from '@a2a-js/sdk/server';
 
 import type { AIService } from '../ai/service.js';
-import type { SessionManager } from '../sessions/manager.js';
+import type { SessionManager } from './sessions/manager.js';
 import type { WorkflowRuntime } from '../workflows/runtime.js';
 
 import { AIHandler } from './handlers/aiHandler.js';

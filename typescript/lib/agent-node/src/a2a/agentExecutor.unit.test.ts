@@ -12,7 +12,7 @@ import { StubAIService } from '../../tests/utils/mocks/ai-service.mock.js';
 import { MockSessionManager } from '../../tests/utils/mocks/session-manager.mock.js';
 import { StubWorkflowRuntime } from '../../tests/utils/mocks/workflow-runtime.mock.js';
 import type { AIService } from '../ai/service.js';
-import type { SessionManager } from '../sessions/manager.js';
+import type { SessionManager } from './sessions/manager.js';
 
 import { createAgentExecutor } from './agentExecutor.js';
 

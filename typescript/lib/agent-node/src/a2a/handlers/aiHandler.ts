@@ -7,7 +7,7 @@ import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool, TextStreamPart } from 'ai';
 
 import type { AIService } from '../../ai/service.js';
-import type { SessionManager } from '../../sessions/manager.js';
+import type { SessionManager } from '../sessions/manager.js';
 import { Logger } from '../../utils/logger.js';
 
 import { StreamProcessor } from './streaming/StreamProcessor.js';

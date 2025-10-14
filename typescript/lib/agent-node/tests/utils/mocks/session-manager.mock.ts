@@ -1,7 +1,7 @@
 import type { ModelMessage } from 'ai';
 
-import type { SessionManager } from '../../../src/sessions/manager.js';
-import type { Session } from '../../../src/sessions/types.js';
+import type { SessionManager } from '../../../src/a2a/sessions/manager.js';
+import type { Session } from '../../../src/a2a/sessions/types.js';
 
 /**
  * Mock SessionManager for testing

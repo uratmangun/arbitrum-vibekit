@@ -18,7 +18,7 @@ import express, {
 
 import { AIService } from '../ai/service.js';
 import { DEFAULT_MODELS } from '../ai/providers/index.js';
-import { SessionManager } from '../sessions/manager.js';
+import { SessionManager } from './sessions/manager.js';
 import { Logger } from '../utils/logger.js';
 import { WorkflowRuntime } from '../workflows/runtime.js';
 import type { AgentConfigHandle, HotReloadHandler } from '../config/runtime/init.js';

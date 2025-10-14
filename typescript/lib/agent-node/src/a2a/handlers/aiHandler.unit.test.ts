@@ -10,7 +10,7 @@ import type { TextStreamPart, Tool } from 'ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AIService } from '../../ai/service.js';
-import type { SessionManager } from '../../sessions/manager.js';
+import type { SessionManager } from '../sessions/manager.js';
 import { MockSessionManager } from '../../../tests/utils/mocks/session-manager.mock.js';
 import { RecordingEventBus } from '../../../tests/utils/mocks/event-bus.mock.js';
 
