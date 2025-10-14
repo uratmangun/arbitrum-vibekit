@@ -154,6 +154,15 @@ describe('AgentExecutor', () => {
 
     const workflowExecution = createWorkflowExecutionStub(taskId, contextId, 'working');
     workflowRuntime.setDispatchHandler(() => workflowExecution);
+    workflowRuntime.setPlugin({
+      id: 'complex_flow',
+      name: 'Complex Flow',
+      description: 'Execute complex workflow',
+      version: '1.0.0',
+      execute: async function* () {
+        yield { type: 'status', status: { state: 'working' } };
+      },
+    });
     llm.availableTools.set('dispatch_workflow_complex_flow', { description: 'Test tool' });
     llm.processHandler = async function* () {
       await Promise.resolve(); // Ensure async context

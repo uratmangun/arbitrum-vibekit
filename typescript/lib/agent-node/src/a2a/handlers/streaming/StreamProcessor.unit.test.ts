@@ -82,7 +82,10 @@ type StatusUpdateEvent = {
     timestamp?: string;
     message?: {
       kind: string;
+      role?: string;
       parts: StatusMessagePart[];
+      referenceTaskIds?: string[];
+      metadata?: Record<string, unknown>;
     };
   };
   final?: boolean;
@@ -301,7 +304,84 @@ describe('StreamProcessor (unit)', () => {
   });
 
   describe('workflow dispatch handling', () => {
-    it('dispatches workflows when tool calls start with dispatch_workflow_', async () => {
+    it('dispatches workflows and emits referenceTaskIds message', async () => {
+      // Given: A stream with workflow tool calls
+      const fakeCollector: ToolCallCollectorDouble = {
+        addToolCall: vi.fn(),
+        getToolCalls: vi.fn(() => [
+          { name: 'dispatch_workflow_trading', arguments: { action: 'buy' } },
+        ]),
+        clear: vi.fn(),
+      };
+
+      const { processor } = await setupProcessor({ toolCallCollector: fakeCollector });
+      const onWorkflowDispatch = vi.fn().mockResolvedValue({
+        taskId: 'task-workflow-child',
+        metadata: {
+          workflowName: 'Token Trading',
+          description: 'Execute token trades on DEXs',
+          pluginId: 'trading',
+        },
+      });
+
+      async function* workflowStream(): AsyncIterable<TextStreamPart<Record<string, Tool>>> {
+        await Promise.resolve();
+        yield { type: 'tool-call', toolName: 'dispatch_workflow_trading' } as TextStreamPart<
+          Record<string, Tool>
+        >;
+      }
+
+      // When: The stream is processed
+      await processor.processStream(workflowStream(), {
+        taskId: 'task-parent',
+        contextId: 'ctx-workflow',
+        eventBus: eventBus as unknown as ExecutionEventBus,
+        onWorkflowDispatch,
+      });
+
+      // Then: Workflow should be dispatched
+      expect(onWorkflowDispatch).toHaveBeenCalledWith(
+        'dispatch_workflow_trading',
+        { action: 'buy' },
+        'ctx-workflow',
+        eventBus,
+      );
+
+      // And: Status update with referenceTaskIds should be emitted
+      const statusUpdates = eventBus.publish.mock.calls
+        .map(([event]) => event as StatusUpdateEvent)
+        .filter((event) => event.kind === 'status-update');
+
+      const referenceUpdate = statusUpdates.find(
+        (update) => update.status.message?.referenceTaskIds,
+      );
+
+      expect(referenceUpdate).toBeDefined();
+      expect(referenceUpdate?.taskId).toBe('task-parent');
+      expect(referenceUpdate?.contextId).toBe('ctx-workflow');
+      expect(referenceUpdate?.status.state).toBe('working');
+      expect(referenceUpdate?.status.message?.referenceTaskIds).toEqual(['task-workflow-child']);
+      expect(referenceUpdate?.status.message?.role).toBe('agent');
+
+      const messagePart = referenceUpdate?.status.message?.parts?.[0];
+      expect(messagePart?.kind).toBe('text');
+      expect(messagePart?.text).toBe(
+        'Dispatching workflow: Token Trading (Execute token trades on DEXs)',
+      );
+
+      const messageMetadata = referenceUpdate?.status.message?.metadata as {
+        referencedWorkflow?: { workflowName: string; description: string; pluginId: string };
+      };
+      expect(messageMetadata?.referencedWorkflow).toEqual({
+        workflowName: 'Token Trading',
+        description: 'Execute token trades on DEXs',
+        pluginId: 'trading',
+      });
+      expect(referenceUpdate?.final).toBe(false);
+    });
+
+    it('dispatches multiple workflows and emits multiple referenceTaskIds messages', async () => {
+      // Given: A stream with multiple workflow tool calls
       const fakeCollector: ToolCallCollectorDouble = {
         addToolCall: vi.fn(),
         getToolCalls: vi.fn(() => [
@@ -312,7 +392,24 @@ describe('StreamProcessor (unit)', () => {
       };
 
       const { processor } = await setupProcessor({ toolCallCollector: fakeCollector });
-      const onWorkflowDispatch = vi.fn();
+      const onWorkflowDispatch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          taskId: 'task-workflow-trading',
+          metadata: {
+            workflowName: 'Token Trading',
+            description: 'Execute token trades',
+            pluginId: 'trading',
+          },
+        })
+        .mockResolvedValueOnce({
+          taskId: 'task-workflow-lending',
+          metadata: {
+            workflowName: 'Lending Protocol',
+            description: 'Manage lending positions',
+            pluginId: 'lending',
+          },
+        });
 
       async function* workflowStream(): AsyncIterable<TextStreamPart<Record<string, Tool>>> {
         await Promise.resolve();
@@ -321,13 +418,16 @@ describe('StreamProcessor (unit)', () => {
         >;
       }
 
+      // When: The stream is processed
       await processor.processStream(workflowStream(), {
-        taskId: 'task-workflow',
+        taskId: 'task-parent',
         contextId: 'ctx-workflow',
         eventBus: eventBus as unknown as ExecutionEventBus,
         onWorkflowDispatch,
       });
 
+      // Then: Both workflows should be dispatched
+      expect(onWorkflowDispatch).toHaveBeenCalledTimes(2);
       expect(onWorkflowDispatch).toHaveBeenCalledWith(
         'dispatch_workflow_trading',
         { action: 'buy' },
@@ -340,6 +440,17 @@ describe('StreamProcessor (unit)', () => {
         'ctx-workflow',
         eventBus,
       );
+
+      // And: Two status updates with referenceTaskIds should be emitted
+      const statusUpdates = eventBus.publish.mock.calls
+        .map(([event]) => event as StatusUpdateEvent)
+        .filter(
+          (event) => event.kind === 'status-update' && event.status.message?.referenceTaskIds,
+        );
+
+      expect(statusUpdates).toHaveLength(2);
+      expect(statusUpdates[0]?.status.message?.referenceTaskIds).toEqual(['task-workflow-trading']);
+      expect(statusUpdates[1]?.status.message?.referenceTaskIds).toEqual(['task-workflow-lending']);
     });
 
     it('does not dispatch non-workflow tool calls', async () => {
