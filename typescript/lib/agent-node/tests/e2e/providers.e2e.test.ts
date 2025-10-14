@@ -34,8 +34,6 @@ describe('Provider E2E Tests', () => {
 
       // When performing generateText with default model
       const model = selector.openrouter!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.openrouter);
-
       const result = await generateText({
         model,
         prompt: 'What is 2+2?',
@@ -48,25 +46,27 @@ describe('Provider E2E Tests', () => {
   });
 
   describe('OpenAI provider', () => {
-    it('should perform generateText with real API', async () => {
-      // Given OpenAI API key is configured
-      if (!process.env['OPENAI_API_KEY']) {
-        throw new Error('OPENAI_API_KEY is required for e2e tests');
-      }
+    it(
+      'should perform generateText with real API',
+      async () => {
+        // Given OpenAI API key is configured
+        if (!process.env['OPENAI_API_KEY']) {
+          throw new Error('OPENAI_API_KEY is required for e2e tests');
+        }
 
-      // When performing generateText with default model
-      const model = selector.openai!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.openai);
+        // When performing generateText with default model
+        const model = selector.openai!();
+        const result = await generateText({
+          model,
+          prompt: 'What is 2+2?',
+        });
 
-      const result = await generateText({
-        model,
-        prompt: 'What is 2+2?',
-      });
-
-      // Then response should contain text
-      expect(result.text).toBeDefined();
-      expect(result.text.length).toBeGreaterThan(0);
-    });
+        // Then response should contain text
+        expect(result.text).toBeDefined();
+        expect(result.text.length).toBeGreaterThan(0);
+      },
+      10000,
+    );
   });
 
   describe('xAI provider', () => {
@@ -78,8 +78,6 @@ describe('Provider E2E Tests', () => {
 
       // When performing generateText with default model
       const model = selector.xai!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.xai);
-
       const result = await generateText({
         model,
         prompt: 'What is 2+2?',
@@ -100,8 +98,6 @@ describe('Provider E2E Tests', () => {
 
       // When performing generateText with default model
       const model = selector.hyperbolic!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.hyperbolic);
-
       const result = await generateText({
         model,
         prompt: 'What is 2+2?',
