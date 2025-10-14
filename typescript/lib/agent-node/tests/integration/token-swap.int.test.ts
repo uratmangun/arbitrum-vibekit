@@ -4,8 +4,8 @@ import { A2AClient } from '@a2a-js/sdk/client';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 
-import { aggregateArtifacts } from '../../src/a2a/utils/artifactAggregator.js';
 import type { AgentConfigHandle } from '../../src/config/runtime/init.js';
+import { aggregateArtifacts } from '../utils/artifact-aggregator.js';
 import { createTestA2AServer, cleanupTestServer } from '../utils/test-server.js';
 
 /**

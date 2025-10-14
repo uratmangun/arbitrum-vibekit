@@ -5,8 +5,8 @@ import { A2AClient } from '@a2a-js/sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-import { aggregateArtifacts } from '../../src/a2a/utils/artifactAggregator.js';
 import { createA2AServer } from '../../src/a2a/server.js';
+import { aggregateArtifacts } from '../utils/artifact-aggregator.js';
 import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
 import { serviceConfig } from '../../src/config.js';
 import { createTestConfigWorkspace } from '../utils/test-config-workspace.js';
