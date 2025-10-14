@@ -29,15 +29,18 @@ export const MessageSchema = z.object({
   parts: z.array(PartSchema),
 });
 
-// Task status types
+// Task status types - matches SDK TaskState
 export const TaskStatusSchema = z.object({
   state: z.union([
-    z.literal('completed'),
-    z.literal('failed'),
+    z.literal('submitted'),
     z.literal('working'),
     z.literal('input-required'),
     z.literal('auth-required'),
-    z.literal('cancelled'),
+    z.literal('completed'),
+    z.literal('failed'),
+    z.literal('canceled'),
+    z.literal('rejected'),
+    z.literal('unknown'),
   ]),
   message: MessageSchema.optional(),
 });
@@ -224,12 +227,6 @@ export const AgentCardSchema = z.object({
 });
 
 // Type exports
-export type Message = z.infer<typeof MessageSchema>;
-export type Task = z.infer<typeof TaskSchema>;
-export type TaskStatusUpdateEvent = z.infer<typeof TaskStatusUpdateEventSchema>;
-export type TaskArtifactUpdateEvent = z.infer<typeof TaskArtifactUpdateEventSchema>;
-export type SendMessageResponse = z.infer<typeof SendMessageResponseSchema>;
-export type SendStreamingMessageResponse = z.infer<typeof SendStreamingMessageResponseSchema>;
+// Note: Import types from @a2a-js/sdk instead of using these inferred types
+// These schemas are kept for runtime validation only
 export type StreamingMessageResult = z.infer<typeof StreamingMessageResultSchema>;
-export type AgentCard = z.infer<typeof AgentCardSchema>;
-export type Skill = z.infer<typeof SkillSchema>;
