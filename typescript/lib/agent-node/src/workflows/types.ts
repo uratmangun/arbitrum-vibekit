@@ -12,7 +12,7 @@ export interface WorkflowContext {
 export type WorkflowStatus = TaskStatusUpdateEvent['status'];
 
 // Yield value shapes produced by workflow generators
-export type WorkflowYield =
+export type WorkflowState =
   | {
       type: 'status';
       status: WorkflowStatus;
@@ -43,7 +43,7 @@ export interface WorkflowPlugin {
   version: string;
   // Zod object schema for input validation
   inputSchema?: z.ZodObject<Record<string, z.ZodTypeAny>>;
-  execute: (context: WorkflowContext) => AsyncGenerator<WorkflowYield, unknown, unknown>;
+  execute: (context: WorkflowContext) => AsyncGenerator<WorkflowState, unknown, unknown>;
 }
 
 export interface WorkflowExecution {

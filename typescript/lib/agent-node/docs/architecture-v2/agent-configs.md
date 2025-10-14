@@ -164,7 +164,7 @@ Note: Workflow metadata belongs inside each workflow module, not in the registry
 
 ```ts
 // ./config/workflows/invoices.ts
-import type { WorkflowPlugin, WorkflowContext, WorkflowYield } from '@agent-node/workflows';
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '@agent-node/workflows';
 import { z } from 'zod';
 
 const plugin: WorkflowPlugin = {
@@ -176,7 +176,7 @@ const plugin: WorkflowPlugin = {
     invoiceUrl: z.string().url(),
     format: z.enum(['pdf', 'png', 'jpg']).optional(),
   }),
-  async *execute(context: WorkflowContext): AsyncGenerator<WorkflowYield, void, unknown> {
+  async *execute(context: WorkflowContext): AsyncGenerator<WorkflowState, void, unknown> {
     yield { type: 'status', status: { state: 'working', message: 'Processing invoice...' } };
 
     // Skill overrides are merged into context.parameters

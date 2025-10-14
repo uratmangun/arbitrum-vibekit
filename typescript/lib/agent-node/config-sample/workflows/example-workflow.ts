@@ -1,5 +1,5 @@
 import type { Artifact, Message } from '@a2a-js/sdk';
-import type { WorkflowPlugin, WorkflowContext, WorkflowYield } from '../../src/workflows/types.js';
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 import { z } from 'zod';
 
 const plugin: WorkflowPlugin = {
@@ -14,7 +14,7 @@ const plugin: WorkflowPlugin = {
     count: z.number().int().positive().optional().default(1),
   }),
 
-  async *execute(context: WorkflowContext): AsyncGenerator<WorkflowYield, unknown, unknown> {
+  async *execute(context: WorkflowContext): AsyncGenerator<WorkflowState, unknown, unknown> {
     const { message = 'Hello from example workflow!', count = 1 } = context.parameters ?? {};
 
     // Status: Starting workflow
