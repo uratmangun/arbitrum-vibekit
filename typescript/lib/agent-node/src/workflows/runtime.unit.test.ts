@@ -51,6 +51,168 @@ describe('Workflow Runtime', () => {
       expect(availableWorkflows).toContain('test_plugin');
     });
 
+    it('should accept plugin IDs with hyphens and canonicalize to underscores', (): void => {
+      // Given a plugin with hyphens in the ID
+      const plugin: WorkflowPlugin = {
+        id: 'my-example-workflow',
+        name: 'Example Workflow',
+        version: '1.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return { success: true };
+        },
+      };
+
+      // When registering the plugin
+      const registered = runtime.register(plugin);
+
+      // Then plugin should be registered with canonical ID (hyphens → underscores)
+      expect(registered).toBe(true);
+      const availableWorkflows = runtime.listPlugins();
+      expect(availableWorkflows).toContain('my_example_workflow');
+      expect(availableWorkflows).not.toContain('my-example-workflow');
+    });
+
+    it('should generate tool names with canonicalized plugin IDs', (): void => {
+      // Given a plugin with hyphens in the ID
+      const plugin: WorkflowPlugin = {
+        id: 'api-integration-workflow',
+        name: 'API Integration',
+        version: '1.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return { success: true };
+        },
+      };
+
+      // When registering the plugin
+      runtime.register(plugin);
+
+      // Then tool name should use canonical ID with underscores
+      const tools = runtime.getAvailableTools();
+      expect(tools).toContain('dispatch_workflow_api_integration_workflow');
+      expect(tools).not.toContain('dispatch_workflow_api-integration-workflow');
+    });
+
+    it('should detect duplicates using canonicalized IDs', (): void => {
+      // Given a plugin registered with hyphens
+      const plugin1: WorkflowPlugin = {
+        id: 'duplicate-check',
+        name: 'First Plugin',
+        version: '1.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return {};
+        },
+      };
+      runtime.register(plugin1);
+
+      // When trying to register with the same ID but underscores
+      const plugin2: WorkflowPlugin = {
+        id: 'duplicate_check',
+        name: 'Second Plugin',
+        version: '2.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return {};
+        },
+      };
+
+      // Then duplicate registration should be rejected
+      expect(() => runtime.register(plugin2)).toThrow(/already registered/);
+    });
+
+    it('should allow mixed hyphen and underscore IDs if canonically different', (): void => {
+      // Given plugins with different canonical IDs
+      const plugin1: WorkflowPlugin = {
+        id: 'workflow-one',
+        name: 'Workflow One',
+        version: '1.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return {};
+        },
+      };
+      const plugin2: WorkflowPlugin = {
+        id: 'workflow_two',
+        name: 'Workflow Two',
+        version: '1.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return {};
+        },
+      };
+
+      // When registering both
+      runtime.register(plugin1);
+      runtime.register(plugin2);
+
+      // Then both should be available
+      const workflows = runtime.listPlugins();
+      expect(workflows).toContain('workflow_one');
+      expect(workflows).toContain('workflow_two');
+    });
+
+    it('should require canonical ID for plugin retrieval', (): void => {
+      // Given a plugin registered with hyphens
+      const plugin: WorkflowPlugin = {
+        id: 'my-workflow',
+        name: 'My Workflow',
+        version: '1.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return {};
+        },
+      };
+      runtime.register(plugin);
+
+      // When retrieving by canonical ID
+      const retrieved = runtime.getPlugin('my_workflow');
+
+      // Then plugin should be found
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.name).toBe('My Workflow');
+
+      // When retrieving by original hyphenated ID
+      const notFound = runtime.getPlugin('my-workflow');
+
+      // Then plugin should not be found
+      expect(notFound).toBeUndefined();
+    });
+
+    it('should require canonical ID for workflow dispatch', (): void => {
+      // Given a plugin registered with hyphens
+      const plugin: WorkflowPlugin = {
+        id: 'dispatch-test',
+        name: 'Dispatch Test',
+        version: '1.0.0',
+        *execute(_context: WorkflowContext) {
+          yield { type: 'status', status: { state: 'working' } };
+          return { success: true };
+        },
+      };
+      runtime.register(plugin);
+
+      // When dispatching with canonical ID
+      const execution = runtime.dispatch('dispatch_test', {
+        contextId: 'ctx-dispatch',
+        taskId: 'task-dispatch',
+      });
+
+      // Then dispatch should succeed
+      expect(execution).toBeDefined();
+      expect(execution.state).toBe('working');
+
+      // When dispatching with hyphenated ID
+      // Then dispatch should fail
+      expect(() =>
+        runtime.dispatch('dispatch-test', {
+          contextId: 'ctx-dispatch-2',
+          taskId: 'task-dispatch-2',
+        }),
+      ).toThrow();
+    });
+
     it('should prevent duplicate workflow registration', (): void => {
       // Given a workflow is already registered
       const plugin: WorkflowPlugin = {
