@@ -22,7 +22,7 @@ At its core, Vibekit uses the Model Context Protocol (MCP) to standardize how ag
 Here's an overview of how everything fits together:
 
 <p align="left">
-  <img src="img/Flow Chart.png" width="800px" alt="FlowChart"/>
+  <img src="img/Flow Chart.png" width="800px" alt="Vibekit Concepts Diagram"/>
 </p>
 
 > [!NOTE]

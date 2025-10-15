@@ -2,6 +2,8 @@
 
 This directory contains production-ready AI agent templates that demonstrate how to build sophisticated, autonomous on-chain agents. Each template agent features the v2 framework's improved design with skills, tools, hooks, and enhanced MCP integrations. They serve as both working examples and starting points for building your own custom agents.
 
+> **🎯 For New Agent Development**: We recommend using the modern **[Agent Node framework](../lib/agent-node/README.md)** for building new agents. Agent Node provides config-driven architecture, full A2A protocol compliance, generator-based workflows, and embedded wallet support. See [Lesson 28](../../docs/lesson-28.md) for a complete guide.
+
 Follow this guide to:
 
 - [Understand the v2 Architecture](#️-template-agent-architecture-overview)

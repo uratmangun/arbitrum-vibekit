@@ -53,6 +53,14 @@ The plugin system provides several key advantages for protocol integrations:
 
 4. **Potential Trailblazer Incentive**: Plugin developers may be eligible for the [Trailblazer Fund 2.0](https://www.emberai.xyz/blog/introducing-arbitrum-vibekit-and-the-trailblazer-fund-2-0) initiative launched by Arbitrum.
 
+### Information Flow
+
+Here is how the system's components interact with each other:
+
+<p align="left">
+  <img src="../../../img/Plugin System.png" width="800px" alt="Plugin System Information Flow Diagram"/>
+</p>
+
 ## Plugin Architecture
 
 The core framework (`registry/src/core/`) provides the following components:
@@ -247,7 +255,7 @@ registry.registerDeferredPlugin(
     chainId: 42161,
     rpcUrl: 'https://arb1.arbitrum.io/rpc',
     wrappedNativeToken: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
-  })
+  }),
 );
 ```
 
@@ -274,7 +282,7 @@ While each plugin can only implement one type (lending, liquidity, swap, or perp
 ```typescript
 // Instead of returning one plugin, return a list of plugins
 export async function getProtocolPlugins(
-  params: ProtocolParams
+  params: ProtocolParams,
 ): Promise<EmberPlugin<PluginType>[]> {
   return [
     // One plugin for lending
@@ -310,7 +318,7 @@ registry.registerPlugin(plugin);
 
 // Iterate over the list and register multiple plugins
 const plugins = await getProtocolPlugins(params);
-plugins.forEach(plugin => {
+plugins.forEach((plugin) => {
   registry.registerPlugin(plugin);
 });
 ```

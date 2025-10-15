@@ -1,7 +1,4 @@
-# **Lesson 28: Agent Node Framework**
-
 ---
-
 title: "Complete Guide to Agent Node Framework"
 category: "advanced"
 difficulty: "intermediate"
@@ -10,10 +7,11 @@ prerequisites: ["Basic understanding of AI agents"]
 next_lesson: null
 framework_version: "3.0+ (Agent Node)"
 last_updated: "2025-01-13"
-
 ---
 
-## 🎯 Learning Objectives
+# Lesson 28: Agent Node Framework
+
+## Learning Objectives
 
 After this lesson, you will understand:
 
@@ -24,7 +22,7 @@ After this lesson, you will understand:
 - A2A protocol integration and agent communication
 - CLI tools and development workflow
 
-## 🔍 Overview
+## Overview
 
 Agent Node is a **modern agent framework for the agentic economy** that enables building autonomous AI agents with full A2A (Agent-to-Agent) protocol compliance. It represents a complete architectural evolution from the previous `arbitrum-vibekit-core` framework.
 
@@ -42,7 +40,7 @@ Agent Node is a **modern agent framework for the agentic economy** that enables 
 | **Wallet**        | External integration                    | Embedded EOA wallet               |
 | **CLI**           | Basic scripts                           | Full CLI with `agent` command     |
 
-## 🏗️ Core Architecture
+## Core Architecture
 
 Agent Node is built around four main pillars:
 
