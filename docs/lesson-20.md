@@ -1,3 +1,15 @@
+---
+title: "Agent Communication Protocols"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-19"]
+next_lesson: "lesson-21"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["communication","protocols","a2a"]
+---
+
 # **Lesson 20: Skills - The v2 Foundation**
 
 ---

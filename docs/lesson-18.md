@@ -1,3 +1,15 @@
+---
+title: "Security Best Practices"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-17"]
+next_lesson: "lesson-19"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["security","best-practices","compliance"]
+---
+
 # **Lesson 18: Deployment and Hosting**
 
 ---

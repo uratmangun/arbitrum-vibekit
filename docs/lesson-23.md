@@ -1,3 +1,15 @@
+---
+title: "Blockchain Integration"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-22"]
+next_lesson: "lesson-24"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["blockchain","web3","defi"]
+---
+
 # **Lesson 23: Workflow Tools and Design Patterns**
 
 ---

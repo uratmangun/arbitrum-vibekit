@@ -1,3 +1,15 @@
+---
+title: "Advanced Agent Configuration"
+category: "intermediate"
+difficulty: "intermediate"
+duration: "15 minutes"
+prerequisites: ["lesson-06"]
+next_lesson: "lesson-08"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["configuration","advanced","customization"]
+---
+
 # **Lesson 7: v2 Agent Structure and File Layout**
 
 ---

@@ -1,3 +1,15 @@
+---
+title: "Workflow Orchestration"
+category: "intermediate"
+difficulty: "intermediate"
+duration: "20 minutes"
+prerequisites: ["lesson-05"]
+next_lesson: "lesson-07"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["workflows", "orchestration", "automation"]
+---
+
 # **Lesson 6: The Tool Call Lifecycle**
 
 ---

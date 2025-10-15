@@ -1,3 +1,15 @@
+---
+title: "Custom MCP Servers"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-21"]
+next_lesson: "lesson-23"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["mcp","servers","custom"]
+---
+
 # **Lesson 22: Provider Selection and Agent Configuration**
 
 ---

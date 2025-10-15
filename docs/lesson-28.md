@@ -2,11 +2,10 @@
 title: "Complete Guide to Agent Node Framework"
 category: "advanced"
 difficulty: "intermediate"
-duration: "90 minutes"
+duration: "23 minutes"
 prerequisites: ["Basic understanding of AI agents"]
 next_lesson: null
 framework_version: "3.0+ (Agent Node)"
-last_updated: "2025-01-13"
 ---
 
 # Lesson 28: Agent Node Framework
@@ -21,6 +20,9 @@ After this lesson, you will understand:
 - The generator-based workflow system with pause/resume
 - A2A protocol integration and agent communication
 - CLI tools and development workflow
+- MCP tool canonicalization and namespacing
+- Docker deployment with volume mounting
+- Enhanced workflow runtime integration
 
 ## Overview
 

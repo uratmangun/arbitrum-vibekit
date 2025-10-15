@@ -1,3 +1,15 @@
+---
+title: "Advanced Workflow Patterns"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-20"]
+next_lesson: "lesson-22"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["workflows","patterns","advanced"]
+---
+
 # **Lesson 21: LLM Orchestration vs Manual Handlers**
 
 ---

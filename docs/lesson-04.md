@@ -1,3 +1,15 @@
+---
+title: "Building Your First Agent"
+category: "beginner"
+difficulty: "intermediate"
+duration: "15 minutes"
+prerequisites: ["lesson-03"]
+next_lesson: "lesson-05"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["first-agent", "hands-on", "tutorial"]
+---
+
 # **Lesson 4: Understanding Agent-to-Agent Protocol (A2A)**
 
 ---

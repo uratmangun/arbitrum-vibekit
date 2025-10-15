@@ -1,3 +1,15 @@
+---
+title: "Error Handling and Resilience"
+category: "intermediate"
+difficulty: "intermediate"
+duration: "15 minutes"
+prerequisites: ["lesson-08"]
+next_lesson: "lesson-10"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["error-handling","resilience","reliability"]
+---
+
 # **Lesson 9: How Tool Hooks Work (`before` and `after`)**
 
 ---

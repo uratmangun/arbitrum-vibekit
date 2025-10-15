@@ -1,3 +1,15 @@
+---
+title: "Production Deployment and Configuration"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-24"]
+next_lesson: "lesson-26"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["deployment","configuration","production"]
+---
+
 # **Lesson 25: Production Deployment and Configuration**
 
 ---

@@ -1,3 +1,15 @@
+---
+title: "Advanced Agent Architectures"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-25"]
+next_lesson: "lesson-27"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["architecture","advanced","patterns"]
+---
+
 # **Lesson 26: Modern Transport and Service Discovery**
 
 ---

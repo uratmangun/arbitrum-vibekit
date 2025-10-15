@@ -1,3 +1,15 @@
+---
+title: "Understanding MCP (Model Context Protocol)"
+category: "beginner"
+difficulty: "intermediate"
+duration: "20 minutes"
+prerequisites: ["lesson-02"]
+next_lesson: "lesson-04"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["mcp", "protocol", "integration"]
+---
+
 # **Lesson 3: Understanding MCP (Model Context Protocol) in V2**
 
 ---
@@ -52,7 +64,7 @@ The v2 framework uses StreamableHTTP as the primary transport:
 ```ts
 // Automatically configured in v2 agents
 const agent = Agent.create(agentConfig, {
-  llm: { model: providers.openrouter('google/gemini-2.5-flash') },
+  llm: { model: providers.openrouter("google/gemini-2.5-flash") },
 });
 
 // Exposes MCP at: http://localhost:3000/mcp
@@ -95,13 +107,13 @@ Traditional MCP often exposes many individual tools. V2 uses skills for better o
 ```ts
 // V2 Pattern: Skills as capabilities
 export const lendingSkill = defineSkill({
-  id: 'lending-operations',
-  name: 'Lending Operations',
-  description: 'Perform lending operations on Aave protocol',
+  id: "lending-operations",
+  name: "Lending Operations",
+  description: "Perform lending operations on Aave protocol",
 
   inputSchema: z.object({
-    instruction: z.string().describe('Natural language lending request'),
-    walletAddress: z.string().describe('User wallet address'),
+    instruction: z.string().describe("Natural language lending request"),
+    walletAddress: z.string().describe("User wallet address"),
   }),
 
   // Internal tools (not exposed to LLM directly)
@@ -243,8 +255,8 @@ V2 agents act as both MCP servers and clients:
 agent.start(3000); // Skills available at /mcp
 
 // As MCP client: Can call other agents' skills
-const emberClient = deps.mcpClients['ember'];
-const result = await emberClient.callTool('swap-tokens', args);
+const emberClient = deps.mcpClients["ember"];
+const result = await emberClient.callTool("swap-tokens", args);
 ```
 
 This enables:

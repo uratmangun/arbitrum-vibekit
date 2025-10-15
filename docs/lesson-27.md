@@ -1,3 +1,15 @@
+---
+title: "Agent Performance Tuning"
+category: "advanced"
+difficulty: "hard"
+duration: "23 minutes"
+prerequisites: ["lesson-26"]
+next_lesson: "lesson-28"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["performance","tuning","optimization"]
+---
+
 # **Lesson 27: Frontend Integration and User Context Patterns**
 
 ---

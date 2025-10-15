@@ -1,3 +1,15 @@
+---
+title: "Performance Optimization"
+category: "intermediate"
+difficulty: "hard"
+duration: "19 minutes"
+prerequisites: ["lesson-09"]
+next_lesson: "lesson-16"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["performance","optimization","scaling"]
+---
+
 # **Lesson 10: Adapting Third-Party Tools**
 
 ---

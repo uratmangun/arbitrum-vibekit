@@ -1,3 +1,15 @@
+---
+title: "Skills and Tool Integration"
+category: "intermediate"
+difficulty: "intermediate"
+duration: "15 minutes"
+prerequisites: ["lesson-04"]
+next_lesson: "lesson-06"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["skills","tools","integration"]
+---
+
 # **Lesson 5: Stateless vs Stateful Logic with Context**
 
 ---

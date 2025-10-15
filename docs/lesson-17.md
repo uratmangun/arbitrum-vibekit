@@ -1,3 +1,15 @@
+---
+title: "Monitoring and Observability"
+category: "advanced"
+difficulty: "hard"
+duration: "19 minutes"
+prerequisites: ["lesson-16"]
+next_lesson: "lesson-18"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["monitoring","observability","logging"]
+---
+
 # **Lesson 17: Validations and Tool Enhancement with Hooks**
 
 ---

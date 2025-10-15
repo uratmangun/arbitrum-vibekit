@@ -1,3 +1,15 @@
+---
+title: "Testing and Quality Assurance"
+category: "intermediate"
+difficulty: "intermediate"
+duration: "15 minutes"
+prerequisites: ["lesson-07"]
+next_lesson: "lesson-09"
+framework_version: "3.0+ (Agent Node)"
+last_updated: "2025-10-15"
+tags: ["testing","quality","tdd"]
+---
+
 # **Lesson 8: Using External Providers and Adapters**
 
 ---
