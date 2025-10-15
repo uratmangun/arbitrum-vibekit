@@ -15,9 +15,13 @@ vi.mock('../validators/conflict-validator.js', () => ({
   validateMCPServers: vi.fn(),
   validateWorkflows: vi.fn(),
 }));
-vi.mock('../validators/tool-validator.js', () => ({
-  validateToolNames: vi.fn(),
-}));
+vi.mock('../validators/tool-validator.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    validateToolNames: vi.fn(),
+  };
+});
 
 describe('composeEffectiveMCPServers', () => {
   const mockMCPRegistry: LoadedMCPRegistry = {
@@ -189,9 +193,9 @@ describe('composeEffectiveMCPServers', () => {
     // When composing effective MCP servers
     const result = composeEffectiveMCPServers(mockMCPRegistry, skills);
 
-    // Then allowed tools should be namespaced
+    // Then allowed tools should be stored un-namespaced
     expect(result).toHaveLength(1);
-    expect(result[0]?.allowedTools).toEqual(['test_server__tool1', 'test_server__tool2']);
+    expect(result[0]?.allowedTools).toEqual(['tool1', 'tool2']);
   });
 });
 
