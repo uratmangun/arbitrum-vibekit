@@ -10,6 +10,7 @@ import type { Tool } from 'ai';
 
 import { Logger } from '../../utils/logger.js';
 import { createCoreToolFromMCP } from '../../ai/adapters.js';
+import { canonicalizeName } from '../validators/tool-validator.js';
 import type { MCPServerInstance } from './mcp-instantiator.js';
 import type { LoadedWorkflowPlugin } from './workflow-loader.js';
 
@@ -53,16 +54,19 @@ export async function loadTools(
       logger.debug(`MCP server ${serverId} provided ${mcpTools.length} tools`);
 
       for (const mcpTool of mcpTools) {
-        // Apply tool namespacing: server_namespace__tool_name
-        const namespacedName = `${instance.namespace}__${mcpTool.name}`;
-
-        // Check if this tool is allowed by per-server allowedTools filter
-        if (instance.allowedTools && !instance.allowedTools.includes(namespacedName)) {
+        // Check if this tool is allowed by per-server allowedTools filter (before canonicalization)
+        if (instance.allowedTools && !instance.allowedTools.includes(mcpTool.name)) {
           logger.debug(
-            `Skipping tool ${namespacedName} - not in allowedTools for server ${serverId}`,
+            `Skipping tool ${mcpTool.name} - not in allowedTools for server ${serverId}`,
           );
           continue;
         }
+
+        // Canonicalize tool name to snake_case (handles camelCase → snake_case, kebab-case → snake_case)
+        const canonicalToolName = canonicalizeName(mcpTool.name);
+
+        // Apply tool namespacing: server_namespace__tool_name
+        const namespacedName = `${instance.namespace}__${canonicalToolName}`;
 
         // Create AI SDK tool from MCP tool
         const aiTool = createCoreToolFromMCP(
