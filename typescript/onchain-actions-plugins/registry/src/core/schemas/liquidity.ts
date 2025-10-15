@@ -31,7 +31,9 @@ export const LiquidityPayTokensSchema = z.object({
 });
 export type LiquidityPayTokens = z.infer<typeof LiquidityPayTokensSchema>;
 
-export const LiquiditySuppliedTokenSchema = LiquidityPayTokensSchema.extend({
+export const LiquiditySuppliedTokenSchema = z.object({
+  tokenUid: TokenIdentifierSchema,
+  suppliedAmount: z.string(),
   symbol: z.string(),
   owedTokens: z.string(),
 });
