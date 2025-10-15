@@ -34,7 +34,6 @@ export type LiquidityPayTokens = z.infer<typeof LiquidityPayTokensSchema>;
 export const LiquiditySuppliedTokenSchema = z.object({
   tokenUid: TokenIdentifierSchema,
   suppliedAmount: z.string(),
-  symbol: z.string(),
   owedTokens: z.string(),
 });
 export type LiquiditySuppliedToken = z.infer<typeof LiquiditySuppliedTokenSchema>;
@@ -51,7 +50,6 @@ export type LiquidityPosition = z.infer<typeof LiquidityPositionSchema>;
 
 export const LiquidityPoolTokens = z.object({
   tokenUid: TokenIdentifierSchema,
-  symbol: z.string(),
 });
 export type LiquidityPoolTokens = z.infer<typeof LiquidityPoolTokens>;
 
