@@ -40,7 +40,7 @@
   "release": {
     "branches": [
       {
-        "name": "add/plugins",
+        "name": "feat/liquidity-schemas",
         "channel": "alpha",
         "prerelease": "alpha"
       },
