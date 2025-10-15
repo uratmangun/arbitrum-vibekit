@@ -71,7 +71,7 @@ export type SupplyLiquidityRequest = z.infer<typeof SupplyLiquidityRequestSchema
 
 export const SupplyLiquidityResponseSchema = z.object({
   transactions: z.array(TransactionPlanSchema),
-  chainId: z.string(),
+  poolIdentifier: TokenIdentifierSchema,
 });
 export type SupplyLiquidityResponse = z.infer<typeof SupplyLiquidityResponseSchema>;
 
