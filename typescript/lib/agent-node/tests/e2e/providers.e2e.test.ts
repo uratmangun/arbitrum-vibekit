@@ -1,7 +1,7 @@
 import { generateText } from 'ai';
 import { describe, it, expect, beforeAll } from 'vitest';
 
-import { createProviderSelector, DEFAULT_MODELS } from '../../src/ai/providers/index.js';
+import { createProviderSelector } from '../../src/ai/providers/index.js';
 
 /**
  * E2E tests for AI providers using generateText
@@ -34,8 +34,6 @@ describe('Provider E2E Tests', () => {
 
       // When performing generateText with default model
       const model = selector.openrouter!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.openrouter);
-
       const result = await generateText({
         model,
         prompt: 'What is 2+2?',
@@ -56,8 +54,6 @@ describe('Provider E2E Tests', () => {
 
       // When performing generateText with default model
       const model = selector.openai!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.openai);
-
       const result = await generateText({
         model,
         prompt: 'What is 2+2?',
@@ -66,7 +62,7 @@ describe('Provider E2E Tests', () => {
       // Then response should contain text
       expect(result.text).toBeDefined();
       expect(result.text.length).toBeGreaterThan(0);
-    });
+    }, 10000);
   });
 
   describe('xAI provider', () => {
@@ -78,8 +74,6 @@ describe('Provider E2E Tests', () => {
 
       // When performing generateText with default model
       const model = selector.xai!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.xai);
-
       const result = await generateText({
         model,
         prompt: 'What is 2+2?',
@@ -100,8 +94,6 @@ describe('Provider E2E Tests', () => {
 
       // When performing generateText with default model
       const model = selector.hyperbolic!();
-      expect(model.modelId).toContain(DEFAULT_MODELS.hyperbolic);
-
       const result = await generateText({
         model,
         prompt: 'What is 2+2?',

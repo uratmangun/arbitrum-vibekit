@@ -49,8 +49,10 @@ describe('CLI Commands Integration Tests', () => {
       expect(existsSync(join(targetDir, 'skills'))).toBe(true);
       expect(existsSync(join(targetDir, 'workflows'))).toBe(true);
 
-      // Then: template skill file should be created
+      // Then: template skill and workflow files should be created
       expect(existsSync(join(targetDir, 'skills', 'general-assistant.md'))).toBe(true);
+      expect(existsSync(join(targetDir, 'skills', 'ember-onchain-actions.md'))).toBe(true);
+      expect(existsSync(join(targetDir, 'workflows', 'example-workflow.ts'))).toBe(true);
     });
 
     it('should create valid agent.md with frontmatter', async () => {
@@ -85,12 +87,15 @@ describe('CLI Commands Integration Tests', () => {
       // When: running init command
       await initCommand({ target: targetDir });
 
-      // Then: manifest should have valid structure with template skill reference
+      // Then: manifest should have valid structure with both template skills
       const manifestPath = join(targetDir, 'agent.manifest.json');
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
 
       expect(manifest.version).toBe(1);
-      expect(manifest.skills).toEqual(['./skills/general-assistant.md']);
+      expect(manifest.skills).toEqual([
+        './skills/general-assistant.md',
+        './skills/ember-onchain-actions.md',
+      ]);
       expect(manifest.registries).toEqual({
         mcp: './mcp.json',
         workflows: './workflow.json',
@@ -134,17 +139,56 @@ describe('CLI Commands Integration Tests', () => {
       expect(skillContent).toContain('You are a general-purpose assistant skill');
       expect(skillContent).toContain('Answering questions clearly and accurately');
       expect(skillContent).toContain('Breaking down complex tasks');
+      expect(skillContent).toContain('Executing workflows for multi-step operations');
 
       // Validate MCP server integration (active by default)
       expect(skillContent).toContain('# MCP server integration');
       expect(skillContent).toContain('mcp:');
       expect(skillContent).toContain('servers:');
-      expect(skillContent).toContain('- name: playwright');
       expect(skillContent).toContain('- name: fetch');
-      expect(skillContent).toContain('allowedTools: [fetch_json, fetch_txt, fetch_markdown]');
+      expect(skillContent).toContain(
+        'allowedTools: [fetch__fetch_json, fetch__fetch_txt, fetch__fetch_markdown]',
+      );
 
-      // Validate commented-out workflow configuration example
-      expect(skillContent).toContain('# Optional: Uncomment to add workflow integration');
+      // Validate workflow integration (active by default)
+      expect(skillContent).toContain('# Workflow integration');
+      expect(skillContent).toContain('workflows:');
+      expect(skillContent).toContain("include: ['example-workflow']");
+    });
+
+    it('should create ember skill with valid frontmatter and MCP integration', async () => {
+      // Given: a target directory for initialization
+      const targetDir = join(
+        tmpdir(),
+        `test-init-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      );
+      tempDirs.push(targetDir);
+
+      // When: running init command
+      await initCommand({ target: targetDir });
+
+      // Then: ember skill should have valid frontmatter and content
+      const skillPath = join(targetDir, 'skills', 'ember-onchain-actions.md');
+      const skillContent = readFileSync(skillPath, 'utf-8');
+
+      // Validate frontmatter structure
+      expect(skillContent).toContain('---');
+      expect(skillContent).toContain('skill:');
+      expect(skillContent).toContain('id: ember-onchain-actions');
+      expect(skillContent).toContain('name: Ember Onchain Actions');
+      expect(skillContent).toContain('description:');
+      expect(skillContent).toContain('tags: [blockchain, web3, transactions]');
+
+      // Validate MCP server integration with ember_onchain_actions
+      expect(skillContent).toContain('# MCP server integration');
+      expect(skillContent).toContain('mcp:');
+      expect(skillContent).toContain('servers:');
+      expect(skillContent).toContain('- name: ember_onchain_actions');
+
+      // Validate skill body content
+      expect(skillContent).toContain('You are the Ember Onchain Actions skill');
+      expect(skillContent).toContain('blockchain');
+      expect(skillContent).toContain('transactions');
     });
 
     it('should create registries with default MCP servers', async () => {
@@ -158,22 +202,30 @@ describe('CLI Commands Integration Tests', () => {
       // When: running init command
       await initCommand({ target: targetDir });
 
-      // Then: MCP registry should contain default servers (playwright and fetch)
+      // Then: MCP registry should contain default servers (fetch stdio and ember_onchain_actions http)
       const mcpJson = JSON.parse(readFileSync(join(targetDir, 'mcp.json'), 'utf-8'));
       expect(mcpJson.mcpServers).toBeDefined();
-      expect(mcpJson.mcpServers.playwright).toBeDefined();
-      expect(mcpJson.mcpServers.playwright.type).toBe('stdio');
-      expect(mcpJson.mcpServers.playwright.command).toBe('npx');
-      expect(mcpJson.mcpServers.playwright.args).toEqual(['@playwright/mcp@latest']);
 
+      // Validate fetch server (stdio transport)
       expect(mcpJson.mcpServers.fetch).toBeDefined();
+      expect(mcpJson.mcpServers.fetch.type).toBe('stdio');
       expect(mcpJson.mcpServers.fetch.command).toBe('npx');
       expect(mcpJson.mcpServers.fetch.args).toEqual(['mcp-fetch-server']);
       expect(mcpJson.mcpServers.fetch.env).toEqual({ DEFAULT_LIMIT: '50000' });
 
-      // Then: workflow registry should be empty but valid JSON
+      // Validate ember_onchain_actions server (http transport)
+      expect(mcpJson.mcpServers.ember_onchain_actions).toBeDefined();
+      expect(mcpJson.mcpServers.ember_onchain_actions.type).toBe('http');
+      expect(mcpJson.mcpServers.ember_onchain_actions.url).toBe('https://api.emberai.xyz/mcp');
+
+      // Then: workflow registry should contain example-workflow
       const workflowJson = JSON.parse(readFileSync(join(targetDir, 'workflow.json'), 'utf-8'));
-      expect(workflowJson).toEqual({ workflows: [] });
+      expect(workflowJson.workflows).toBeDefined();
+      expect(Array.isArray(workflowJson.workflows)).toBe(true);
+      expect(workflowJson.workflows.length).toBe(1);
+      expect(workflowJson.workflows[0].id).toBe('example-workflow');
+      expect(workflowJson.workflows[0].from).toBe('./workflows/example-workflow.ts');
+      expect(workflowJson.workflows[0].enabled).toBe(true);
     });
 
     it('should fail when target exists without force flag', async () => {

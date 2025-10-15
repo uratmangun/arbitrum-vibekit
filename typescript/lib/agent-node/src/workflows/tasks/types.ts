@@ -1,13 +1,6 @@
-export type TaskState =
-  | 'submitted'
-  | 'working'
-  | 'input-required'
-  | 'auth-required'
-  | 'completed'
-  | 'failed'
-  | 'canceled';
+import type { TaskState } from '@a2a-js/sdk';
 
-export interface Task {
+export interface WorkflowTask {
   id: string;
   contextId: string;
   state: TaskState;
@@ -29,7 +22,7 @@ export interface Task {
   };
 }
 
-export interface TaskHistoryEntry {
+export interface WorkflowTaskHistoryEntry {
   state: TaskState;
   timestamp: string;
   details?: Record<string, unknown>;

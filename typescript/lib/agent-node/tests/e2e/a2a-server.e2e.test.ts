@@ -5,8 +5,8 @@ import { A2AClient } from '@a2a-js/sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-import { aggregateArtifacts } from '../../src/a2a/utils/artifactAggregator.js';
 import { createA2AServer } from '../../src/a2a/server.js';
+import { aggregateArtifacts } from '../utils/artifact-aggregator.js';
 import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
 import { serviceConfig } from '../../src/config.js';
 import { createTestConfigWorkspace } from '../utils/test-config-workspace.js';
@@ -266,9 +266,9 @@ describe('A2A Server Live Tests', () => {
       // When collecting and aggregating stream events
       const artifacts = await aggregateArtifacts(streamGenerator);
 
-      // Then verify createSwap tool call artifact is present with complete data
-      const swapArtifact = Object.entries(artifacts).find(([id]) => id.includes('createSwap'));
-      expect(swapArtifact, 'Expected createSwap tool call artifact in response').toBeDefined();
+      // Then verify create_swap tool call artifact is present with complete data
+      const swapArtifact = Object.entries(artifacts).find(([id]) => id.includes('create_swap'));
+      expect(swapArtifact, 'Expected create_swap tool call artifact in response').toBeDefined();
 
       if (swapArtifact) {
         const [, artifact] = swapArtifact;

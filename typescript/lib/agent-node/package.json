@@ -22,6 +22,7 @@
     "cors": "^2.8.5",
     "express": "catalog:",
     "gray-matter": "^4.0.3",
+    "jiti": "^2.6.1",
     "json-schema-to-zod": "^2.6.1",
     "ora": "^9.0.0",
     "picocolors": "^1.1.1",

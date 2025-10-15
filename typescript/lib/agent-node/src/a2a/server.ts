@@ -108,10 +108,18 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
     onRequestLog: config.onRequestLog,
   });
 
-  const workflowRuntime = config.workflowRuntime ?? new WorkflowRuntime();
-  for (const [_workflowId, loadedPlugin] of agentConfig.workflowPlugins.entries()) {
-    workflowRuntime.register(loadedPlugin.plugin);
-    logger.info(`Registered workflow plugin: ${loadedPlugin.id}`);
+  // Use workflow runtime from agent config (created during tool loading)
+  // or create a new one if not available (fallback for compatibility)
+  const workflowRuntime =
+    agentConfig.workflowRuntime ?? config.workflowRuntime ?? new WorkflowRuntime();
+
+  // Only register plugins if using a newly created runtime
+  // (plugins are already registered in tool-loader when runtime is created there)
+  if (!agentConfig.workflowRuntime && !config.workflowRuntime) {
+    for (const [_workflowId, loadedPlugin] of agentConfig.workflowPlugins.entries()) {
+      workflowRuntime.register(loadedPlugin.plugin);
+      logger.info(`Registered workflow plugin: ${loadedPlugin.id}`);
+    }
   }
 
   logger.info('=== config Loaded ===');

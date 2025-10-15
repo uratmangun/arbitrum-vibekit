@@ -1,8 +1,10 @@
 /**
- * Utility for aggregating artifact-update events from A2A streams
+ * Test utility for aggregating artifact-update events from A2A streams
+ * This helper makes it easier to verify streaming artifact behavior in tests
  */
 
-export type Part = { kind: 'text' | 'binary'; text?: string; data?: string };
+import type { Part } from '@a2a-js/sdk';
+
 export type AggregatedArtifact = { parts: Part[]; complete: boolean };
 export type ArtifactAggregation = Record<string, AggregatedArtifact>;
 
@@ -47,8 +49,13 @@ export async function aggregateArtifacts(
         if (typeof idx === 'number') {
           // append into a specific part "slot"
           entry.parts[idx] = entry.parts[idx] || { kind: 'text', text: '' };
-          if (incoming[0]?.text) {
-            entry.parts[idx].text = (entry.parts[idx].text ?? '') + incoming[0].text;
+          const incomingText = incoming[0] && 'text' in incoming[0] ? incoming[0].text : '';
+          const existingText =
+            entry.parts[idx] && 'text' in entry.parts[idx]
+              ? ((entry.parts[idx] as { text?: string }).text ?? '')
+              : '';
+          if (incomingText) {
+            entry.parts[idx] = { kind: 'text', text: existingText + incomingText };
           }
         } else {
           // append as new parts
