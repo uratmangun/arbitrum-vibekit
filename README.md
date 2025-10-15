@@ -210,6 +210,34 @@ The Quickstart Agent is now accessible through the web frontend:
 
 ## 🤖 LLM Guides
 
+### `.rulesync` Configuration
+
+The `.rulesync` directory serves as the source of truth for all LLM configuration files. This system allows you to manage rules, commands, and subagents in a centralized location and automatically generate them for different AI tools:
+
+```
+.rulesync/
+├── commands/           # High-level command structures
+├── subagents/          # Persona-driven specialized agents
+└── rules/              # Workspace-wide guidelines and best practices
+```
+
+Key Benefits:
+
+- **Single Source of Truth**: All LLM configurations managed in one place
+- **Automatic Generation**: Run `pnpm sync:rules` to generate files for Claude, Cursor, and other tools
+- **Version Control**: Track changes to AI configurations alongside code changes
+- **Consistency**: Ensure all AI tools follow the same guidelines and workflows
+
+To generate all LLM configuration files, run the following command:
+
+```bash
+pnpm sync:rules
+
+# Files are automatically generated to:
+# - .claude/ (for Claude Code)
+# - .cursor/ (for Cursor IDE)
+```
+
 ### Claude
 
 For Claude models, prompt engineering is handled through a set of dedicated files in the [`.claude/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/.claude) directory. These files include detailed instructions, examples, and best practices to guide LLMs in generating accurate and efficient code:
