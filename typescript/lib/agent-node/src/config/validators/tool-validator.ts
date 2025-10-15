@@ -3,8 +3,8 @@
  * Validates tool naming conventions and detects collisions
  */
 
-const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_-]*__[a-z][a-z0-9_-]*$/;
-const ALLOWED_CHARS = /^[a-z0-9_-]+$/;
+const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_]*__[a-z][a-z0-9_]*$/;
+const ALLOWED_CHARS = /^[a-z0-9_]+$/;
 
 export interface ToolValidationError {
   tool: string;
@@ -24,19 +24,29 @@ export class ToolValidationException extends Error {
 }
 
 /**
- * Canonicalize server name by converting hyphens to underscores
+ * Canonicalize server or tool name to snake_case
+ * - Converts hyphens to underscores
+ * - Converts camelCase to snake_case
  * @param name - Server or tool name
- * @returns Canonicalized name with hyphens converted to underscores
+ * @returns Canonicalized name in snake_case
  */
 export function canonicalizeName(name: string): string {
-  return name.replace(/-/g, '_');
+  // First convert camelCase to snake_case
+  // Insert underscore before uppercase letters (except at start), then lowercase
+  const snakeCase = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
+    .toLowerCase();
+
+  // Then convert any remaining hyphens to underscores
+  return snakeCase.replace(/-/g, '_');
 }
 
 /**
  * Validate tool name follows canonical naming scheme
- * Format: server_name__tool_name (lowercase letters, digits, underscores, hyphens)
- * Hyphens are allowed but will be canonicalized to underscores
- * @param toolName - Tool name to validate
+ * Format: server_name__tool_name (lowercase snake_case)
+ * Tool names must be canonicalized before validation
+ * @param toolName - Tool name to validate (should be in snake_case)
  * @returns true if valid, false otherwise
  */
 export function isValidToolName(toolName: string): boolean {
@@ -100,7 +110,7 @@ export function validateToolNames(
         tool: toolName,
         server,
         skill,
-        reason: `Invalid tool name format. Must match pattern: server_name__tool_name (lowercase letters, digits, underscores, hyphens)`,
+        reason: `Invalid tool name format. Must match pattern: server_name__tool_name (lowercase snake_case)`,
       });
       continue;
     }
@@ -136,8 +146,8 @@ export function validateToolNames(
       errors,
       `Tool validation failed:\n${errorMessages}\n\n` +
         `All tools must follow the naming convention: server_name__tool_name\n` +
-        `Allowed characters: lowercase letters (a-z), digits (0-9), underscores (_), hyphens (-)\n` +
-        `Hyphens are canonicalized to underscores.\n` +
+        `Tool names must be in lowercase snake_case format.\n` +
+        `Allowed characters: lowercase letters (a-z), digits (0-9), underscores (_)\n` +
         `Duplicate tool names are not allowed.`,
     );
   }
