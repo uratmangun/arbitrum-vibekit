@@ -1,7 +1,8 @@
 import { v7 as uuidv7 } from 'uuid';
+import type { TaskState } from '@a2a-js/sdk';
 
-import { ensureTransition } from '../a2a/tasks/stateMachine.js';
-import type { TaskState } from '../a2a/tasks/types.js';
+import { ensureTransition } from './tasks/stateMachine.js';
+import { canonicalizeName } from '../config/validators/tool-validator.js';
 
 import type {
   WorkflowPlugin,
@@ -45,22 +46,30 @@ export class WorkflowRuntime {
    * Register a workflow plugin
    */
   register(plugin: WorkflowPlugin): boolean {
+    // Canonicalize plugin ID (convert hyphens to underscores)
+    const canonicalId = canonicalizeName(plugin.id);
+
     // Check for duplicate IDs
-    if (this.plugins.has(plugin.id)) {
-      throw new Error(`Plugin with ID ${plugin.id} is already registered`);
+    if (this.plugins.has(canonicalId)) {
+      throw new Error(`Plugin with ID ${canonicalId} is already registered`);
     }
 
     // Validate plugin schema
-    const pluginId = plugin.id;
     if (!this.validatePlugin(plugin)) {
-      throw new Error(`Plugin validation failed for ${pluginId}`);
+      throw new Error(`Plugin validation failed for ${canonicalId}`);
     }
 
-    // Store plugin
-    this.plugins.set(plugin.id, plugin);
+    // Create canonical version of plugin with canonicalized ID
+    const canonicalPlugin: WorkflowPlugin = {
+      ...plugin,
+      id: canonicalId,
+    };
+
+    // Store plugin with canonical ID
+    this.plugins.set(canonicalId, canonicalPlugin);
 
     // Create tool wrapper
-    const toolName = `dispatch_workflow_${plugin.id}`;
+    const toolName = `dispatch_workflow_${canonicalId}`;
     const tool: WorkflowTool = {
       execute: async (params: Record<string, unknown>): Promise<ToolExecutionResult> => {
         const contextParams = params as {
@@ -68,7 +77,7 @@ export class WorkflowRuntime {
           taskId?: string;
           parameters?: Record<string, unknown>;
         };
-        const execution = this.dispatch(plugin.id, contextParams);
+        const execution = this.dispatch(canonicalId, contextParams);
         await execution.waitForCompletion();
 
         if (execution.error) {
@@ -781,12 +790,13 @@ export class WorkflowRuntime {
       return false;
     }
 
-    // Enforce stable plugin ID format for tool naming: lowercase, digits, underscores only
+    // Enforce stable plugin ID format for tool naming: lowercase, digits, underscores, hyphens
+    // Hyphens will be canonicalized to underscores during registration
     if (typeof p['id'] !== 'string') {
       return false;
     }
     const trimmedId = p['id'].trim();
-    const validIdPattern = /^[a-z0-9_]+$/;
+    const validIdPattern = /^[a-z][a-z0-9_-]*$/;
     if (trimmedId !== p['id']) {
       return false;
     }

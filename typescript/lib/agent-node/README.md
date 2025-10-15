@@ -917,23 +917,118 @@ Output: `dist/` directory with compiled JavaScript
 
 ### Docker
 
-Example `Dockerfile`:
+#### Multi-Stage Dockerfile
+
+The project includes a production-ready multi-stage Dockerfile:
 
 ```dockerfile
+# Build and deploy stage
+FROM node:22-alpine AS builder
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
+
+WORKDIR /workspace
+
+# Copy entire workspace
+COPY . .
+
+# Install all dependencies
+RUN pnpm install --frozen-lockfile
+
+# Build (clean is handled by build script)
+RUN pnpm --filter=agent-node build
+
+# Deploy to isolated directory with production dependencies only
+RUN pnpm --filter=agent-node --prod deploy /deploy
+
+# Production stage - minimal runtime image
 FROM node:22-alpine
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+# Copy deployed package from builder stage
+COPY --from=builder /deploy .
 
-COPY . .
-RUN pnpm build
-
+# Expose port
 EXPOSE 3000
 
+# Run the application
 CMD ["node", "dist/server.js"]
 ```
+
+**Key features:**
+
+- Multi-stage build for smaller final image
+- Uses pnpm workspaces with `--filter=agent-node`
+- Production dependencies only in final image
+- Node.js 22 Alpine for minimal size
+
+#### Docker Compose
+
+Two compose files are provided for different use cases:
+
+**Development (`docker-compose.yaml`):**
+
+- Direct port exposure on localhost:3000
+- Single app service
+- Ideal for local development and testing
+
+**Production (`docker-compose.prod.yaml`):**
+
+- Caddy reverse proxy with automatic HTTPS
+- Exposes ports 80/443
+- Automatic SSL certificate management via Let's Encrypt
+- Security headers and gzip compression
+
+**Prerequisites:**
+
+Before running with Docker, you must initialize the configuration workspace:
+
+```bash
+# Initialize config directory
+pnpm cli init
+
+# Customize your agent
+# Edit config/agent.md, add skills to config/skills/, etc.
+
+# Validate configuration
+pnpm cli doctor
+```
+
+**Running with Docker Compose:**
+
+```bash
+# Development mode
+docker compose -f docker-compose.yaml up
+
+# Production mode (requires domain configured in Caddyfile)
+docker compose -f docker-compose.prod.yaml up -d
+
+# View logs
+docker compose -f docker-compose.yaml logs -f
+
+# Stop services
+docker compose -f docker-compose.yaml down
+```
+
+**Configuration Volume Mounting:**
+
+Both compose files mount the `config/` directory as a read-only volume:
+
+```yaml
+volumes:
+  - ./config:/app/config:ro
+```
+
+**Benefits of this approach:**
+
+- Config changes don't require image rebuilds
+- Edit workflows and skills without restarting containers
+- Matches how agent-node runs natively (`npx agent-node --config-dir=./config`)
+- Standard Docker volume mount pattern for configuration
+
+**Important:** The `config/` directory must exist before starting containers. If you see "Config workspace not found" errors, run `pnpm cli init` first.
 
 ### Environment Variables
 

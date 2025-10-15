@@ -1,13 +1,15 @@
-import type { TaskState } from './types.js';
+import type { TaskState } from '@a2a-js/sdk';
 
 export const validTransitions: Record<TaskState, readonly TaskState[]> = {
-  submitted: ['working', 'failed', 'canceled'],
+  submitted: ['working', 'failed', 'canceled', 'rejected'],
   working: ['input-required', 'auth-required', 'completed', 'failed', 'canceled'],
   'input-required': ['working', 'canceled'],
   'auth-required': ['working', 'canceled'],
   completed: [],
   failed: [],
   canceled: [],
+  rejected: [],
+  unknown: [],
 } as const;
 
 export function canTransition(from: TaskState, to: TaskState): boolean {

@@ -219,6 +219,7 @@ export interface AgentConfig {
   effectiveSets: EffectiveSets;
   mcpInstances: Map<string, MCPServerInstance>;
   workflowPlugins: Map<string, LoadedWorkflowPlugin>;
+  workflowRuntime?: import('../../workflows/runtime.js').WorkflowRuntime;
   models: ModelConfigRuntime;
   tools: Map<string, import('ai').Tool>;
   mcpClients: Map<string, import('@modelcontextprotocol/sdk/client/index.js').Client>;
@@ -290,7 +291,7 @@ export async function initFromConfigWorkspace(options: InitOptions): Promise<Age
   );
 
   // Load tools from MCP servers and workflows
-  const { tools, mcpClients } = await loadTools(mcpInstances, workflowPlugins);
+  const { tools, mcpClients, workflowRuntime } = await loadTools(mcpInstances, workflowPlugins);
 
   logger.info('Composed configuration', {
     effectiveMcpServers: currentSnapshot.effectiveSets.mcpServers.length,
@@ -309,6 +310,7 @@ export async function initFromConfigWorkspace(options: InitOptions): Promise<Age
     effectiveSets: currentSnapshot.effectiveSets,
     mcpInstances,
     workflowPlugins,
+    workflowRuntime,
     models: currentSnapshot.models,
     tools,
     mcpClients,
@@ -356,13 +358,14 @@ export async function initFromConfigWorkspace(options: InitOptions): Promise<Age
     await closeAllMCPClients(agentConfig.mcpClients);
 
     // Reload tools from current MCP instances and workflow plugins
-    const { tools, mcpClients } = await loadTools(
+    const { tools, mcpClients, workflowRuntime } = await loadTools(
       agentConfig.mcpInstances,
       agentConfig.workflowPlugins,
     );
 
     agentConfig.tools = tools;
     agentConfig.mcpClients = mcpClients;
+    agentConfig.workflowRuntime = workflowRuntime;
 
     logger.info('Tools reloaded', { toolCount: tools.size });
   };

@@ -32,6 +32,14 @@ describe('tool naming with double underscore separator (PRD specification)', () 
       expect(canonicalizeName('mytool')).toBe('mytool');
       expect(canonicalizeName('server123')).toBe('server123');
     });
+
+    it('should convert camelCase to snake_case', () => {
+      // Given camelCase names
+      expect(canonicalizeName('createSwap')).toBe('create_swap');
+      expect(canonicalizeName('possibleSwaps')).toBe('possible_swaps');
+      expect(canonicalizeName('HTTPRequest')).toBe('http_request');
+      expect(canonicalizeName('getAPIKey')).toBe('get_api_key');
+    });
   });
 
   describe('isValidToolName', () => {
@@ -58,21 +66,6 @@ describe('tool naming with double underscore separator (PRD specification)', () 
       // Then all should be invalid
       invalidNames.forEach((name) => {
         expect(isValidToolName(name)).toBe(false);
-      });
-    });
-
-    it('should accept tool names with hyphens (to be canonicalized)', () => {
-      // Given tool names with hyphens (per PRD spec, hyphens are allowed and canonicalized)
-      const validNamesWithHyphens = [
-        'server-name__tool', // hyphen in server name
-        'server__tool-name', // hyphen in tool name
-        'my-server__my-tool', // hyphens in both
-      ];
-
-      // When validating each name
-      // Then all should be valid (hyphens will be canonicalized to underscores)
-      validNamesWithHyphens.forEach((name) => {
-        expect(isValidToolName(name)).toBe(true);
       });
     });
 
@@ -191,16 +184,16 @@ describe('tool naming with double underscore separator (PRD specification)', () 
   });
 
   describe('hasValidCharacters', () => {
-    it('should accept lowercase letters, digits, underscores, and hyphens', () => {
-      // Given valid character combinations
+    it('should accept lowercase letters, digits, and underscores', () => {
+      // Given valid character combinations (lowercase snake_case only)
       const validNames = [
         'abc',
         'abc123',
         'abc_def',
         'a_1_b_2',
         'server__tool',
-        'abc-def',
-        'my-server',
+        'my_server',
+        'tool_123',
       ];
 
       // When validating

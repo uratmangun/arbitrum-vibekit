@@ -1,8 +1,7 @@
+import type { TaskArtifactUpdateEvent } from '@a2a-js/sdk';
 import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool, TextStreamPart } from 'ai';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-
-import type { TaskArtifactUpdateEvent } from '../../../a2a/validation.js';
 
 import type { ArtifactManager } from './ArtifactManager.js';
 import { StreamEventHandler, type StreamProcessingState } from './StreamEventHandler.js';

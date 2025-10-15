@@ -72,9 +72,84 @@ describe('A2A Server Integration', () => {
       expect(server).toHaveProperty('close');
     });
 
-    it.todo('should integrate workflow runtime when provided');
-    // Workflow runtime integration is currently disabled
-    // Test should verify workflow capabilities when re-enabled
+    it.todo('should integrate workflow runtime when provided', async () => {
+      // TODO: Investigate workflow loading in test environment
+      // Workflow tool loading is tested and working in tool-loader-workflows.int.test.ts
+      // This test verifies server-level integration which needs additional setup
+      // Given: a server with workflow plugins configured
+      const { mkdirSync, writeFileSync } = await import('fs');
+      const { join } = await import('path');
+      const { createTestConfigWorkspace } = await import('../utils/test-config-workspace.js');
+
+      const configDir = createTestConfigWorkspace({
+        agentName: 'Workflow Integration Test Agent',
+        skills: [],
+      });
+
+      const workflowsDir = join(configDir, 'workflows');
+      mkdirSync(workflowsDir, { recursive: true });
+
+      // Create a test workflow
+      writeFileSync(
+        join(workflowsDir, 'integration-workflow.js'),
+        `
+export default {
+  id: 'integration-workflow',
+  name: 'Integration Workflow',
+  description: 'Workflow for server integration testing',
+  version: '1.0.0',
+  async *execute(context) {
+    yield { type: 'status', status: { state: 'completed' } };
+    return { success: true };
+  }
+};
+`,
+        'utf-8',
+      );
+
+      // Update workflow.json registry
+      writeFileSync(
+        join(configDir, 'workflow.json'),
+        JSON.stringify(
+          {
+            workflows: [
+              {
+                id: 'integration-workflow',
+                from: './workflows/integration-workflow.js',
+                enabled: true,
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        'utf-8',
+      );
+
+      // When: creating server with workflow configuration
+      const { initFromConfigWorkspace } = await import('../../src/config/runtime/init.js');
+      const agentConfig = await initFromConfigWorkspace({
+        root: configDir,
+        dev: false,
+      });
+
+      // Then: agentConfig should contain workflow runtime
+      expect(agentConfig.workflowRuntime).toBeDefined();
+
+      // And: workflow tools should be available
+      expect(agentConfig.tools.size).toBeGreaterThan(0);
+      expect(agentConfig.tools.has('dispatch_workflow_integration_workflow')).toBe(true);
+
+      // And: workflow plugin should be registered with runtime
+      const plugin = agentConfig.workflowRuntime?.getPlugin('integration-workflow');
+      expect(plugin).toBeDefined();
+      expect(plugin?.name).toBe('Integration Workflow');
+
+      // Cleanup
+      await agentConfig.close();
+      const { rmSync } = await import('fs');
+      rmSync(configDir, { recursive: true, force: true });
+    });
   });
 
   describe('endpoint availability', () => {
@@ -273,7 +348,78 @@ describe('A2A Server Integration', () => {
       expect(testServer).toBeDefined();
     });
 
-    it.todo('should cleanup workflow runtime on shutdown');
-    // Workflow runtime is currently disabled
+    it.todo('should cleanup workflow runtime on shutdown', async () => {
+      // TODO: Investigate workflow loading in test environment
+      // Related to the workflow integration test above
+      // Given: a server with workflow runtime
+      const { mkdirSync, writeFileSync, rmSync } = await import('fs');
+      const { join } = await import('path');
+      const { createTestConfigWorkspace } = await import('../utils/test-config-workspace.js');
+
+      const configDir = createTestConfigWorkspace({
+        agentName: 'Workflow Cleanup Test Agent',
+        skills: [],
+      });
+
+      const workflowsDir = join(configDir, 'workflows');
+      mkdirSync(workflowsDir, { recursive: true });
+
+      // Create a test workflow
+      writeFileSync(
+        join(workflowsDir, 'cleanup-workflow.js'),
+        `
+export default {
+  id: 'cleanup-workflow',
+  name: 'Cleanup Workflow',
+  version: '1.0.0',
+  async *execute() {
+    yield { type: 'status', status: { state: 'completed' } };
+  }
+};
+`,
+        'utf-8',
+      );
+
+      // Update workflow.json registry
+      writeFileSync(
+        join(configDir, 'workflow.json'),
+        JSON.stringify(
+          {
+            workflows: [
+              {
+                id: 'cleanup-workflow',
+                from: './workflows/cleanup-workflow.js',
+                enabled: true,
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        'utf-8',
+      );
+
+      // Create server with workflows
+      const { initFromConfigWorkspace } = await import('../../src/config/runtime/init.js');
+      const testAgentConfigHandle = await initFromConfigWorkspace({
+        root: configDir,
+        dev: false,
+      });
+
+      // Verify runtime exists before cleanup
+      expect(testAgentConfigHandle.workflowRuntime).toBeDefined();
+      const runtimeBeforeClose = testAgentConfigHandle.workflowRuntime;
+
+      // When: shutting down the agent config
+      await testAgentConfigHandle.close();
+
+      // Then: cleanup should complete without error
+      // Note: We can't directly verify internal cleanup state,
+      // but we can verify close() completes successfully
+      expect(runtimeBeforeClose).toBeDefined();
+
+      // Cleanup test files
+      rmSync(configDir, { recursive: true, force: true });
+    });
   });
 });

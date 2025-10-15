@@ -46,14 +46,40 @@ ufw status
 
 ## Deployment Steps
 
-### 1. Prepare Server Directory
+### 1. Initialize Configuration (Local Machine)
+
+Before deploying, you must initialize and validate your agent configuration:
+
+```bash
+# Navigate to agent-node directory
+cd /path/to/agent-node
+
+# Initialize config workspace (creates ./config directory)
+pnpm cli init
+
+# Customize your agent configuration
+# Edit config/agent.md - Define agent personality and capabilities
+# Edit config/skills/ - Add or modify skill modules
+# Edit config/mcp.json - Configure MCP servers
+# Edit config/workflow.json - Register workflow plugins
+
+# Validate configuration
+pnpm cli doctor
+
+# Verify configuration
+pnpm cli print-config
+```
+
+**Important:** The `config/` directory is required for the agent to start. Docker Compose mounts this directory as a volume (`./config:/app/config:ro`), so changes to workflows and skills don't require rebuilding the Docker image.
+
+### 2. Prepare Server Directory
 
 ```bash
 # On server: Create project directory
 ssh root@YOUR_SERVER_IP "mkdir -p /opt/no-context"
 ```
 
-### 2. Transfer Project Files
+### 3. Transfer Project Files
 
 ```bash
 # From local machine: Copy project files using rsync
@@ -61,14 +87,19 @@ rsync -avz --exclude-from=.dockerignore \
   /path/to/no-context/ \
   root@YOUR_SERVER_IP:/opt/no-context/
 
+# Copy config directory (REQUIRED - agent won't start without this)
+rsync -avz config/ root@YOUR_SERVER_IP:/opt/no-context/config/
+
 # Copy .env file separately
 scp .env root@YOUR_SERVER_IP:/opt/no-context/.env
 
 # Copy Docker configuration files
-scp docker-compose*.yaml Dockerfile* root@YOUR_SERVER_IP:/opt/no-context/
+scp docker-compose*.yaml Dockerfile* Caddyfile root@YOUR_SERVER_IP:/opt/no-context/
 ```
 
-### 3. Verify Domain Configuration
+**Note:** The `config/` directory transfer is critical. The Docker containers mount this directory as a volume, and the agent will fail to start if it's missing.
+
+### 4. Verify Domain Configuration
 
 ```bash
 # Ensure your domain's A record points to your server IP
@@ -77,7 +108,7 @@ scp docker-compose*.yaml Dockerfile* root@YOUR_SERVER_IP:/opt/no-context/
 ssh root@YOUR_SERVER_IP "cat /opt/no-context/Caddyfile"
 ```
 
-### 4. Build and Deploy
+### 5. Build and Deploy
 
 ```bash
 # SSH into server
@@ -177,6 +208,53 @@ docker compose -f docker-compose.prod.yaml up -d
 - Check app logs: `docker compose -f docker-compose.prod.yaml logs app`
 - Verify .env file is properly configured and present
 - Ensure all required environment variables are set
+
+### Missing Config Directory
+
+If you see error: `"Config workspace not found at ./config"`:
+
+**Cause:** The agent requires a config workspace, which is mounted as a volume from the host.
+
+**Solution:**
+
+1. **Verify config exists on server:**
+
+```bash
+ssh root@YOUR_SERVER_IP "ls -la /opt/no-context/config"
+```
+
+Expected directory structure:
+
+```
+config/
+├── agent.md
+├── agent.manifest.json
+├── mcp.json
+├── workflow.json
+├── skills/
+└── workflows/
+```
+
+2. **If missing, initialize and transfer:**
+
+```bash
+# On local machine: Initialize config
+cd /path/to/agent-node
+pnpm cli init
+pnpm cli doctor  # Validate
+
+# Transfer to server
+rsync -avz config/ root@YOUR_SERVER_IP:/opt/no-context/config/
+```
+
+3. **Restart services:**
+
+```bash
+ssh root@YOUR_SERVER_IP "cd /opt/no-context && \
+  docker compose -f docker-compose.prod.yaml restart"
+```
+
+**Why this happens:** Docker Compose mounts `./config:/app/config:ro` as a volume. If the host directory doesn't exist or is empty, the container sees an empty config directory and fails to start.
 
 ### SSH Connection Issues
 

@@ -13,10 +13,10 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 
 # Build (clean is handled by build script)
-RUN pnpm --filter=no-context-agent build
+RUN pnpm --filter=agent-node build
 
 # Deploy to isolated directory with production dependencies only
-RUN pnpm --filter=no-context-agent --prod deploy /deploy
+RUN pnpm --filter=agent-node --prod deploy /deploy
 
 # Production stage - minimal runtime image
 FROM node:22-alpine
