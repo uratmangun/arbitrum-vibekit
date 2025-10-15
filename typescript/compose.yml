@@ -2,12 +2,12 @@ services:
   lending-agent-no-wallet:
     build:
       context: ./
-      dockerfile: examples/lending-agent-no-wallet/Dockerfile
+      dockerfile: community/lending-agent-no-wallet/Dockerfile
     container_name: vibekit-lending-agent-no-wallet
     env_file:
       - path: .env
         required: true
-      - path: examples/lending-agent-no-wallet/.env
+      - path: community/lending-agent-no-wallet/.env
         required: false
     ports:
       - 3001:3001
@@ -16,12 +16,12 @@ services:
   swapping-agent-no-wallet:
     build:
       context: ./
-      dockerfile: examples/swapping-agent-no-wallet/Dockerfile
+      dockerfile: community/swapping-agent-no-wallet/Dockerfile
     container_name: vibekit-swapping-agent-no-wallet
     env_file:
       - path: .env
         required: true
-      - path: examples/swapping-agent-no-wallet/.env
+      - path: community/swapping-agent-no-wallet/.env
         required: false
     ports:
       - 3005:3005
@@ -100,12 +100,12 @@ services:
   # liquidity-agent-no-wallet:
   #   build:
   #     context: ./
-  #     dockerfile: examples/liquidity-agent-no-wallet/Dockerfile
+  #     dockerfile: community/liquidity-agent-no-wallet/Dockerfile
   #   container_name: vibekit-liquidity-agent-no-wallet
   #   env_file:
   #     - path: .env
   #       required: true
-  #     - path: examples/liquidity-agent-no-wallet/.env
+  #     - path: community/liquidity-agent-no-wallet/.env
   #       required: false
   #   ports:
   #     - 3002:3002
@@ -114,12 +114,12 @@ services:
   # pendle-agent:
   #   build:
   #     context: ./
-  #     dockerfile: examples/pendle-agent/Dockerfile
+  #     dockerfile: community/pendle-agent/Dockerfile
   #   container_name: vibekit-pendle-agent
   #   env_file:
   #     - path: .env
   #       required: true
-  #     - path: examples/pendle-agent/.env
+  #     - path: community/pendle-agent/.env
   #       required: false
   #   ports:
   #     - 3003:3003
@@ -128,12 +128,12 @@ services:
   # swapping-agent:
   #   build:
   #     context: ./
-  #     dockerfile: examples/swapping-agent/Dockerfile
+  #     dockerfile: community/swapping-agent/Dockerfile
   #   container_name: vibekit-swapping-agent
   #   env_file:
   #     - path: .env
   #       required: true
-  #     - path: examples/swapping-agent/.env
+  #     - path: community/swapping-agent/.env
   #       required: false
   #   ports:
   #     - 3004:3004

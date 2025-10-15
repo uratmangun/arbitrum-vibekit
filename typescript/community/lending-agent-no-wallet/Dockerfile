@@ -25,7 +25,7 @@ COPY tsconfig.base.json ./
 # 2. Copy all workspace package.json files (to maximise Docker cache)
 # ------------------------------
 COPY lib/ lib/
-COPY examples/lending-agent-no-wallet/package.json ./examples/lending-agent-no-wallet/
+COPY community/lending-agent-no-wallet/package.json ./community/lending-agent-no-wallet/
 
 # ------------------------------
 # 3. Install deps based on the copied package.json set. Skip lifecycle scripts for now
@@ -40,7 +40,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 RUN pnpm --filter lending-agent-no-wallet... build
-WORKDIR /app/examples/lending-agent-no-wallet/dist
+WORKDIR /app/community/lending-agent-no-wallet/dist
 
 # Expose port for SSE MCP server
 EXPOSE 3001

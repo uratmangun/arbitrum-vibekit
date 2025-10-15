@@ -19,7 +19,7 @@ COPY tsconfig.base.json ./
 # 2. Copy all workspace package.json files (to maximise Docker cache)
 # ------------------------------
 COPY lib/ lib/
-COPY examples/pendle-agent/package.json ./examples/pendle-agent/
+COPY community/pendle-agent/package.json ./community/pendle-agent/
 
 # ------------------------------
 # 3. Install deps based on the copied package.json set. Skip lifecycle scripts for now
@@ -56,15 +56,15 @@ WORKDIR /app
 RUN npm install -g pnpm@10.7.0
 
 # Copy only what we need from the builder stage
-COPY --from=builder /app/examples/pendle-agent/dist /app/examples/pendle-agent/dist
-COPY --from=builder /app/examples/pendle-agent/package.json /app/examples/pendle-agent/
-COPY --from=builder /app/examples/pendle-agent/node_modules /app/examples/pendle-agent/node_modules
+COPY --from=builder /app/community/pendle-agent/dist /app/community/pendle-agent/dist
+COPY --from=builder /app/community/pendle-agent/package.json /app/community/pendle-agent/
+COPY --from=builder /app/community/pendle-agent/node_modules /app/community/pendle-agent/node_modules
 COPY --from=builder /app/lib /app/lib
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/node_modules/.pnpm /app/node_modules/.pnpm
 
 # Set the working directory for the final image
-WORKDIR /app/examples/pendle-agent/dist
+WORKDIR /app/community/pendle-agent/dist
 
 # Change ownership to non-root user
 RUN chown -R ember:ember /app

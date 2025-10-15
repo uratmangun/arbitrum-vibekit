@@ -4,21 +4,11 @@ Welcome to Vibekit's MCP tools directory! Model Context Protocol (MCP) tools are
 
 ## 🛠️ Building Your MCP Tool
 
-By contributing new MCP tools, you're expanding the possibilities for all Vibekit agents. Your tools can enable new DeFi strategies, integrate additional protocols, or enhance existing capabilities. This guide will walk you through the process of creating and contributing your own MCP tools to the ecosystem. Before submitting a pull request for your work, please review the guidelines in [`CONTRIBUTIONS.md`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/CONTRIBUTIONS.md) to ensure best practices are followed.
+By contributing new MCP tools, you're expanding the possibilities for all Vibekit agents. Your tools can enable new DeFi strategies, integrate additional protocols, or enhance existing capabilities. This guide will walk you through the process of creating and contributing your own MCP tools to the ecosystem. Before submitting a pull request, please review the guidelines in [`CONTRIBUTIONS.md`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/CONTRIBUTIONS.md).
 
 ### 1. Set Up Your IDE
 
-To get started, we recommend installing [Cursor IDE](https://www.cursor.com/). Cursor offers an AI-powered development environment that is designed for smooth collaboration between you and your AI assistant.
-
-With Cursor, you can:
-
-- Define your project's context using simple [rule files](https://docs.cursor.com/context/rules) located in `.cursor/rules `folder.
-
-- Run Vibekit's AI agents locally or remotely within your development environment.
-
-- Integrate [MCP-powered](https://docs.cursor.com/context/model-context-protocol) tools and workflows.
-
-To clone Vibekit in Cursor:
+To get started, we recommend installing [Cursor IDE](https://www.cursor.com/). Cursor offers an AI-powered development environment that is designed for smooth collaboration between you and your AI assistant. To clone Vibekit in Cursor:
 
 1. Open Cursor and click "Clone repo" in the welcome screen.
 2. Paste the repository URL: https://github.com/EmberAGI/arbitrum-vibekit.git.
@@ -48,11 +38,10 @@ claude execute
 
 Because the `.claude/` folder is part of this repository, the CLI automatically applies all prompts and hooks, ensuring a consistent developer experience.
 
-To learn more about Claude Code, visit [their official docs](https://docs.anthropic.com/en/docs/claude-code/overview).
-
 ### 2. Set Up Your Project
 
-If you'd like to speed up the setup process, consider using [FastMCP](https://github.com/punkpeye/fastmcp/) or [AI Tool Maker](https://github.com/nihaocami/ai-tool-maker). These tools can automatically generate the boilerplate code and folder structure for your MCP tool, allowing you to focus on your tool's unique logic. If you prefer a more hands-on approach or need a custom setup, follow the manual steps outlined below to build your MCP tool from scratch.
+> [!TIP]
+> If you'd like to speed up the setup process, consider using [FastMCP](https://github.com/punkpeye/fastmcp/) or [AI Tool Maker](https://github.com/nihaocami/ai-tool-maker). These tools can automatically generate the boilerplate code and folder structure for your MCP tool, allowing you to focus on your tool's unique logic. If you prefer a more hands-on approach or need a custom setup, follow the manual steps outlined below to build your MCP tool from scratch.
 
 1.  **Create a Project Directory**:
 
@@ -142,7 +131,7 @@ server.tool(
         content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
       };
     }
-  }
+  },
 );
 ```
 
@@ -159,7 +148,7 @@ For advanced use cases, you can enhance your MCP tools with hooks that run befor
 Vibekit provides a `withHooks` utility that wraps your tools with before/after functionality:
 
 ```typescript
-import { withHooks } from 'arbitrum-vibekit-core';
+import { withHooks } from 'agent-node';
 
 const enhancedTool = withHooks(myBaseTool, {
   before: async (args, context) => {
@@ -173,7 +162,7 @@ const enhancedTool = withHooks(myBaseTool, {
 });
 ```
 
-For detailed patterns and best practices, see our [hooks documentation](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/typescript/lib/arbitrum-vibekit-core/docs/lesson-16.md) and refer to [Anthropic's hooks guide](https://docs.anthropic.com/en/docs/claude-code/hooks) for additional customization patterns.
+For detailed patterns and best practices, see our [Agent Node documentation](../../../typescript/lib/agent-node/README.md) and refer to [Anthropic's hooks guide](https://docs.anthropic.com/en/docs/claude-code/hooks) for additional customization patterns.
 
 ### 7. Run Your MCP Server
 
@@ -227,4 +216,4 @@ pnpm run build && npx -y @modelcontextprotocol/inspector node ./dist/index.js
 
 ### 9. Showcase Your Tool with a Demo Agent
 
-Consider showcasing your new MCP tool by building a demo agent in the [templates](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/templates) directory. Creating a simple agent that uses your tool is a great way to demonstrate its functionality and help others understand how to integrate it into their own projects.
+Consider showcasing your new MCP tool by building a demo agent in the [community](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/community) directory. Creating a simple agent that uses your tool is a great way to demonstrate its functionality and help others understand how to integrate it into their own projects. For detailed contribution guidelines, checkout [`CONTRIBUTIONS.md`](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/CONTRIBUTIONS.md).

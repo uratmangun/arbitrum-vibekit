@@ -1,6 +1,7 @@
 Please also reference the following documents as needed:
 
-@.claude/memories/msw-handlers.md description: "MSW handler rules for integration test fidelity" globs: "**/tests/mocks/**/*"
+@.claude/memories/msw-handlers.md description: "MSW handler rules for integration test fidelity" globs: "**/tests/mocks/**/\*"
+
 ## Development Guidelines
 
 ### Package Management
@@ -67,10 +68,10 @@ Commands (`.rulesync/commands/*.md`):
 
 ```yaml
 ---
-description: 'Brief description'
-targets: ['*']
-allowed-tools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob', 'Task']
-argument-hint: '(optional) argument hint'
+description: "Brief description"
+targets: ["*"]
+allowed-tools: ["Bash", "Read", "Write", "Edit", "Grep", "Glob", "Task"]
+argument-hint: "(optional) argument hint"
 ---
 ```
 
@@ -79,7 +80,7 @@ Subagents (`.rulesync/subagents/*.md`):
 ```yaml
 ---
 name: agent-name
-targets: ['*']
+targets: ["*"]
 description: When to use this agent
 claudecode:
   model: sonnet # or opus
@@ -92,9 +93,9 @@ Rules (`.rulesync/rules/*.md`):
 ```yaml
 ---
 root: true # for root.md only
-targets: ['*']
-description: 'Rule description'
-globs: ['**/*']
+targets: ["*"]
+description: "Rule description"
+globs: ["**/*"]
 ---
 ```
 

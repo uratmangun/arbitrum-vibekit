@@ -23,7 +23,7 @@ COPY tsconfig.base.json ./
 # 2. Copy all workspace package.json files (to maximise Docker cache)
 # ------------------------------
 COPY lib/ lib/
-COPY examples/swapping-agent-no-wallet/package.json ./examples/swapping-agent-no-wallet/
+COPY community/swapping-agent-no-wallet/package.json ./community/swapping-agent-no-wallet/
 
 # ------------------------------
 # 3. Install deps based on the copied package.json set
@@ -36,7 +36,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 RUN pnpm --filter swapping-agent-no-wallet... build
-WORKDIR /app/examples/swapping-agent-no-wallet/dist
+WORKDIR /app/community/swapping-agent-no-wallet/dist
 
 # Expose port for SSE MCP server
 EXPOSE 3001

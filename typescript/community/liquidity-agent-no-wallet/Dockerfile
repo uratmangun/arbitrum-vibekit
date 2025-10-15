@@ -19,7 +19,7 @@ COPY tsconfig.base.json ./
 # 2. Copy all workspace package.json files (to maximise Docker cache)
 # ------------------------------
 COPY lib/ lib/
-COPY examples/liquidity-agent-no-wallet/package.json ./examples/liquidity-agent-no-wallet/
+COPY community/liquidity-agent-no-wallet/package.json ./community/liquidity-agent-no-wallet/
 
 # ------------------------------
 # 3. Install deps based on the copied package.json set. Skip lifecycle scripts for now
@@ -56,16 +56,16 @@ WORKDIR /app
 RUN npm install -g pnpm@10.7.0
 
 # Copy only what we need from the builder stage
-COPY --from=builder /app/examples/liquidity-agent-no-wallet/dist /app/examples/liquidity-agent-no-wallet/dist
-COPY --from=builder /app/examples/liquidity-agent-no-wallet/encyclopedia /app/examples/liquidity-agent-no-wallet/encyclopedia
-COPY --from=builder /app/examples/liquidity-agent-no-wallet/package.json /app/examples/liquidity-agent-no-wallet/
-COPY --from=builder /app/examples/liquidity-agent-no-wallet/node_modules /app/examples/liquidity-agent-no-wallet/node_modules
+COPY --from=builder /app/community/liquidity-agent-no-wallet/dist /app/community/liquidity-agent-no-wallet/dist
+COPY --from=builder /app/community/liquidity-agent-no-wallet/encyclopedia /app/community/liquidity-agent-no-wallet/encyclopedia
+COPY --from=builder /app/community/liquidity-agent-no-wallet/package.json /app/community/liquidity-agent-no-wallet/
+COPY --from=builder /app/community/liquidity-agent-no-wallet/node_modules /app/community/liquidity-agent-no-wallet/node_modules
 COPY --from=builder /app/lib /app/lib
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/node_modules/.pnpm /app/node_modules/.pnpm
 
 # Set the working directory for the final image
-WORKDIR /app/examples/liquidity-agent-no-wallet/dist
+WORKDIR /app/community/liquidity-agent-no-wallet/dist
 
 # Change ownership to non-root user
 RUN chown -R ember:ember /app
