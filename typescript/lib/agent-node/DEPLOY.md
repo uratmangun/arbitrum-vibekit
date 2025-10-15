@@ -218,11 +218,13 @@ If you see error: `"Config workspace not found at ./config"`:
 **Solution:**
 
 1. **Verify config exists on server:**
+
 ```bash
 ssh root@YOUR_SERVER_IP "ls -la /opt/no-context/config"
 ```
 
 Expected directory structure:
+
 ```
 config/
 ├── agent.md
@@ -234,6 +236,7 @@ config/
 ```
 
 2. **If missing, initialize and transfer:**
+
 ```bash
 # On local machine: Initialize config
 cd /path/to/agent-node
@@ -245,6 +248,7 @@ rsync -avz config/ root@YOUR_SERVER_IP:/opt/no-context/config/
 ```
 
 3. **Restart services:**
+
 ```bash
 ssh root@YOUR_SERVER_IP "cd /opt/no-context && \
   docker compose -f docker-compose.prod.yaml restart"

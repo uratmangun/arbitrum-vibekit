@@ -958,6 +958,7 @@ CMD ["node", "dist/server.js"]
 ```
 
 **Key features:**
+
 - Multi-stage build for smaller final image
 - Uses pnpm workspaces with `--filter=agent-node`
 - Production dependencies only in final image
@@ -968,11 +969,13 @@ CMD ["node", "dist/server.js"]
 Two compose files are provided for different use cases:
 
 **Development (`docker-compose.yaml`):**
+
 - Direct port exposure on localhost:3000
 - Single app service
 - Ideal for local development and testing
 
 **Production (`docker-compose.prod.yaml`):**
+
 - Caddy reverse proxy with automatic HTTPS
 - Exposes ports 80/443
 - Automatic SSL certificate management via Let's Encrypt
@@ -1019,6 +1022,7 @@ volumes:
 ```
 
 **Benefits of this approach:**
+
 - Config changes don't require image rebuilds
 - Edit workflows and skills without restarting containers
 - Matches how agent-node runs natively (`npx agent-node --config-dir=./config`)
