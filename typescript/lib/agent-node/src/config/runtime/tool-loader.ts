@@ -7,16 +7,20 @@ import { Client as MCPClient } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { Tool } from 'ai';
+import { z } from 'zod';
 
 import { Logger } from '../../utils/logger.js';
 import { createCoreToolFromMCP } from '../../ai/adapters.js';
 import { canonicalizeName } from '../validators/tool-validator.js';
+import { WorkflowRuntime } from '../../workflows/runtime.js';
+import { workflowToCoreTools } from '../../ai/adapters.js';
 import type { MCPServerInstance } from './mcp-instantiator.js';
 import type { LoadedWorkflowPlugin } from './workflow-loader.js';
 
 export interface ToolLoaderResult {
   tools: Map<string, Tool>;
   mcpClients: Map<string, MCPClient>;
+  workflowRuntime?: WorkflowRuntime;
 }
 
 /**
@@ -93,13 +97,68 @@ export async function loadTools(
   }
 
   // Load workflow tools
-  for (const [workflowId, _workflow] of workflowPlugins.entries()) {
-    try {
-      // TODO: Implement workflow tool loading
-      // Workflows provide tools via their plugin interface
-      logger.debug(`Workflow ${workflowId} registered - tool loading TBD`);
-    } catch (error) {
-      logger.error(`Failed to load tools from workflow ${workflowId}`, error);
+  let workflowRuntime: WorkflowRuntime | undefined;
+  if (workflowPlugins.size > 0) {
+    workflowRuntime = new WorkflowRuntime();
+
+    for (const [workflowId, loadedPlugin] of workflowPlugins.entries()) {
+      try {
+        // Register plugin with the workflow runtime
+        workflowRuntime.register(loadedPlugin.plugin);
+        logger.debug(`Registered workflow plugin: ${workflowId}`);
+
+        // Get plugin metadata to create AI SDK tool
+        const plugin = loadedPlugin.plugin;
+        const canonicalId = canonicalizeName(plugin.id);
+        const toolName = `dispatch_workflow_${canonicalId}`;
+
+        // Create execute function that dispatches the workflow
+        // NOTE: In normal operation, workflow tools are intercepted by StreamProcessor
+        // and executed via WorkflowHandler.dispatchWorkflow() which receives contextId
+        // from the A2A conversation. This execute function serves as a fallback.
+        const executeWorkflow = async (args: unknown): Promise<unknown> => {
+          const params = (args ?? {}) as Record<string, unknown>;
+          logger.debug('Executing workflow tool directly (not intercepted)', {
+            tool: toolName,
+            pluginId: canonicalId,
+          });
+
+          // contextId should come from the A2A conversation context
+          // If this execute function is called, contextId must be in the arguments
+          if (!params['contextId'] || typeof params['contextId'] !== 'string') {
+            throw new Error(
+              `Workflow tool ${toolName} requires contextId parameter. ` +
+                `contextId should be provided from the A2A conversation context.`,
+            );
+          }
+
+          const contextId = params['contextId'] as string;
+
+          const execution = workflowRuntime!.dispatch(canonicalId, {
+            contextId,
+            parameters: params,
+          });
+
+          await execution.waitForCompletion();
+
+          if (execution.error) {
+            throw execution.error;
+          }
+
+          return execution.result ?? { id: execution.id, state: execution.state };
+        };
+
+        // Create AI SDK tool from workflow plugin
+        const description = plugin.description || `Dispatch ${plugin.name} workflow`;
+        const inputSchema = plugin.inputSchema ?? z.object({}).passthrough();
+
+        const aiTool = workflowToCoreTools(canonicalId, description, inputSchema, executeWorkflow);
+
+        tools.set(toolName, aiTool);
+        logger.debug(`Loaded workflow tool: ${toolName}`);
+      } catch (error) {
+        logger.error(`Failed to load tools from workflow ${workflowId}`, error);
+      }
     }
   }
 
@@ -108,7 +167,7 @@ export async function loadTools(
     workflows: workflowPlugins.size,
   });
 
-  return { tools, mcpClients };
+  return { tools, mcpClients, workflowRuntime };
 }
 
 /**
