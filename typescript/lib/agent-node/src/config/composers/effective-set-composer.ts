@@ -9,7 +9,7 @@ import type { LoadedWorkflowRegistry } from '../loaders/workflow-loader.js';
 import type { MCPServerConfig } from '../schemas/mcp.schema.js';
 import type { WorkflowEntry } from '../schemas/workflow.schema.js';
 import { validateMCPServers, validateWorkflows } from '../validators/conflict-validator.js';
-import { validateToolNames } from '../validators/tool-validator.js';
+import { validateToolNames, canonicalizeName } from '../validators/tool-validator.js';
 
 export interface EffectiveMCPServer {
   id: string;
@@ -110,16 +110,15 @@ function canonicalizeToolSegment(toolName: string, serverId: string, skillId: st
       `Skill "${skillId}" references an empty tool name for MCP server "${serverId}".`,
     );
   }
-  let normalized = trimmed.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-  normalized = normalized.replace(/_{2,}/g, '_').replace(/^_+/, '').replace(/_+$/, '');
-  if (!/^[a-z][a-z0-9_]*$/.test(normalized)) {
+  // Preserve case - only validate that tool name contains valid characters
+  if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(trimmed)) {
     throw new Error(
       `Skill "${skillId}" references tool "${toolName}" on MCP server "${serverId}", ` +
-        `which resolves to invalid identifier "${normalized}". Tool names must start with a letter ` +
-        `and contain only lowercase letters, digits, or underscores.`,
+        `which contains invalid characters. Tool names must start with a letter ` +
+        `and contain only letters, digits, or underscores.`,
     );
   }
-  return normalized;
+  return trimmed;
 }
 
 function normalizeAllowedToolsForServer(
@@ -168,11 +167,11 @@ function normalizeAllowedToolsForServer(
     }
 
     const canonicalTool = canonicalizeToolSegment(toolSegment, serverId, skillId);
-    const namespaced = `${namespace}__${canonicalTool}`;
 
-    if (!seen.has(namespaced)) {
-      seen.add(namespaced);
-      normalized.push(namespaced);
+    // Store un-namespaced tool name for filtering in tool-loader
+    if (!seen.has(canonicalTool)) {
+      seen.add(canonicalTool);
+      normalized.push(canonicalTool);
     }
   }
 
@@ -281,16 +280,20 @@ export function composeEffectiveMCPServers(
 
     if (effective.allowedTools) {
       for (const toolName of effective.allowedTools) {
-        if (toolNameMap.has(toolName)) {
-          const conflict = toolNameMap.get(toolName);
+        // Canonicalize and namespace the tool for validation (allowedTools are stored un-namespaced)
+        const canonicalToolName = canonicalizeName(toolName);
+        const namespacedTool = `${effective.namespace}__${canonicalToolName}`;
+
+        if (toolNameMap.has(namespacedTool)) {
+          const conflict = toolNameMap.get(namespacedTool);
           const firstServer = conflict?.server ?? 'unknown';
           throw new Error(
-            `Duplicate tool name "${toolName}" detected for MCP servers "${firstServer}" and "${serverId}". ` +
+            `Duplicate tool name "${namespacedTool}" detected for MCP servers "${firstServer}" and "${serverId}". ` +
               `Tool names must be unique after namespacing.`,
           );
         }
 
-        toolNameMap.set(toolName, {
+        toolNameMap.set(namespacedTool, {
           server: serverId,
           source: 'skill-selection',
           skill: effective.usedBySkills.length === 1 ? effective.usedBySkills[0] : undefined,
