@@ -42,6 +42,14 @@ function computeMockKey(body: unknown): string {
     return 'streaming-heartbeat';
   }
 
+  // Workflow dispatch requests (for lifecycle e2e tests)
+  if (
+    (content.includes('execute') || content.includes('dispatch')) &&
+    (content.includes('workflow') || content.includes('defi-strategy-lifecycle-mock'))
+  ) {
+    return isStreaming ? 'streaming-workflow-dispatch' : 'workflow-dispatch';
+  }
+
   if (requestBody.messages.length > 1) {
     return 'streaming-with-context';
   }
