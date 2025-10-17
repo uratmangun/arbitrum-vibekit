@@ -32,12 +32,39 @@ export class StubWorkflowRuntime extends WorkflowRuntime {
   // Use different names to avoid conflicts with base class private members
   private testTaskStates = new Map<string, TaskStateRecord>();
   private testPlugins = new Map<string, WorkflowPlugin>();
+  private testExecutions = new Map<string, WorkflowExecution>();
   private resumeHandler?: ResumeWorkflowHandler;
   private dispatchHandler?: DispatchHandler;
   private pluginList: string[] = [];
 
   setTaskState(taskId: string, state: TaskStateRecord): void {
     this.testTaskStates.set(taskId, state);
+
+    // Auto-create a mock execution for this task
+    if (!this.testExecutions.has(taskId)) {
+      const mockExecution: WorkflowExecution = {
+        id: taskId,
+        pluginId: 'test-plugin',
+        state: state.state as any,
+        context: { contextId: 'test-ctx', taskId },
+        startedAt: new Date(),
+        waitForCompletion: async () => Promise.resolve({}),
+        on: () => mockExecution,
+        getArtifacts: () => [],
+        getError: () => undefined,
+        getPauseInfo: () => state.pauseInfo,
+        resume: async (input: unknown) => {
+          // Track the resume call
+          this.resumeCalls.push({ taskId, input });
+          // Use the handler if configured
+          if (this.resumeHandler) {
+            return this.resumeHandler(taskId, input);
+          }
+          return { valid: true };
+        },
+      };
+      this.testExecutions.set(taskId, mockExecution);
+    }
   }
 
   setResumeWorkflowHandler(handler: ResumeWorkflowHandler): void {
@@ -63,6 +90,10 @@ export class StubWorkflowRuntime extends WorkflowRuntime {
 
   override getPlugin(pluginId: string): WorkflowPlugin | undefined {
     return this.testPlugins.get(pluginId);
+  }
+
+  override getExecution(executionId: string): WorkflowExecution | undefined {
+    return this.testExecutions.get(executionId);
   }
 
   override async resumeWorkflow(taskId: string, input: unknown): Promise<ResumeResult> {
@@ -106,6 +137,7 @@ export class StubWorkflowRuntime extends WorkflowRuntime {
   reset(): void {
     this.clearCalls();
     this.testTaskStates.clear();
+    this.testExecutions.clear();
     this.resumeHandler = undefined;
     this.dispatchHandler = undefined;
     this.pluginList = [];

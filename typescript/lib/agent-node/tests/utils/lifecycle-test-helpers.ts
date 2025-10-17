@@ -117,10 +117,30 @@ You are a test agent for DeFi strategy lifecycle testing.
 
   writeFileSync(join(configDir, 'agent.md'), agentMd, 'utf8');
 
+  // Create a minimal skill that includes the workflow
+  // (workflows are only loaded if referenced by a skill)
+  const skillsDir = join(configDir, 'skills');
+  mkdirSync(skillsDir, { recursive: true });
+
+  const testSkillMd = `---
+skill:
+  id: lifecycle-test-skill
+  name: Lifecycle Test Skill
+  description: Minimal skill to enable lifecycle test workflow
+workflows:
+  include:
+    - defi-strategy-lifecycle-mock
+---
+
+Minimal skill for workflow lifecycle testing.
+`;
+
+  writeFileSync(join(skillsDir, 'lifecycle-test-skill.md'), testSkillMd, 'utf8');
+
   // Create agent.manifest.json
   const manifest = {
     version: 1,
-    skills: [],
+    skills: ['./skills/lifecycle-test-skill.md'],
     registries: {
       workflows: './workflow.json',
     },
@@ -151,6 +171,13 @@ You are a test agent for DeFi strategy lifecycle testing.
     JSON.stringify(workflowRegistry, null, 2),
     'utf8',
   );
+
+  // Create minimal mcp.json (empty registry, no MCP servers needed for this test)
+  const mcpRegistry = {
+    mcpServers: {},
+  };
+
+  writeFileSync(join(configDir, 'mcp.json'), JSON.stringify(mcpRegistry, null, 2), 'utf8');
 
   // Copy the workflow plugin from test fixtures to temp workspace
   const fixturePluginPath = join(
