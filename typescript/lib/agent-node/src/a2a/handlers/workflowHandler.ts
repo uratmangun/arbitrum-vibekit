@@ -2,24 +2,26 @@
  * Workflow handling for A2A Agent Executor
  */
 
-import type { Message, Task, TaskStatus, TaskStatusUpdateEvent, TextPart, Part } from '@a2a-js/sdk';
+import type {
+  Artifact,
+  Message,
+  Task,
+  TaskArtifactUpdateEvent,
+  TaskStatus,
+  TaskStatusUpdateEvent,
+  TextPart,
+  Part,
+} from '@a2a-js/sdk';
 import { type ExecutionEventBus } from '@a2a-js/sdk/server';
 import { v7 as uuidv7 } from 'uuid';
 
 import { Logger } from '../../utils/logger.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
-import { buildArtifactMessageText, getActionTextFromParams } from '../builders/artifactBuilder.js';
-import type { ActiveTask, TaskState, WorkflowResult, WorkflowEvent } from '../types.js';
+import type { ActiveTask, TaskState, WorkflowEvent } from '../types.js';
 
 /**
  * Type guards
  */
-function isWorkflowValue(
-  value: unknown,
-): value is { type?: string; error?: unknown; status?: unknown; message?: unknown } {
-  return typeof value === 'object' && value !== null;
-}
-
 function hasEventEmitter(
   obj: unknown,
 ): obj is { on: (event: string, handler: (...args: unknown[]) => void) => void } {
@@ -54,11 +56,11 @@ export class WorkflowHandler {
     taskState: TaskState,
     eventBus: ExecutionEventBus,
   ): Promise<void> {
-    // Get the workflow generator from the task state
-    const workflowGenerator = taskState.workflowGenerator;
+    // Get the execution object - this has the event listeners set up in dispatchWorkflow()
+    const execution = this.workflowRuntime?.getExecution(taskId);
 
-    if (!workflowGenerator && typeof this.workflowRuntime?.resumeWorkflow !== 'function') {
-      // No generator available - can't resume
+    if (!execution) {
+      // No execution available - can't resume
       const errorMessage: Message = {
         kind: 'message',
         messageId: uuidv7(),
@@ -67,7 +69,7 @@ export class WorkflowHandler {
         parts: [
           {
             kind: 'text',
-            text: `Cannot resume task ${taskId}. Workflow generator not available.`,
+            text: `Cannot resume task ${taskId}. Workflow execution not available.`,
           } as TextPart,
         ],
       };
@@ -81,63 +83,52 @@ export class WorkflowHandler {
       // Resume the workflow with the input
       const input = messageData ?? messageContent;
 
-      let resumeResult: WorkflowResult | undefined;
-      let usedGeneratorFallback = false;
-      let responseMetadata: Record<string, unknown> | undefined;
+      // Use execution.resume() instead of calling generator.next() directly
+      // This ensures event listeners (set up in dispatchWorkflow) are triggered
+      const resumeResult = await execution.resume(input);
 
-      if (typeof this.workflowRuntime?.resumeWorkflow === 'function') {
-        resumeResult = (await this.workflowRuntime.resumeWorkflow(taskId, input)) as WorkflowResult;
-        if (resumeResult && typeof resumeResult === 'object' && 'metadata' in resumeResult) {
-          const metadataCandidate = (resumeResult as { metadata?: unknown }).metadata;
-          if (metadataCandidate && typeof metadataCandidate === 'object') {
-            responseMetadata = metadataCandidate as Record<string, unknown>;
-          }
+      let responseMetadata: Record<string, unknown> | undefined;
+      if (resumeResult && typeof resumeResult === 'object' && 'metadata' in resumeResult) {
+        const metadataCandidate = (resumeResult as { metadata?: unknown }).metadata;
+        if (metadataCandidate && typeof metadataCandidate === 'object') {
+          responseMetadata = metadataCandidate as Record<string, unknown>;
         }
       }
 
-      if (!resumeResult && workflowGenerator && typeof workflowGenerator.next === 'function') {
-        usedGeneratorFallback = true;
-        resumeResult = (await workflowGenerator.next(input)) as WorkflowResult;
-      }
+      // Handle resume result
+      if (!resumeResult.valid) {
+        // Validation failed - publish error and keep task paused
+        const errors = Array.isArray(resumeResult.errors) ? resumeResult.errors : [];
+        const messageText = errors.length
+          ? errors
+              .map((err: unknown) => (typeof err === 'string' ? err : JSON.stringify(err)))
+              .join('\n')
+          : 'Input validation failed.';
 
-      if (!resumeResult && !usedGeneratorFallback) {
-        // No immediate result to publish
+        const statusUpdate: TaskStatusUpdateEvent = {
+          kind: 'status-update',
+          taskId,
+          contextId,
+          status: {
+            state: taskState.state,
+            message: {
+              kind: 'message',
+              messageId: uuidv7(),
+              contextId,
+              role: 'agent',
+              parts: [{ kind: 'text', text: messageText } as TextPart],
+            },
+          },
+          final: false,
+        };
+        eventBus.publish(statusUpdate);
         eventBus.finished();
         return;
       }
 
-      if (resumeResult && typeof resumeResult.valid === 'boolean' && !('value' in resumeResult)) {
-        if (!resumeResult.valid) {
-          const errors = Array.isArray(resumeResult.errors) ? resumeResult.errors : [];
-          const messageText = errors.length
-            ? errors
-                .map((err: unknown) => (typeof err === 'string' ? err : JSON.stringify(err)))
-                .join('\n')
-            : 'Input validation failed.';
-
-          const statusUpdate: TaskStatusUpdateEvent = {
-            kind: 'status-update',
-            taskId,
-            contextId,
-            status: {
-              state: taskState.state,
-              message: {
-                kind: 'message',
-                messageId: uuidv7(),
-                contextId,
-                role: 'agent',
-                parts: [{ kind: 'text', text: messageText } as TextPart],
-              },
-            },
-            final: false,
-          };
-          eventBus.publish(statusUpdate);
-          eventBus.finished();
-          return;
-        }
-
-        const metadata =
-          responseMetadata ?? this.workflowRuntime?.getExecution(taskId)?.metadata ?? undefined;
+      // Validation succeeded - publish working status with metadata
+      const metadata = responseMetadata ?? execution.metadata;
+      if (metadata) {
         const task: Task = {
           kind: 'task',
           id: taskId,
@@ -145,113 +136,27 @@ export class WorkflowHandler {
           status: {
             state: 'working',
           },
-          ...(metadata ? { metadata } : {}),
+          metadata,
         };
         eventBus.publish(task);
-
-        const statusUpdate: TaskStatusUpdateEvent = {
-          kind: 'status-update',
-          taskId,
-          contextId,
-          status: {
-            state: 'working',
-          },
-          final: false,
-        };
-        eventBus.publish(statusUpdate);
-
-        eventBus.finished();
-        return;
       }
 
-      const iteratorResult = resumeResult;
+      const statusUpdate: TaskStatusUpdateEvent = {
+        kind: 'status-update',
+        taskId,
+        contextId,
+        status: {
+          state: 'working',
+        },
+        final: false,
+      };
+      eventBus.publish(statusUpdate);
 
-      if (iteratorResult) {
-        const { value, done } = iteratorResult;
-
-        if (value && isWorkflowValue(value)) {
-          if (value.type === 'error') {
-            // Validation failed - keep task paused
-            const messageText =
-              typeof value.error === 'object' && value.error !== null && 'message' in value.error
-                ? String((value.error as { message: unknown }).message)
-                : 'Input validation failed.';
-
-            const statusUpdate: TaskStatusUpdateEvent = {
-              kind: 'status-update',
-              taskId,
-              contextId,
-              status: {
-                state: taskState.state,
-                message: {
-                  kind: 'message',
-                  messageId: uuidv7(),
-                  contextId,
-                  role: 'agent',
-                  parts: [{ kind: 'text', text: messageText } as TextPart],
-                },
-              },
-              final: false,
-            };
-            eventBus.publish(statusUpdate);
-          } else if (value.type === 'status') {
-            // Workflow resumed successfully
-            const status: TaskStatus = (value.status as TaskStatus) ?? {
-              state: 'working',
-              message:
-                typeof value.message === 'string'
-                  ? {
-                      kind: 'message',
-                      messageId: uuidv7(),
-                      contextId,
-                      role: 'agent',
-                      parts: [{ kind: 'text', text: value.message } as TextPart],
-                    }
-                  : value.message,
-            };
-            // Also publish updated task with metadata
-            if (this.workflowRuntime) {
-              const execution = this.workflowRuntime.getExecution(taskId);
-              const metadata = responseMetadata ?? execution?.metadata;
-              if (metadata) {
-                const task: Task = {
-                  kind: 'task',
-                  id: taskId,
-                  contextId,
-                  status: {
-                    state: status.state,
-                  },
-                  metadata,
-                };
-                eventBus.publish(task);
-              }
-            }
-
-            const statusUpdate: TaskStatusUpdateEvent = {
-              kind: 'status-update',
-              taskId,
-              contextId,
-              status: status,
-              final: false,
-            };
-            eventBus.publish(statusUpdate);
-          }
-        }
-
-        if (done) {
-          // Workflow completed
-          const completedUpdate: TaskStatusUpdateEvent = {
-            kind: 'status-update',
-            taskId,
-            contextId,
-            status: {
-              state: 'completed',
-            },
-            final: true,
-          };
-          eventBus.publish(completedUpdate);
-        }
-      }
+      // Event listeners (set up in dispatchWorkflow) will handle:
+      // - Artifacts emitted after resume
+      // - Status updates
+      // - Pause events
+      // - Completion/error events
     } catch (error: unknown) {
       // Error resuming workflow
       const errorMessage: Message = {
@@ -306,7 +211,6 @@ export class WorkflowHandler {
       const workflowParams =
         typeof params === 'object' && params !== null ? (params as Record<string, unknown>) : {};
       this.logger.debug('Workflow params', { workflowParams });
-      const requestActionText = getActionTextFromParams(workflowParams);
       const execution = this.workflowRuntime.dispatch(pluginId, {
         ...workflowParams,
         contextId,
@@ -379,17 +283,15 @@ export class WorkflowHandler {
       // Subscribe to execution events for streaming
       if (hasEventEmitter(execution)) {
         execution.on('artifact', (artifact: unknown) => {
-          const messageText = buildArtifactMessageText(artifact, execution, requestActionText);
-
-          const message = {
-            kind: 'message',
-            messageId: uuidv7(),
+          // Publish as TaskArtifactUpdateEvent with taskId for proper A2A routing
+          const artifactUpdate: TaskArtifactUpdateEvent = {
+            kind: 'artifact-update',
+            taskId: execution.id,
             contextId,
-            role: 'agent',
-            parts: [{ kind: 'text', text: messageText } as TextPart],
-            artifacts: [artifact],
-          } as Message & { artifacts: unknown[] };
-          eventBus.publish(message);
+            artifact: artifact as Artifact,
+            lastChunk: false,
+          };
+          eventBus.publish(artifactUpdate);
         });
 
         execution.on('update', (update: unknown) => {
