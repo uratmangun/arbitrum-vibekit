@@ -9,9 +9,10 @@ import {
 } from '../utils/registration.js';
 
 /**
- * Options for registering an agent.
+ * Options for updating an agent's registry.
  */
-export type RegisterOptions = {
+export type UpdateRegistryOptions = {
+  agentId: string;
   agentName: string;
   agentDescription: string;
   agentUrl: string;
@@ -21,15 +22,21 @@ export type RegisterOptions = {
 };
 
 /**
- * Command to register an agent using EIP-8004 standard.
- * @param options
+ * Command to update an agent's registry using EIP-8004 standard.
+ * @param options Update options
  */
-export async function registerAgentUsing8004(options: RegisterOptions) {
+export async function updateAgentRegistryUsing8004(options: UpdateRegistryOptions) {
   const chainId = parseInt(options.chainId);
   if (!isSupportedChain(chainId)) {
     throw new Error(`Unsupported chain ID: ${options.chainId}`);
   }
 
+  const agentId = parseInt(options.agentId);
+  if (isNaN(agentId) || agentId < 0) {
+    throw new Error(`Invalid agent ID: ${options.agentId}`);
+  }
+
+  // Build the registration file with updated information
   const registrationFileContents = buildRegistrationFile(
     options.agentName,
     options.agentDescription,
@@ -38,12 +45,15 @@ export async function registerAgentUsing8004(options: RegisterOptions) {
     options.agentUrl,
     chainId,
   );
+
+  // Upload to IPFS
   const ipfsUri = await createIpfsFile(registrationFileContents);
 
+  // Encode the setAgentUri function call
   const callData = encodeFunctionData({
     abi: IDENTITY_REGISTRY_ABI,
-    functionName: 'register',
-    args: [ipfsUri],
+    functionName: 'setAgentUri',
+    args: [BigInt(agentId), ipfsUri],
   });
 
   // Serve the transaction signing page
@@ -52,14 +62,14 @@ export async function registerAgentUsing8004(options: RegisterOptions) {
     data: callData,
     chainId,
     agentName: options.agentName,
-    onAgentIdReceived: (agentId: number) => {
-      console.log('\n🎉 Agent registered successfully!');
-      console.log(`📋 Agent ID: ${agentId}`);
+    onAgentIdReceived: (receivedAgentId: number) => {
+      console.log('\n🎉 Agent registry updated successfully!');
+      console.log(`📋 Agent ID: ${receivedAgentId}`);
       console.log('\n   You can now close this terminal with Ctrl+C\n');
     },
   });
 
-  console.log('\n✅ Registration file uploaded to IPFS:', ipfsUri);
+  console.log('\n✅ Updated registration file uploaded to IPFS:', ipfsUri);
   console.log('\n🌐 Opening browser to sign transaction...');
   console.log('📋 Transaction URL:', url);
 
@@ -81,9 +91,10 @@ export async function registerAgentUsing8004(options: RegisterOptions) {
 }
 
 /**
- * CLI command options for registering an agent.
+ * CLI command options for updating an agent's registry.
  */
-export type RegisterCommandOptions = {
+export type UpdateRegistryCommandOptions = {
+  agentId?: string;
   name?: string;
   description?: string;
   url?: string;
@@ -93,11 +104,14 @@ export type RegisterCommandOptions = {
 };
 
 /**
- * CLI wrapper for the register command.
+ * CLI wrapper for the update registry command.
  * @param options Command line options
  */
-export async function registerCommand(options: RegisterCommandOptions): Promise<void> {
+export async function updateRegistryCommand(options: UpdateRegistryCommandOptions): Promise<void> {
   // Validate required options
+  if (!options.agentId) {
+    throw new Error('Agent ID is required. Use --agent-id <agent-id>');
+  }
   if (!options.name) {
     throw new Error('Agent name is required. Use --name <agent-name>');
   }
@@ -111,7 +125,8 @@ export async function registerCommand(options: RegisterCommandOptions): Promise<
     throw new Error('Chain ID is required. Use --chain-id <chain-id>');
   }
 
-  console.log('\n🤖 Registering agent...');
+  console.log('\n🔄 Updating agent registry...');
+  console.log('Agent ID:', options.agentId);
   console.log('Name:', options.name);
   console.log('Description:', options.description);
   console.log('URL:', options.url);
@@ -123,7 +138,8 @@ export async function registerCommand(options: RegisterCommandOptions): Promise<
     console.log('Image:', options.image);
   }
 
-  await registerAgentUsing8004({
+  await updateAgentRegistryUsing8004({
+    agentId: options.agentId,
     agentName: options.name,
     agentDescription: options.description,
     agentUrl: options.url,

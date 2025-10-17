@@ -16,6 +16,7 @@ import {
   runCommand,
   bundleCommand,
   registerCommand,
+  updateRegistryCommand,
 } from './commands/index.js';
 
 interface CliArgs {
@@ -90,6 +91,15 @@ Commands:
     --version <version>   Agent version (default: 1.0.0)
     --image <url>         Agent image URL
 
+  update-registry         Update agent registry on-chain using EIP-8004
+    --agent-id <id>       Agent ID (required)
+    --name <name>         Agent name (required)
+    --description <desc>  Agent description (required)
+    --url <url>           Agent URL (required)
+    --chain-id <id>       Chain ID (required, e.g., 11155111 for Sepolia)
+    --version <version>   Agent version (default: 1.0.0)
+    --image <url>         Agent image URL
+
   help                    Show this help message
 
 Environment:
@@ -107,6 +117,7 @@ Examples:
   agent print-config --format json
   agent bundle --output my-agent.json
   agent register --name "My Agent" --description "An awesome agent" --url "https://myagent.com" --chain-id 11155111
+  agent update-registry --agent-id 123 --name "My Agent" --description "Updated agent" --url "https://myagent.com" --chain-id 11155111
 `);
 }
 
@@ -165,6 +176,18 @@ async function main(): Promise<void> {
 
       case 'register':
         await registerCommand({
+          name: options['name'] as string | undefined,
+          description: options['description'] as string | undefined,
+          url: options['url'] as string | undefined,
+          chainId: options['chain-id'] as string | undefined,
+          version: options['version'] as string | undefined,
+          image: options['image'] as string | undefined,
+        });
+        break;
+
+      case 'update-registry':
+        await updateRegistryCommand({
+          agentId: options['agent-id'] as string | undefined,
           name: options['name'] as string | undefined,
           description: options['description'] as string | undefined,
           url: options['url'] as string | undefined,
