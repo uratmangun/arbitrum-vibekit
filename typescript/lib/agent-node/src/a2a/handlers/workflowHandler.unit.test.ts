@@ -271,3 +271,252 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     expect(workingUpdate).toBeDefined();
   });
 });
+
+describe('WorkflowHandler - pause and artifact streaming', () => {
+  let eventBus: RecordingEventBus;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    eventBus = new RecordingEventBus();
+  });
+
+  it('should publish artifact-update events from workflow execution', async () => {
+    // Given: A workflow that emits artifacts
+    const mockExecution = {
+      id: 'task-artifacts',
+      pluginId: 'artifact_workflow',
+      state: 'working',
+      metadata: { workflow: 'test' },
+      waitForCompletion: vi.fn().mockResolvedValue({ success: true }),
+      on: vi.fn((event, handler) => {
+        if (event === 'artifact') {
+          // Simulate artifact emission
+          setTimeout(() => {
+            handler({ name: 'data.json', mimeType: 'application/json', data: { value: 42 } });
+            handler({ name: 'report.txt', mimeType: 'text/plain', data: 'Report content' });
+          }, 10);
+        }
+        return mockExecution;
+      }),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      resume: vi.fn(),
+    };
+
+    const mockPlugin = {
+      id: 'artifact_workflow',
+      name: 'Artifact Workflow',
+      description: 'Workflow that emits artifacts',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      cancelExecution: vi.fn(),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+
+    // When: Workflow executes and emits artifacts
+    await handler.dispatchWorkflow(
+      'dispatch_workflow_artifact_workflow',
+      {},
+      'ctx-test',
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Wait for artifacts to be emitted
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Then: Should publish artifact-update events (not message events)
+    const artifactUpdates = eventBus.findEventsByKind('artifact-update');
+    expect(artifactUpdates.length).toBe(2);
+
+    // Verify each artifact-update has proper structure with taskId
+    artifactUpdates.forEach((event) => {
+      expect(event).toMatchObject({
+        kind: 'artifact-update',
+        taskId: 'task-artifacts',
+        contextId: 'ctx-test',
+        artifact: expect.objectContaining({
+          name: expect.any(String),
+          mimeType: expect.any(String),
+        }),
+        lastChunk: false,
+      });
+    });
+  });
+
+  it('should publish status-update with input-required when workflow pauses', async () => {
+    // Given: Workflow that pauses
+    const mockExecution = {
+      id: 'task-paused',
+      pluginId: 'pausing_workflow',
+      state: 'input-required',
+      metadata: {},
+      waitForCompletion: vi.fn().mockImplementation(() => new Promise(() => {})), // Never resolves
+      on: vi.fn((event, handler) => {
+        if (event === 'pause') {
+          // Simulate pause event
+          setTimeout(() => handler({ state: 'input-required', message: 'Need input' }), 10);
+        }
+        return mockExecution;
+      }),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      resume: vi.fn(),
+    };
+
+    const mockPlugin = {
+      id: 'pausing_workflow',
+      name: 'Pausing Workflow',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      cancelExecution: vi.fn(),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+
+    // When: Workflow is dispatched and pauses
+    await handler.dispatchWorkflow(
+      'dispatch_workflow_pausing_workflow',
+      {},
+      'ctx-test',
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Wait for pause event
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Then: Should publish input-required status update
+    const statusUpdates = eventBus.findEventsByKind('status-update');
+    const pausedUpdate = statusUpdates.find((u) => u.status.state === 'input-required');
+    expect(pausedUpdate).toBeDefined();
+    expect(pausedUpdate?.taskId).toBe('task-paused');
+  });
+
+  it('should publish artifacts after workflow resumes', async () => {
+    // Given: A paused workflow that will emit artifacts after resume
+    const mockExecution = {
+      id: 'task-resume-artifacts',
+      pluginId: 'resume_artifact_workflow',
+      state: 'input-required',
+      metadata: {},
+      waitForCompletion: vi.fn().mockResolvedValue({ success: true }),
+      on: vi.fn((event, handler) => {
+        // Store artifact handler for later use
+        if (event === 'artifact') {
+          mockExecution._artifactHandler = handler;
+        }
+        return mockExecution;
+      }),
+      resume: vi.fn(async (input) => {
+        // Simulate execution.resume() emitting artifacts
+        if (mockExecution._artifactHandler) {
+          setTimeout(() => {
+            mockExecution._artifactHandler({
+              name: 'post-resume.json',
+              mimeType: 'application/json',
+              data: { resumed: true, input },
+            });
+          }, 10);
+        }
+        return { valid: true };
+      }),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      _artifactHandler: undefined as ((artifact: unknown) => void) | undefined,
+    };
+
+    const mockPlugin = {
+      id: 'resume_artifact_workflow',
+      name: 'Resume Artifact Workflow',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockGenerator = {
+      next: vi.fn().mockResolvedValue({
+        value: { type: 'status', status: { state: 'working' } },
+        done: false,
+      }),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      cancelExecution: vi.fn(),
+      getExecution: vi.fn().mockReturnValue(mockExecution),
+      getTaskState: vi.fn().mockReturnValue({
+        state: 'input-required',
+        pauseInfo: { inputSchema: { type: 'object', properties: {} } },
+        workflowGenerator: mockGenerator,
+      }),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+
+    // When: Workflow is dispatched
+    await handler.dispatchWorkflow(
+      'dispatch_workflow_resume_artifact_workflow',
+      {},
+      'ctx-test',
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Clear events from dispatch
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const artifactsBeforeResume = eventBus.findEventsByKind('artifact-update');
+
+    // When: Workflow resumes
+    const taskState = mockRuntime.getTaskState!('task-resume-artifacts');
+    await handler.resumeWorkflow(
+      'task-resume-artifacts',
+      'ctx-test',
+      '',
+      { data: 'test' },
+      taskState!,
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Wait for artifacts to be emitted
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Then: Should publish artifact-update events after resume
+    const artifactsAfterResume = eventBus.findEventsByKind('artifact-update');
+
+    // Verify we got new artifacts after resume
+    expect(artifactsAfterResume.length).toBeGreaterThan(artifactsBeforeResume.length);
+
+    // Verify the post-resume artifact contains expected data
+    const postResumeArtifact = artifactsAfterResume.find(
+      (event) =>
+        event.taskId === 'task-resume-artifacts' &&
+        'artifact' in event &&
+        typeof event.artifact === 'object' &&
+        event.artifact !== null &&
+        'name' in event.artifact &&
+        event.artifact.name === 'post-resume.json',
+    );
+    expect(postResumeArtifact).toBeDefined();
+    expect(postResumeArtifact).toMatchObject({
+      kind: 'artifact-update',
+      taskId: 'task-resume-artifacts',
+      contextId: 'ctx-test',
+      lastChunk: false,
+    });
+  });
+});
