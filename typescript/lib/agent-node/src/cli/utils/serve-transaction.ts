@@ -14,6 +14,7 @@ export type ServeTransactionPageParams = {
   data: string;
   chainId: number;
   agentName?: string;
+  onAgentIdReceived?: (agentId: number) => void;
 };
 
 /**
@@ -31,6 +32,28 @@ export async function serveTransactionSigningPage(
 
   return new Promise((resolve, reject) => {
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      // Handle callback endpoint for agent ID
+      if (req.method === 'POST' && req.url === '/callback') {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk.toString();
+        });
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            if (data.agentId && params.onAgentIdReceived) {
+              params.onAgentIdReceived(data.agentId);
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          } catch (error) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid request' }));
+          }
+        });
+        return;
+      }
+
       // Only accept GET requests to root path
       if (req.method !== 'GET' || !req.url?.startsWith('/')) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });

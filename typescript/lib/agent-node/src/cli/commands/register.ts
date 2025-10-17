@@ -57,6 +57,11 @@ export async function registerAgentUsing8004(options: RegisterOptions) {
     data: callData,
     chainId,
     agentName: options.agentName,
+    onAgentIdReceived: (agentId: number) => {
+      console.log('\n🎉 Agent registered successfully!');
+      console.log(`📋 Agent ID: ${agentId}`);
+      console.log('\n   You can now close this terminal with Ctrl+C\n');
+    },
   });
 
   console.log('\n✅ Registration file uploaded to IPFS:', ipfsUri);

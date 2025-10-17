@@ -310,9 +310,28 @@
           txHashContainer.style.display = 'block';
 
           // Wait for transaction receipt
-          await waitForTransaction(txHash);
+          const receipt = await waitForTransaction(txHash);
 
-          showStatus('✅ Transaction confirmed! Your agent has been registered.', 'success');
+          // Extract and display agent ID
+          const agentId = decodeAgentId(receipt);
+          if (agentId !== null) {
+            showStatus(
+              `✅ Transaction confirmed! Your agent has been registered.<br><strong>Agent ID: ${agentId}</strong>`,
+              'success',
+            );
+            // Send agent ID back to the server
+            try {
+              await fetch('/callback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agentId }),
+              });
+            } catch (error) {
+              console.log('Could not send agent ID to server:', error);
+            }
+          } else {
+            showStatus('✅ Transaction confirmed! Your agent has been registered.', 'success');
+          }
           button.textContent = 'Registration Complete';
         } catch (error) {
           console.error('Error:', error);
@@ -328,6 +347,29 @@
           button.disabled = false;
           button.textContent = 'Try Again';
         }
+      }
+
+      // Decode agent ID from transaction receipt
+      function decodeAgentId(receipt) {
+        try {
+          // The Registered event has the agentId as the second topic (first indexed parameter)
+          // Event signature: Registered(uint256 indexed agentId, string tokenURI, address indexed owner)
+          for (const log of receipt.logs) {
+            // Check if this log has topics (indicating indexed parameters)
+            if (log.topics && log.topics.length >= 2) {
+              // The second topic is the indexed agentId
+              const agentIdHex = log.topics[1];
+              if (agentIdHex) {
+                // Convert hex to decimal
+                const agentId = parseInt(agentIdHex, 16);
+                return agentId;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error decoding agent ID:', error);
+        }
+        return null;
       }
 
       // Wait for transaction to be mined
