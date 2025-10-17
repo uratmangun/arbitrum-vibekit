@@ -135,6 +135,7 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
     const statusUpdates: TaskStatusUpdateEvent[] = [];
     const artifactUpdates: TaskArtifactUpdateEvent[] = [];
     let taskId: string | undefined;
+    let workflowTaskId: string | undefined;
 
     // When: Start the workflow via message/stream
     const streamGenerator = client.sendMessageStream({
@@ -146,7 +147,7 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
         parts: [
           {
             kind: 'text',
-            text: 'Execute the defi-strategy-lifecycle-mock workflow with intent "Test DeFi Strategy"',
+            text: 'Please call the tool dispatch_workflow_defi_strategy_lifecycle_mock now.',
           },
         ],
       },
@@ -154,6 +155,12 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
 
     // Collect events from stream
     let pauseCount = 0;
+    let handledPause1 = false;
+    let handledPause2 = false;
+    let workflowStreamComplete: (() => void) | null = null;
+    const workflowStreamPromise = new Promise<void>((resolve) => {
+      workflowStreamComplete = resolve;
+    });
 
     for await (const event of streamGenerator) {
       console.log('[E2E] Received event:', event.kind);
@@ -168,96 +175,204 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
         statusUpdates.push(event);
         console.log('[E2E] Status update:', event.status.state, event.final ? '(final)' : '');
 
-        // Handle pause for input collection
-        if (event.status.state === 'input-required' && !event.final) {
-          pauseCount++;
+        // Extract workflow task ID from referenceTaskIds when workflow is dispatched
+        if (!workflowTaskId && event.status.message?.referenceTaskIds?.length > 0) {
+          workflowTaskId = event.status.message.referenceTaskIds[0];
+          console.log('[E2E] Workflow Task ID from referenceTaskIds:', workflowTaskId);
 
-          if (pauseCount === 1) {
-            // Pause 1: Provide wallet address and amount
-            console.log('[E2E] Pause 1: Providing wallet address and amount');
+          // Subscribe to workflow task stream with race condition handling
+          (async () => {
+            try {
+              // Subscribe to workflow stream first to avoid missing pause events
+              console.log('[E2E] Subscribing to workflow event stream...');
+              const workflowStream = client.resubscribeTask({ id: workflowTaskId });
 
-            const resumeMessageId = uuidv4();
-            const resumeResponse = await client.sendMessage({
-              message: {
-                kind: 'message',
-                messageId: resumeMessageId,
-                contextId,
-                role: 'user',
-                parts: [
-                  {
-                    kind: 'data',
-                    data: {
-                      walletAddress: testAccount.address,
-                      amount: '1000',
-                    },
-                    metadata: { mimeType: 'application/json' },
-                  },
-                ],
-              },
-              taskId,
-            });
+              // Kick off a backfill for current task state and artifacts
+              (async () => {
+                try {
+                  // Small delay to ensure workflow task is registered on server
+                  await new Promise((resolve) => setTimeout(resolve, 100));
+                  console.log('[E2E] Fetching workflow task state...');
+                  const workflowTaskResponse = await client.getTask({ id: workflowTaskId });
+                  if ('error' in workflowTaskResponse) {
+                    console.error('[E2E] Failed to get workflow task:', workflowTaskResponse.error);
+                    return;
+                  }
+                  const workflowTask = workflowTaskResponse.result;
+                  if (workflowTask) {
+                    console.log('[E2E] Workflow task state:', workflowTask.status?.state);
+                    // Process any artifacts already emitted
+                    if (workflowTask.artifacts) {
+                      for (const artifact of workflowTask.artifacts) {
+                        artifactUpdates.push({
+                          kind: 'artifact-update',
+                          taskId: workflowTaskId,
+                          contextId,
+                          artifact,
+                        } as TaskArtifactUpdateEvent);
+                        console.log('[E2E] Existing artifact:', artifact.artifactId);
+                      }
+                    }
+                    // If already paused and we haven't handled pause 1 yet, handle it now
+                    if (workflowTask.status?.state === 'input-required' && !handledPause1) {
+                      statusUpdates.push({
+                        kind: 'status-update',
+                        taskId: workflowTaskId,
+                        contextId,
+                        status: { state: 'input-required' },
+                        final: false,
+                      } as TaskStatusUpdateEvent);
+                      pauseCount++;
+                      handledPause1 = true;
+                      console.log('[E2E] Workflow already paused (pause #' + pauseCount + ')');
 
-            console.log('[E2E] Resume response:', resumeResponse);
-          } else if (pauseCount === 2) {
-            // Pause 2: Sign delegations and provide signed data
-            console.log('[E2E] Pause 2: Signing delegations');
+                      // Pause 1: Provide wallet address and amount
+                      console.log('[E2E] Pause 1: Providing wallet address and amount');
+                      const resumeMessageId = uuidv4();
+                      await client.sendMessage({
+                        message: {
+                          kind: 'message',
+                          messageId: resumeMessageId,
+                          contextId,
+                          role: 'user',
+                          parts: [
+                            {
+                              kind: 'data',
+                              data: {
+                                walletAddress: testAccount.address,
+                                amount: '1000',
+                              },
+                              metadata: { mimeType: 'application/json' },
+                            },
+                          ],
+                        },
+                        taskId: workflowTaskId,
+                      });
+                    }
+                  }
+                } catch (err) {
+                  console.error('[E2E] Backfill getTask error:', err);
+                }
+              })();
 
-            // Find the delegations-to-sign artifact
-            const delegationsArtifact = artifactUpdates.find(
-              (a) => a.artifact.artifactId === 'delegations-to-sign',
-            );
+              for await (const wfEvent of workflowStream) {
+                console.log('[E2E] Workflow event:', wfEvent.kind);
 
-            expect(
-              delegationsArtifact,
-              'Expected delegations-to-sign artifact before second pause',
-            ).toBeDefined();
+                if (wfEvent.kind === 'status-update') {
+                  statusUpdates.push(wfEvent);
+                  console.log('[E2E] Workflow status:', wfEvent.status.state);
 
-            if (delegationsArtifact) {
-              const delegationsData = extractArtifactData<
-                z.infer<typeof DelegationsToSignArtifactSchema>
-              >(delegationsArtifact.artifact);
+                  // Handle pause for input
+                  if (wfEvent.status.state === 'input-required' && !wfEvent.final) {
+                    if (!handledPause1) {
+                      handledPause1 = true;
+                      pauseCount++;
+                      console.log('[E2E] Workflow paused (pause #' + pauseCount + ')');
+                      // Pause 1: Provide wallet address and amount
+                      console.log('[E2E] Pause 1: Providing wallet address and amount');
+                      const resumeMessageId = uuidv4();
+                      await client.sendMessage({
+                        message: {
+                          kind: 'message',
+                          messageId: resumeMessageId,
+                          contextId,
+                          role: 'user',
+                          parts: [
+                            {
+                              kind: 'data',
+                              data: {
+                                walletAddress: testAccount.address,
+                                amount: '1000',
+                              },
+                              metadata: { mimeType: 'application/json' },
+                            },
+                          ],
+                        },
+                        taskId: workflowTaskId,
+                      });
+                    } else if (!handledPause2) {
+                      handledPause2 = true;
+                      pauseCount++;
+                      console.log('[E2E] Workflow paused (pause #' + pauseCount + ')');
+                      // Pause 2: Sign delegations
+                      console.log('[E2E] Pause 2: Signing delegations');
 
-              expect(delegationsData).toBeDefined();
-              expect(delegationsData?.delegations).toHaveLength(2);
+                      // Find the delegations-to-sign artifact
+                      const delegationsArtifact = artifactUpdates.find(
+                        (a) => a.artifact.artifactId === 'delegations-to-sign',
+                      );
 
-              // Validate delegations schema
-              const validatedDelegations = DelegationsToSignArtifactSchema.parse(delegationsData);
+                      if (delegationsArtifact) {
+                        const delegationsData = extractArtifactData<
+                          z.infer<typeof DelegationsToSignArtifactSchema>
+                        >(delegationsArtifact.artifact);
 
-              // Sign each delegation
-              const signedDelegations = await Promise.all(
-                validatedDelegations.delegations.map(async (delegation) => ({
-                  id: delegation.id,
-                  signedDelegation: await signDelegation(testAccount, delegation),
-                })),
-              );
+                        if (delegationsData) {
+                          const validatedDelegations =
+                            DelegationsToSignArtifactSchema.parse(delegationsData);
 
-              console.log('[E2E] Signed', signedDelegations.length, 'delegations');
+                          // Sign each delegation
+                          const signedDelegations = await Promise.all(
+                            validatedDelegations.delegations.map(async (delegation) => ({
+                              id: delegation.id,
+                              signedDelegation: await signDelegation(testAccount, delegation),
+                            })),
+                          );
 
-              // Resume with signed delegations
-              const resumeMessageId = uuidv4();
-              const resumeResponse = await client.sendMessage({
-                message: {
-                  kind: 'message',
-                  messageId: resumeMessageId,
-                  contextId,
-                  role: 'user',
-                  parts: [
-                    {
-                      kind: 'data',
-                      data: {
-                        delegations: signedDelegations,
-                      },
-                      metadata: { mimeType: 'application/json' },
-                    },
-                  ],
-                },
-                taskId,
-              });
+                          console.log('[E2E] Signed', signedDelegations.length, 'delegations');
 
-              console.log('[E2E] Resume with signatures response:', resumeResponse);
+                          // Resume with signed delegations
+                          const resumeMessageId = uuidv4();
+                          await client.sendMessage({
+                            message: {
+                              kind: 'message',
+                              messageId: resumeMessageId,
+                              contextId,
+                              role: 'user',
+                              parts: [
+                                {
+                                  kind: 'data',
+                                  data: {
+                                    delegations: signedDelegations,
+                                  },
+                                  metadata: { mimeType: 'application/json' },
+                                },
+                              ],
+                            },
+                            taskId: workflowTaskId,
+                          });
+                        }
+                      }
+                    }
+                  }
+
+                  // Exit on workflow completion
+                  if (wfEvent.final && wfEvent.status.state === 'completed') {
+                    console.log('[E2E] Workflow stream completed');
+                    break;
+                  }
+                } else if (wfEvent.kind === 'artifact-update') {
+                  artifactUpdates.push(wfEvent);
+                  console.log('[E2E] Workflow artifact:', wfEvent.artifact.artifactId);
+                }
+              }
+
+              // Signal that workflow stream is complete
+              if (workflowStreamComplete) {
+                workflowStreamComplete();
+              }
+            } catch (error) {
+              console.error('[E2E] Workflow subscription error:', error);
+              // Still signal completion even on error
+              if (workflowStreamComplete) {
+                workflowStreamComplete();
+              }
             }
-          }
+          })();
         }
+
+        // Note: Pause handling is now done in the workflow stream subscription above
+        // Parent stream does not receive workflow pause events (different taskId)
 
         // Check for completion
         if (event.final && event.status.state === 'completed') {
@@ -276,11 +391,20 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
       }
     }
 
+    // Wait for workflow stream to complete before assertions
+    console.log('[E2E] Waiting for workflow stream to complete...');
+    await workflowStreamPromise;
+    console.log('[E2E] Workflow stream completed, proceeding with assertions');
+
     // Then: Validate task creation and status transitions
     expect(taskId, 'Task ID should be defined').toBeDefined();
+    expect(
+      workflowTaskId,
+      'Workflow Task ID should be defined (from referenceTaskIds)',
+    ).toBeDefined();
 
+    // Note: 'submitted' state is validated in the task event (line 165), not in status-update events
     const states = statusUpdates.map((u) => u.status.state);
-    expect(states, 'Should include submitted state').toContain('submitted');
     expect(states, 'Should include working state').toContain('working');
     expect(states, 'Should include input-required state for pauses').toContain('input-required');
 

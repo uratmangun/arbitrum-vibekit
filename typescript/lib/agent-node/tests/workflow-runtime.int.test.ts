@@ -468,6 +468,155 @@ export default {
         expect(yields[0].artifact.data).toBe('Hello, Alice!');
       }
     });
+
+    it('should stream artifacts through pause/resume cycle', async () => {
+      // Given: A real workflow file with pause and post-resume artifacts
+      const configDir = createTestConfigWorkspace({
+        agentName: 'Pause Artifact Test Agent',
+        skills: [],
+      });
+      tempDirs.push(configDir);
+
+      const workflowsDir = join(configDir, 'workflows');
+      mkdirSync(workflowsDir, { recursive: true });
+
+      const workflowPath = join(workflowsDir, 'pause-artifact-workflow.js');
+      writeFileSync(
+        workflowPath,
+        `
+import { z } from 'zod';
+
+export default {
+  id: 'pause-artifact-workflow',
+  name: 'Pause Artifact Workflow',
+  version: '1.0.0',
+  async *execute(context) {
+    // Pre-pause artifact
+    yield {
+      type: 'artifact',
+      artifact: {
+        name: 'config.json',
+        mimeType: 'application/json',
+        data: { initialized: true, contextId: context.contextId }
+      }
+    };
+
+    // Pause for input
+    const input = yield {
+      type: 'pause',
+      status: {
+        state: 'input-required',
+        message: {
+          kind: 'message',
+          messageId: 'm-pause-artifact',
+          contextId: context.contextId,
+          role: 'agent',
+          parts: [{ kind: 'text', text: 'Please provide amount' }]
+        }
+      },
+      inputSchema: z.object({ amount: z.string() })
+    };
+
+    // Post-resume artifacts
+    yield {
+      type: 'artifact',
+      artifact: {
+        name: 'settings.json',
+        mimeType: 'application/json',
+        data: { amount: input.amount, stage: 'resumed' }
+      }
+    };
+
+    yield {
+      type: 'artifact',
+      artifact: {
+        name: 'result.json',
+        mimeType: 'application/json',
+        data: { status: 'completed', totalArtifacts: 3 }
+      }
+    };
+
+    return { success: true };
+  }
+};
+`,
+        'utf-8',
+      );
+
+      const effectiveWorkflow: EffectiveWorkflow = {
+        id: 'pause-artifact-workflow',
+        entry: {
+          id: 'pause-artifact-workflow',
+          from: './workflows/pause-artifact-workflow.js',
+          enabled: true,
+        },
+        usedBySkills: ['skill-1'],
+      };
+
+      const loader = new WorkflowPluginLoader();
+      await loader.load([effectiveWorkflow], configDir);
+
+      const loadedPlugin = loader.getPlugin('pause-artifact-workflow');
+      expect(loadedPlugin).toBeDefined();
+
+      // When: Executing through pause/resume with artifact collection
+      const context = {
+        contextId: 'test-context-pause',
+        taskId: 'test-task-pause',
+      };
+
+      const yields: WorkflowState[] = [];
+      const generator = loadedPlugin!.plugin.execute(context);
+
+      // Collect yields until pause
+      for await (const result of generator) {
+        yields.push(result);
+
+        if (result.type === 'pause') {
+          // Pause detected, resume with input
+          const resumeResult = await generator.next({ amount: '1000' });
+
+          // Continue collecting post-resume yields
+          if (!resumeResult.done && resumeResult.value) {
+            yields.push(resumeResult.value);
+
+            // Collect remaining yields
+            for await (const remainingResult of generator) {
+              yields.push(remainingResult);
+            }
+          }
+          break;
+        }
+      }
+
+      // Then: Should have artifacts before and after pause
+      const artifacts = yields.filter((y) => y.type === 'artifact');
+      expect(artifacts.length).toBe(3);
+
+      if (artifacts[0].type === 'artifact') {
+        expect(artifacts[0].artifact.name).toBe('config.json'); // Before pause
+        expect((artifacts[0].artifact.data as { initialized: boolean }).initialized).toBe(true);
+      }
+
+      if (artifacts[1].type === 'artifact') {
+        expect(artifacts[1].artifact.name).toBe('settings.json'); // After resume
+        expect((artifacts[1].artifact.data as { amount: string; stage: string }).amount).toBe(
+          '1000',
+        );
+        expect((artifacts[1].artifact.data as { amount: string; stage: string }).stage).toBe(
+          'resumed',
+        );
+      }
+
+      if (artifacts[2].type === 'artifact') {
+        expect(artifacts[2].artifact.name).toBe('result.json'); // After resume
+        expect((artifacts[2].artifact.data as { status: string }).status).toBe('completed');
+      }
+
+      // Then: Should have exactly one pause
+      const pauses = yields.filter((y) => y.type === 'pause');
+      expect(pauses.length).toBe(1);
+    });
   });
 
   describe('Parameter Overrides', () => {

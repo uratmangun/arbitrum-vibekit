@@ -59,6 +59,27 @@ const plugin: WorkflowPlugin = {
       },
     };
 
+    // Artifact 0: Workflow started (emitted BEFORE first pause to ensure getTask() has artifacts)
+    const workflowStartedArtifact: Artifact = {
+      artifactId: 'workflow-started',
+      name: 'workflow-started.json',
+      description: 'Workflow initialization metadata',
+      metadata: { mimeType: 'application/json' },
+      parts: [
+        {
+          kind: 'data',
+          data: {
+            workflowId: context.taskId,
+            intent,
+            chainId,
+            startedAt: new Date('2025-01-15T09:59:59.000Z').toISOString(),
+          },
+          metadata: { mimeType: 'application/json' },
+        },
+      ],
+    };
+    yield { type: 'artifact', artifact: workflowStartedArtifact };
+
     // Pause 1: Collect wallet address and amount
     const walletAmountMessage: Message = {
       kind: 'message',
@@ -352,7 +373,7 @@ const plugin: WorkflowPlugin = {
       amount: walletAmountInput.amount,
       chainId,
       delegationsSigned: signedDelegationsInput.delegations.length,
-      artifactsGenerated: 8,
+      artifactsGenerated: 9,
       completedAt: new Date('2025-01-15T10:02:00.000Z').toISOString(),
     };
   },

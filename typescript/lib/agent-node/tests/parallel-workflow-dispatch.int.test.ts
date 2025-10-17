@@ -15,7 +15,7 @@ import type { AIService } from '../src/ai/service.js';
 import type { SessionManager } from '../src/a2a/sessions/manager.js';
 import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../src/workflows/types.js';
 import { WorkflowRuntime } from '../src/workflows/runtime.js';
-import { RecordingEventBus } from './utils/mocks/event-bus.mock.js';
+import { RecordingRealEventBus } from './utils/mocks/event-bus.mock.js';
 import { StubAIService } from './utils/mocks/ai-service.mock.js';
 import { MockSessionManager } from './utils/mocks/session-manager.mock.js';
 import { createSimpleRequestContext } from './utils/factories/index.js';
@@ -92,13 +92,11 @@ describe('Parallel Workflow Dispatch Integration', () => {
   let workflowRuntime: WorkflowRuntime;
   let aiService: StubAIService;
   let sessionManager: MockSessionManager;
-  let eventBus: RecordingEventBus;
 
   beforeEach(() => {
     workflowRuntime = new WorkflowRuntime();
     aiService = new StubAIService();
     sessionManager = new MockSessionManager();
-    eventBus = new RecordingEventBus();
   });
 
   it('emits referenceTaskIds when AI invokes workflow tool during streaming', async () => {
@@ -126,7 +124,11 @@ describe('Parallel Workflow Dispatch Integration', () => {
       sessionManager as unknown as SessionManager,
     );
 
-    const requestContext = createSimpleRequestContext('Execute a trade', 'task-parent', 'ctx-test');
+    const parentTaskId = 'task-parent';
+    const requestContext = createSimpleRequestContext('Execute a trade', parentTaskId, 'ctx-test');
+
+    // Create real SDK event bus for this task
+    const eventBus = new RecordingRealEventBus(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -215,11 +217,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
       sessionManager as unknown as SessionManager,
     );
 
+    const parentTaskId = 'task-parent-2';
     const requestContext = createSimpleRequestContext(
       'Start lending operation',
-      'task-parent-2',
+      parentTaskId,
       'ctx-parallel',
     );
+
+    // Create real SDK event bus for this task
+    const eventBus = new RecordingRealEventBus(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -298,11 +304,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
       sessionManager as unknown as SessionManager,
     );
 
+    const parentTaskId = 'task-parent-multi';
     const requestContext = createSimpleRequestContext(
       'Execute multiple workflows',
-      'task-parent-multi',
+      parentTaskId,
       'ctx-multi',
     );
+
+    // Create real SDK event bus for this task
+    const eventBus = new RecordingRealEventBus(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -373,11 +383,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
       sessionManager as unknown as SessionManager,
     );
 
+    const parentTaskId = 'task-parent-error';
     const requestContext = createSimpleRequestContext(
       'Execute failing workflow',
-      'task-parent-error',
+      parentTaskId,
       'ctx-error',
     );
+
+    // Create real SDK event bus for this task
+    const eventBus = new RecordingRealEventBus(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -408,5 +422,347 @@ describe('Parallel Workflow Dispatch Integration', () => {
       (u) => 'taskId' in u && u.taskId === 'task-parent-error' && u.status.state === 'completed',
     );
     expect(parentComplete).toBeDefined();
+  });
+
+  it('should handle workflow pause during parallel dispatch', async () => {
+    // Given: Workflow that pauses for input
+    const pausingPlugin: WorkflowPlugin = {
+      id: 'pausing_workflow',
+      name: 'Pausing Workflow',
+      description: 'A workflow that pauses for input',
+      version: '1.0.0',
+
+      async *execute(context: WorkflowContext) {
+        yield { type: 'status', status: { state: 'working' } };
+
+        yield {
+          type: 'artifact',
+          artifact: {
+            name: 'pre-pause.json',
+            mimeType: 'application/json',
+            data: { stage: 'before-pause' },
+          },
+        };
+
+        // Pause for input
+        const _input: unknown = yield {
+          type: 'pause',
+          status: {
+            state: 'input-required',
+            message: {
+              kind: 'message',
+              messageId: 'pause-msg',
+              contextId: context.contextId,
+              role: 'agent',
+              parts: [{ kind: 'text', text: 'Need user input' }],
+            },
+          },
+          inputSchema: {
+            type: 'object',
+            properties: {
+              data: { type: 'string' },
+            },
+          },
+        };
+
+        return { paused: true };
+      },
+    };
+    workflowRuntime.register(pausingPlugin);
+
+    // Given: AI that dispatches pausing workflow
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_pausing_workflow',
+        args: {},
+      },
+      {
+        type: 'text-delta',
+        textDelta: 'Workflow started, waiting for input...',
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+    );
+
+    const parentTaskId = 'task-parent-pause';
+    const requestContext = createSimpleRequestContext('Start workflow', parentTaskId, 'ctx-pause');
+
+    // Create real SDK event bus for this task
+    const eventBus = new RecordingRealEventBus(parentTaskId);
+
+    // When: Message is processed and workflow pauses
+    await executor.execute(requestContext, eventBus);
+
+    // Wait for async processing
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Then: Parent task should complete
+    const statusUpdates = eventBus.findEventsByKind('status-update');
+    const parentComplete = statusUpdates.find(
+      (u) => 'taskId' in u && u.taskId === 'task-parent-pause' && u.status.state === 'completed',
+    );
+    expect(parentComplete).toBeDefined();
+
+    // And: Child workflow should be paused
+    const childPaused = statusUpdates.find(
+      (u) =>
+        'taskId' in u &&
+        u.taskId !== 'task-parent-pause' &&
+        'contextId' in u &&
+        u.contextId === 'ctx-pause' &&
+        u.status.state === 'input-required',
+    );
+    expect(childPaused).toBeDefined();
+
+    // And: Artifact should be emitted before pause
+    const artifacts = eventBus.findEventsByKind('artifact-update');
+    const prePauseArtifact = artifacts.find((a) => 'artifact' in a && a.artifact.artifactId);
+    expect(prePauseArtifact).toBeDefined();
+  });
+
+  it('should emit artifacts after resuming paused workflow', async () => {
+    // Given: Workflow that pauses and emits artifacts after resume
+    const artifactResumePlugin: WorkflowPlugin = {
+      id: 'artifact_resume_test',
+      name: 'Artifact Resume Test',
+      description: 'Tests artifact emission after resume',
+      version: '1.0.0',
+
+      async *execute(context: WorkflowContext) {
+        // Artifact before pause
+        yield {
+          type: 'artifact',
+          artifact: {
+            name: 'pre-pause',
+            mimeType: 'application/json',
+            data: { stage: 1 },
+          },
+        };
+
+        // Pause
+        const input: unknown = yield {
+          type: 'pause',
+          status: {
+            state: 'input-required',
+            message: {
+              kind: 'message',
+              messageId: 'resume-msg',
+              contextId: context.contextId,
+              role: 'agent',
+              parts: [{ kind: 'text', text: 'Provide data' }],
+            },
+          },
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        };
+
+        // Artifact after resume
+        yield {
+          type: 'artifact',
+          artifact: {
+            name: 'post-resume',
+            mimeType: 'application/json',
+            data: { stage: 2, input },
+          },
+        };
+
+        return { success: true };
+      },
+    };
+    workflowRuntime.register(artifactResumePlugin);
+
+    // Given: AI dispatches workflow
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_artifact_resume_test',
+        args: {},
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+    );
+
+    const parentTaskId = 'task-parent-artifacts';
+    const requestContext = createSimpleRequestContext(
+      'Test artifacts',
+      parentTaskId,
+      'ctx-artifacts',
+    );
+
+    // Create real SDK event bus for this task
+    const eventBus = new RecordingRealEventBus(parentTaskId);
+
+    // When: Execute and wait for pause
+    await executor.execute(requestContext, eventBus);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const artifactsBefore = eventBus.findEventsByKind('artifact-update');
+    const artifactsBeforeCount = artifactsBefore.length;
+    expect(artifactsBeforeCount).toBeGreaterThanOrEqual(1);
+
+    // When: Get workflow task ID from referenceTaskIds
+    const statusUpdates = eventBus.findEventsByKind('status-update');
+    const refUpdate = statusUpdates.find(
+      (u) =>
+        'status' in u &&
+        u.status.message &&
+        'referenceTaskIds' in u.status.message &&
+        Array.isArray(u.status.message.referenceTaskIds) &&
+        u.status.message.referenceTaskIds.length > 0,
+    );
+
+    expect(refUpdate).toBeDefined();
+
+    if (
+      refUpdate &&
+      'status' in refUpdate &&
+      refUpdate.status.message &&
+      'referenceTaskIds' in refUpdate.status.message &&
+      Array.isArray(refUpdate.status.message.referenceTaskIds)
+    ) {
+      const workflowTaskId = refUpdate.status.message.referenceTaskIds[0];
+
+      // Resume the workflow using the proper method
+      // This will trigger event listeners that publish artifacts
+      await workflowRuntime.resumeWorkflow(workflowTaskId, {});
+
+      // Wait for artifacts to be emitted asynchronously
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Then: More artifacts should be emitted after resume
+      const artifactsAfter = eventBus.findEventsByKind('artifact-update');
+      const artifactsAfterCount = artifactsAfter.length;
+
+      console.log('Artifacts before:', artifactsBeforeCount);
+      console.log('Artifacts after:', artifactsAfterCount);
+      console.log(
+        'All events:',
+        eventBus.published.map((e) => e.kind),
+      );
+
+      // Should have more artifacts than before (at least one more after resume)
+      expect(artifactsAfterCount).toBeGreaterThan(artifactsBeforeCount);
+    }
+  });
+
+  it('validates parent/child event isolation: workflow artifacts only appear on workflow task stream', async () => {
+    // Given: Workflow plugin that emits multiple artifacts
+    const isolationTestPlugin = createTestWorkflowPlugin('isolation_test', { progressUpdates: 3 });
+    workflowRuntime.register(isolationTestPlugin);
+
+    // Given: AI that dispatches workflow
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_isolation_test',
+        args: {},
+      },
+      {
+        type: 'text-delta',
+        textDelta: 'Workflow dispatched',
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+    );
+
+    const parentTaskId = 'task-parent-isolation';
+    const requestContext = createSimpleRequestContext(
+      'Test isolation',
+      parentTaskId,
+      'ctx-isolation',
+    );
+
+    // Create real SDK event bus for this task
+    const eventBus = new RecordingRealEventBus(parentTaskId);
+
+    // When: Execute workflow dispatch
+    await executor.execute(requestContext, eventBus);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // Then: Extract workflow task ID from referenceTaskIds
+    const statusUpdates = eventBus.findEventsByKind('status-update');
+    const refUpdate = statusUpdates.find(
+      (u) =>
+        'status' in u &&
+        u.status.message &&
+        'referenceTaskIds' in u.status.message &&
+        Array.isArray(u.status.message.referenceTaskIds) &&
+        u.status.message.referenceTaskIds.length > 0,
+    );
+
+    expect(refUpdate).toBeDefined();
+    if (
+      !refUpdate ||
+      !('status' in refUpdate) ||
+      !refUpdate.status.message ||
+      !('referenceTaskIds' in refUpdate.status.message) ||
+      !Array.isArray(refUpdate.status.message.referenceTaskIds)
+    ) {
+      throw new Error('ReferenceTaskIds not found');
+    }
+
+    const workflowTaskId = refUpdate.status.message.referenceTaskIds[0] as string;
+    expect(workflowTaskId).toBeDefined();
+
+    // Then: Validate event isolation by taskId
+    const allArtifacts = eventBus.findEventsByKind('artifact-update');
+
+    // Parent task may have its own artifacts (e.g., tool-call artifacts)
+    // but should NOT receive workflow progress artifacts
+    const parentArtifacts = allArtifacts.filter((a) => 'taskId' in a && a.taskId === parentTaskId);
+
+    // Parent artifacts should be tool-call artifacts, not workflow progress artifacts
+    const parentToolCallArtifacts = parentArtifacts.filter((a) =>
+      a.artifact.artifactId?.startsWith('tool-call-'),
+    );
+    expect(parentToolCallArtifacts.length).toBeGreaterThan(0); // Parent should have tool-call artifact
+
+    // All parent artifacts should be tool-call artifacts (no workflow progress artifacts)
+    expect(parentArtifacts.length).toBe(parentToolCallArtifacts.length);
+
+    // Workflow task stream: should contain workflow artifacts
+    const workflowArtifacts = allArtifacts.filter(
+      (a) => 'taskId' in a && a.taskId === workflowTaskId,
+    );
+    expect(workflowArtifacts.length).toBeGreaterThan(0); // Workflow should have artifacts
+
+    // Validate structure of workflow artifacts
+    workflowArtifacts.forEach((artifact) => {
+      expect(artifact).toMatchObject({
+        kind: 'artifact-update',
+        taskId: workflowTaskId,
+        contextId: 'ctx-isolation',
+        artifact: expect.any(Object),
+      });
+    });
+
+    // Validate that parent and workflow status updates are on different task streams
+    const parentStatusUpdates = statusUpdates.filter(
+      (u) => 'taskId' in u && u.taskId === parentTaskId,
+    );
+    const workflowStatusUpdates = statusUpdates.filter(
+      (u) => 'taskId' in u && u.taskId === workflowTaskId,
+    );
+
+    expect(parentStatusUpdates.length).toBeGreaterThan(0);
+    expect(workflowStatusUpdates.length).toBeGreaterThan(0);
   });
 });
