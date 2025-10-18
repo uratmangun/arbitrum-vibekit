@@ -220,6 +220,10 @@ export class StreamProcessor {
           },
           final: false,
         };
+        this.logger.debug('Emitting workflow reference', {
+          parentTaskId: taskId,
+          childTaskId: result.taskId,
+        });
         eventBus.publish(statusUpdate);
       }
     }
