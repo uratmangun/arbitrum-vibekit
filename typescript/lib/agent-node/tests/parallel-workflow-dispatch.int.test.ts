@@ -9,13 +9,15 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { z } from 'zod';
+import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 
 import { createAgentExecutor } from '../src/a2a/agentExecutor.js';
 import type { AIService } from '../src/ai/service.js';
 import type { SessionManager } from '../src/a2a/sessions/manager.js';
 import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../src/workflows/types.js';
 import { WorkflowRuntime } from '../src/workflows/runtime.js';
-import { RecordingRealEventBus } from './utils/mocks/event-bus.mock.js';
+import { RecordingEventBusManager } from './utils/mocks/event-bus.mock.js';
 import { StubAIService } from './utils/mocks/ai-service.mock.js';
 import { MockSessionManager } from './utils/mocks/session-manager.mock.js';
 import { createSimpleRequestContext } from './utils/factories/index.js';
@@ -62,9 +64,16 @@ function createTestWorkflowPlugin(
         yield {
           type: 'artifact',
           artifact: {
+            artifactId: `progress-${i}.json`,
             name: `progress-${i}.json`,
             mimeType: 'application/json',
-            data: { step: i + 1, total: progressUpdates },
+            parts: [
+              {
+                kind: 'data',
+                data: { step: i + 1, total: progressUpdates },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
           },
         };
       }
@@ -92,11 +101,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
   let workflowRuntime: WorkflowRuntime;
   let aiService: StubAIService;
   let sessionManager: MockSessionManager;
+  let eventBusManager: RecordingEventBusManager;
+  let taskStore: InMemoryTaskStore;
 
   beforeEach(() => {
     workflowRuntime = new WorkflowRuntime();
     aiService = new StubAIService();
     sessionManager = new MockSessionManager();
+    eventBusManager = new RecordingEventBusManager();
+    taskStore = new InMemoryTaskStore();
   });
 
   it('emits referenceTaskIds when AI invokes workflow tool during streaming', async () => {
@@ -122,13 +135,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
       workflowRuntime,
       aiService as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     const parentTaskId = 'task-parent';
     const requestContext = createSimpleRequestContext('Execute a trade', parentTaskId, 'ctx-test');
 
-    // Create real SDK event bus for this task
-    const eventBus = new RecordingRealEventBus(parentTaskId);
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -136,8 +151,12 @@ describe('Parallel Workflow Dispatch Integration', () => {
     // Wait for async processing
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Then: Status update with referenceTaskIds should be emitted
-    const statusUpdates = eventBus.findEventsByKind('status-update');
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Then: Status update with referenceTaskIds should be emitted on parent bus
+    const statusUpdates = parentBus!.findEventsByKind('status-update');
     const referenceUpdate = statusUpdates.find(
       (update) =>
         'status' in update &&
@@ -215,6 +234,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       workflowRuntime,
       aiService as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     const parentTaskId = 'task-parent-2';
@@ -224,8 +245,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       'ctx-parallel',
     );
 
-    // Create real SDK event bus for this task
-    const eventBus = new RecordingRealEventBus(parentTaskId);
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -233,35 +254,13 @@ describe('Parallel Workflow Dispatch Integration', () => {
     // Wait for both tasks to complete
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Then: Both parent and child task events should be present
-    const tasks = eventBus.findEventsByKind('task');
-    expect(tasks.length).toBeGreaterThanOrEqual(2); // Parent task + workflow task
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
 
-    const parentTask = tasks.find((t) => 'id' in t && t.id === 'task-parent-2');
-    const childTask = tasks.find(
-      (t) =>
-        'id' in t && t.id !== 'task-parent-2' && 'contextId' in t && t.contextId === 'ctx-parallel',
-    );
-
-    expect(parentTask).toBeDefined();
-    expect(childTask).toBeDefined();
-
-    // And: Both tasks should have correct context
-    expect(parentTask?.contextId).toBe('ctx-parallel');
-    expect(childTask?.contextId).toBe('ctx-parallel');
-
-    // And: Parent task should complete
-    const statusUpdates = eventBus.findEventsByKind('status-update');
-    const parentComplete = statusUpdates.find(
-      (u) => 'taskId' in u && u.taskId === 'task-parent-2' && u.status.state === 'completed',
-    );
-    expect(parentComplete).toBeDefined();
-
-    // And: Child workflow runs in background - verify task was created and started
-    expect(childTask).toBeDefined();
-
-    // And: Verify referenceTaskIds announcement was made
-    const referenceUpdate = statusUpdates.find(
+    // Get reference to child task ID from referenceTaskIds
+    const parentStatusUpdates = parentBus!.findEventsByKind('status-update');
+    const referenceUpdate = parentStatusUpdates.find(
       (u) =>
         'status' in u &&
         u.status.message &&
@@ -269,6 +268,34 @@ describe('Parallel Workflow Dispatch Integration', () => {
         u.taskId === 'task-parent-2',
     );
     expect(referenceUpdate).toBeDefined();
+
+    const childTaskId = referenceUpdate?.status?.message?.referenceTaskIds?.[0];
+    expect(childTaskId).toBeDefined();
+
+    // Get the child bus recording
+    const childBus = eventBusManager.getRecordingBus(childTaskId!);
+    expect(childBus).toBeDefined();
+
+    // Then: Parent task should be on parent bus
+    const parentTasks = parentBus!.findEventsByKind('task');
+    const parentTask = parentTasks.find((t) => 'id' in t && t.id === 'task-parent-2');
+    expect(parentTask).toBeDefined();
+    expect(parentTask?.contextId).toBe('ctx-parallel');
+
+    // And: Child task should be on child bus
+    const childTasks = childBus!.findEventsByKind('task');
+    const childTask = childTasks.find((t) => 'id' in t && t.id === childTaskId);
+    expect(childTask).toBeDefined();
+    expect(childTask?.contextId).toBe('ctx-parallel');
+
+    // And: Parent task should complete on parent bus
+    const parentComplete = parentStatusUpdates.find(
+      (u) => 'taskId' in u && u.taskId === 'task-parent-2' && u.status.state === 'completed',
+    );
+    expect(parentComplete).toBeDefined();
+
+    // And: Child workflow task was created and started
+    expect(childTask).toBeDefined();
   });
 
   it('dispatches multiple workflows from single AI stream', async () => {
@@ -302,6 +329,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       workflowRuntime,
       aiService as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     const parentTaskId = 'task-parent-multi';
@@ -311,8 +340,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       'ctx-multi',
     );
 
-    // Create real SDK event bus for this task
-    const eventBus = new RecordingRealEventBus(parentTaskId);
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -320,8 +349,12 @@ describe('Parallel Workflow Dispatch Integration', () => {
     // Wait for processing
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Then: Two referenceTaskIds status updates should be emitted
-    const statusUpdates = eventBus.findEventsByKind('status-update');
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Then: Two referenceTaskIds status updates should be emitted on parent bus
+    const statusUpdates = parentBus!.findEventsByKind('status-update');
     const referenceUpdates = statusUpdates.filter(
       (update) =>
         'status' in update &&
@@ -332,17 +365,30 @@ describe('Parallel Workflow Dispatch Integration', () => {
 
     expect(referenceUpdates.length).toBe(2);
 
-    // And: Three tasks total (1 parent + 2 children)
-    const tasks = eventBus.findEventsByKind('task');
-    expect(tasks.length).toBe(3);
-
-    const parentTask = tasks.find((t) => 'id' in t && t.id === 'task-parent-multi');
-    const childTasks = tasks.filter(
-      (t) => 'id' in t && t.id !== 'task-parent-multi' && t.contextId === 'ctx-multi',
+    // Extract child task IDs
+    const childTaskIds = referenceUpdates.flatMap(
+      (u) => u.status?.message?.referenceTaskIds || []
     );
+    expect(childTaskIds.length).toBe(2);
 
+    // Get child bus recordings
+    const childBus1 = eventBusManager.getRecordingBus(childTaskIds[0]!);
+    const childBus2 = eventBusManager.getRecordingBus(childTaskIds[1]!);
+    expect(childBus1).toBeDefined();
+    expect(childBus2).toBeDefined();
+
+    // Parent task should be on parent bus
+    const parentTasks = parentBus!.findEventsByKind('task');
+    const parentTask = parentTasks.find((t) => 'id' in t && t.id === 'task-parent-multi');
     expect(parentTask).toBeDefined();
-    expect(childTasks.length).toBe(2);
+
+    // Each child task should be on its own bus
+    const childTask1 = childBus1!.findEventsByKind('task')
+      .find((t) => 'id' in t && t.id === childTaskIds[0]);
+    const childTask2 = childBus2!.findEventsByKind('task')
+      .find((t) => 'id' in t && t.id === childTaskIds[1]);
+    expect(childTask1).toBeDefined();
+    expect(childTask2).toBeDefined();
 
     // And: Parent task should complete
     const parentCompletion = statusUpdates.find(
@@ -351,8 +397,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(parentCompletion).toBeDefined();
 
     // And: Both child tasks should be created with correct context
-    expect(childTasks[0]?.contextId).toBe('ctx-multi');
-    expect(childTasks[1]?.contextId).toBe('ctx-multi');
+    expect(childTask1?.contextId).toBe('ctx-multi');
+    expect(childTask2?.contextId).toBe('ctx-multi');
   });
 
   it('handles workflow errors without affecting parent task', async () => {
@@ -381,6 +427,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       workflowRuntime,
       aiService as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     const parentTaskId = 'task-parent-error';
@@ -390,8 +438,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       'ctx-error',
     );
 
-    // Create real SDK event bus for this task
-    const eventBus = new RecordingRealEventBus(parentTaskId);
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
 
     // When: Message is processed
     await executor.execute(requestContext, eventBus);
@@ -399,26 +447,39 @@ describe('Parallel Workflow Dispatch Integration', () => {
     // Wait for processing
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Then: ReferenceTaskIds announcement should still be emitted
-    const statusUpdates = eventBus.findEventsByKind('status-update');
-    const referenceUpdate = statusUpdates.find(
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Then: ReferenceTaskIds announcement should still be emitted on parent bus
+    const parentStatusUpdates = parentBus!.findEventsByKind('status-update');
+    const referenceUpdate = parentStatusUpdates.find(
       (update) =>
         'status' in update && update.status.message && 'referenceTaskIds' in update.status.message,
     );
     expect(referenceUpdate).toBeDefined();
 
-    // And: Child task should enter "failed" state
-    const childFailure = statusUpdates.find(
+    // Get child task ID
+    const childTaskId = referenceUpdate?.status?.message?.referenceTaskIds?.[0];
+    expect(childTaskId).toBeDefined();
+
+    // Get the child bus recording
+    const childBus = eventBusManager.getRecordingBus(childTaskId!);
+    expect(childBus).toBeDefined();
+
+    // And: Child task should enter "failed" state on child bus
+    const childStatusUpdates = childBus!.findEventsByKind('status-update');
+    const childFailure = childStatusUpdates.find(
       (u) =>
         'taskId' in u &&
-        u.taskId !== 'task-parent-error' &&
+        u.taskId === childTaskId &&
         u.contextId === 'ctx-error' &&
         u.status.state === 'failed',
     );
     expect(childFailure).toBeDefined();
 
-    // And: Parent task should still complete successfully
-    const parentComplete = statusUpdates.find(
+    // And: Parent task should still complete successfully on parent bus
+    const parentComplete = parentStatusUpdates.find(
       (u) => 'taskId' in u && u.taskId === 'task-parent-error' && u.status.state === 'completed',
     );
     expect(parentComplete).toBeDefined();
@@ -438,9 +499,16 @@ describe('Parallel Workflow Dispatch Integration', () => {
         yield {
           type: 'artifact',
           artifact: {
+            artifactId: 'pre-pause.json',
             name: 'pre-pause.json',
             mimeType: 'application/json',
-            data: { stage: 'before-pause' },
+            parts: [
+              {
+                kind: 'data',
+                data: { stage: 'before-pause' },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
           },
         };
 
@@ -457,12 +525,9 @@ describe('Parallel Workflow Dispatch Integration', () => {
               parts: [{ kind: 'text', text: 'Need user input' }],
             },
           },
-          inputSchema: {
-            type: 'object',
-            properties: {
-              data: { type: 'string' },
-            },
-          },
+          inputSchema: z.object({
+            data: z.string(),
+          }),
         };
 
         return { paused: true };
@@ -488,13 +553,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
       workflowRuntime,
       aiService as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     const parentTaskId = 'task-parent-pause';
     const requestContext = createSimpleRequestContext('Start workflow', parentTaskId, 'ctx-pause');
 
-    // Create real SDK event bus for this task
-    const eventBus = new RecordingRealEventBus(parentTaskId);
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
 
     // When: Message is processed and workflow pauses
     await executor.execute(requestContext, eventBus);
@@ -502,27 +569,43 @@ describe('Parallel Workflow Dispatch Integration', () => {
     // Wait for async processing
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Then: Parent task should complete
-    const statusUpdates = eventBus.findEventsByKind('status-update');
-    const parentComplete = statusUpdates.find(
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Then: Parent task should complete on parent bus
+    const parentStatusUpdates = parentBus!.findEventsByKind('status-update');
+    const parentComplete = parentStatusUpdates.find(
       (u) => 'taskId' in u && u.taskId === 'task-parent-pause' && u.status.state === 'completed',
     );
     expect(parentComplete).toBeDefined();
 
-    // And: Child workflow should be paused
-    const childPaused = statusUpdates.find(
+    // Get child task ID from referenceTaskIds
+    const referenceUpdate = parentStatusUpdates.find(
+      (u) => 'status' in u && u.status.message && 'referenceTaskIds' in u.status.message,
+    );
+    const childTaskId = referenceUpdate?.status?.message?.referenceTaskIds?.[0];
+    expect(childTaskId).toBeDefined();
+
+    // Get the child bus recording
+    const childBus = eventBusManager.getRecordingBus(childTaskId!);
+    expect(childBus).toBeDefined();
+
+    // And: Child workflow should be paused on child bus
+    const childStatusUpdates = childBus!.findEventsByKind('status-update');
+    const childPaused = childStatusUpdates.find(
       (u) =>
         'taskId' in u &&
-        u.taskId !== 'task-parent-pause' &&
+        u.taskId === childTaskId &&
         'contextId' in u &&
         u.contextId === 'ctx-pause' &&
         u.status.state === 'input-required',
     );
     expect(childPaused).toBeDefined();
 
-    // And: Artifact should be emitted before pause
-    const artifacts = eventBus.findEventsByKind('artifact-update');
-    const prePauseArtifact = artifacts.find((a) => 'artifact' in a && a.artifact.artifactId);
+    // And: Artifact should be emitted before pause on child bus
+    const childArtifacts = childBus!.findEventsByKind('artifact-update');
+    const prePauseArtifact = childArtifacts.find((a) => 'artifact' in a && a.artifact.artifactId);
     expect(prePauseArtifact).toBeDefined();
   });
 
@@ -539,9 +622,16 @@ describe('Parallel Workflow Dispatch Integration', () => {
         yield {
           type: 'artifact',
           artifact: {
+            artifactId: 'pre-pause',
             name: 'pre-pause',
             mimeType: 'application/json',
-            data: { stage: 1 },
+            parts: [
+              {
+                kind: 'data',
+                data: { stage: 1 },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
           },
         };
 
@@ -558,19 +648,23 @@ describe('Parallel Workflow Dispatch Integration', () => {
               parts: [{ kind: 'text', text: 'Provide data' }],
             },
           },
-          inputSchema: {
-            type: 'object',
-            properties: {},
-          },
+          inputSchema: z.object({}),
         };
 
         // Artifact after resume
         yield {
           type: 'artifact',
           artifact: {
+            artifactId: 'post-resume',
             name: 'post-resume',
             mimeType: 'application/json',
-            data: { stage: 2, input },
+            parts: [
+              {
+                kind: 'data',
+                data: { stage: 2, input },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
           },
         };
 
@@ -593,6 +687,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       workflowRuntime,
       aiService as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     const parentTaskId = 'task-parent-artifacts';
@@ -602,20 +698,20 @@ describe('Parallel Workflow Dispatch Integration', () => {
       'ctx-artifacts',
     );
 
-    // Create real SDK event bus for this task
-    const eventBus = new RecordingRealEventBus(parentTaskId);
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
 
     // When: Execute and wait for pause
     await executor.execute(requestContext, eventBus);
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    const artifactsBefore = eventBus.findEventsByKind('artifact-update');
-    const artifactsBeforeCount = artifactsBefore.length;
-    expect(artifactsBeforeCount).toBeGreaterThanOrEqual(1);
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
 
-    // When: Get workflow task ID from referenceTaskIds
-    const statusUpdates = eventBus.findEventsByKind('status-update');
-    const refUpdate = statusUpdates.find(
+    // Get workflow task ID from referenceTaskIds on parent bus
+    const parentStatusUpdates = parentBus!.findEventsByKind('status-update');
+    const refUpdate = parentStatusUpdates.find(
       (u) =>
         'status' in u &&
         u.status.message &&
@@ -635,6 +731,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
     ) {
       const workflowTaskId = refUpdate.status.message.referenceTaskIds[0];
 
+      // Get the child bus recording
+      const childBus = eventBusManager.getRecordingBus(workflowTaskId);
+      expect(childBus).toBeDefined();
+
+      // Count artifacts before resume on child bus
+      const artifactsBefore = childBus!.findEventsByKind('artifact-update');
+      const artifactsBeforeCount = artifactsBefore.length;
+      expect(artifactsBeforeCount).toBeGreaterThanOrEqual(1);
+
       // Resume the workflow using the proper method
       // This will trigger event listeners that publish artifacts
       await workflowRuntime.resumeWorkflow(workflowTaskId, {});
@@ -642,15 +747,15 @@ describe('Parallel Workflow Dispatch Integration', () => {
       // Wait for artifacts to be emitted asynchronously
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Then: More artifacts should be emitted after resume
-      const artifactsAfter = eventBus.findEventsByKind('artifact-update');
+      // Then: More artifacts should be emitted after resume on child bus
+      const artifactsAfter = childBus!.findEventsByKind('artifact-update');
       const artifactsAfterCount = artifactsAfter.length;
 
       console.log('Artifacts before:', artifactsBeforeCount);
       console.log('Artifacts after:', artifactsAfterCount);
       console.log(
-        'All events:',
-        eventBus.published.map((e) => e.kind),
+        'Child bus events:',
+        childBus!.published.map((e) => e.kind),
       );
 
       // Should have more artifacts than before (at least one more after resume)
@@ -681,6 +786,8 @@ describe('Parallel Workflow Dispatch Integration', () => {
       workflowRuntime,
       aiService as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     const parentTaskId = 'task-parent-isolation';
@@ -690,16 +797,20 @@ describe('Parallel Workflow Dispatch Integration', () => {
       'ctx-isolation',
     );
 
-    // Create real SDK event bus for this task
-    const eventBus = new RecordingRealEventBus(parentTaskId);
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
 
     // When: Execute workflow dispatch
     await executor.execute(requestContext, eventBus);
     await new Promise((resolve) => setTimeout(resolve, 150));
 
-    // Then: Extract workflow task ID from referenceTaskIds
-    const statusUpdates = eventBus.findEventsByKind('status-update');
-    const refUpdate = statusUpdates.find(
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Then: Extract workflow task ID from referenceTaskIds on parent bus
+    const parentStatusUpdates = parentBus!.findEventsByKind('status-update');
+    const refUpdate = parentStatusUpdates.find(
       (u) =>
         'status' in u &&
         u.status.message &&
@@ -722,14 +833,16 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const workflowTaskId = refUpdate.status.message.referenceTaskIds[0] as string;
     expect(workflowTaskId).toBeDefined();
 
-    // Then: Validate event isolation by taskId
-    const allArtifacts = eventBus.findEventsByKind('artifact-update');
+    // Get the child bus recording
+    const childBus = eventBusManager.getRecordingBus(workflowTaskId);
+    expect(childBus).toBeDefined();
+
+    // Then: Validate event isolation between buses
+    const parentArtifacts = parentBus!.findEventsByKind('artifact-update');
+    const childArtifacts = childBus!.findEventsByKind('artifact-update');
 
     // Parent task may have its own artifacts (e.g., tool-call artifacts)
     // but should NOT receive workflow progress artifacts
-    const parentArtifacts = allArtifacts.filter((a) => 'taskId' in a && a.taskId === parentTaskId);
-
-    // Parent artifacts should be tool-call artifacts, not workflow progress artifacts
     const parentToolCallArtifacts = parentArtifacts.filter((a) =>
       a.artifact.artifactId?.startsWith('tool-call-'),
     );
@@ -738,14 +851,17 @@ describe('Parallel Workflow Dispatch Integration', () => {
     // All parent artifacts should be tool-call artifacts (no workflow progress artifacts)
     expect(parentArtifacts.length).toBe(parentToolCallArtifacts.length);
 
-    // Workflow task stream: should contain workflow artifacts
-    const workflowArtifacts = allArtifacts.filter(
-      (a) => 'taskId' in a && a.taskId === workflowTaskId,
-    );
-    expect(workflowArtifacts.length).toBeGreaterThan(0); // Workflow should have artifacts
+    // Child bus should contain workflow artifacts (progress-X.json)
+    expect(childArtifacts.length).toBeGreaterThan(0); // Workflow should have artifacts
 
-    // Validate structure of workflow artifacts
-    workflowArtifacts.forEach((artifact) => {
+    // Validate that workflow artifacts are NOT on parent bus
+    const workflowProgressArtifactsOnParent = parentArtifacts.filter((a) =>
+      a.artifact.artifactId?.startsWith('progress-'),
+    );
+    expect(workflowProgressArtifactsOnParent.length).toBe(0); // No workflow artifacts on parent
+
+    // Validate structure of workflow artifacts on child bus
+    childArtifacts.forEach((artifact) => {
       expect(artifact).toMatchObject({
         kind: 'artifact-update',
         taskId: workflowTaskId,
@@ -754,15 +870,586 @@ describe('Parallel Workflow Dispatch Integration', () => {
       });
     });
 
-    // Validate that parent and workflow status updates are on different task streams
-    const parentStatusUpdates = statusUpdates.filter(
-      (u) => 'taskId' in u && u.taskId === parentTaskId,
-    );
-    const workflowStatusUpdates = statusUpdates.filter(
-      (u) => 'taskId' in u && u.taskId === workflowTaskId,
+    // Validate that parent and workflow status updates are on different buses
+    expect(parentStatusUpdates.length).toBeGreaterThan(0);
+
+    const childStatusUpdates = childBus!.findEventsByKind('status-update');
+    expect(childStatusUpdates.length).toBeGreaterThan(0);
+  });
+
+  it('should provide valid taskId in referenceTaskIds that can be retrieved via runtime', async () => {
+    // Given: A workflow runtime with a test plugin
+    const testPlugin = createTestWorkflowPlugin('retrievable-task', { progressUpdates: 2 });
+    workflowRuntime.register(testPlugin);
+
+    // Given: AI service that calls workflow tool
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_retrievable_task',
+        args: { action: 'test' },
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
-    expect(parentStatusUpdates.length).toBeGreaterThan(0);
-    expect(workflowStatusUpdates.length).toBeGreaterThan(0);
+    const parentTaskId = 'task-parent-retrieve';
+    const requestContext = createSimpleRequestContext(
+      'Test task retrieval',
+      parentTaskId,
+      'ctx-retrieve',
+    );
+
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
+
+    // When: Message is processed
+    await executor.execute(requestContext, eventBus);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Then: Extract workflow task ID from referenceTaskIds
+    const statusUpdates = parentBus!.findEventsByKind('status-update');
+    const refUpdate = statusUpdates.find(
+      (u) =>
+        'status' in u &&
+        u.status.message &&
+        'referenceTaskIds' in u.status.message &&
+        Array.isArray(u.status.message.referenceTaskIds),
+    );
+
+    expect(refUpdate).toBeDefined();
+    if (!refUpdate || !('status' in refUpdate) || !refUpdate.status.message) {
+      throw new Error('ReferenceTaskIds not found');
+    }
+
+    const workflowTaskId = (refUpdate.status.message as any).referenceTaskIds[0];
+    expect(workflowTaskId).toBeDefined();
+
+    // Then: Workflow task state should be retrievable
+    const taskState = workflowRuntime.getTaskState(workflowTaskId);
+    expect(taskState).toBeDefined();
+    expect(['working', 'completed']).toContain(taskState?.state);
+
+    // And: Session manager should have the task in its session
+    const session = sessionManager.getSession('ctx-retrieve');
+    expect(session).toBeDefined();
+    if (session && session.state.tasks) {
+      expect(session.state.tasks).toContain(workflowTaskId);
+    }
+  });
+
+  it('should handle concurrent getTaskState calls during workflow execution', async () => {
+    // Given: Workflow with delays to allow concurrent access
+    const slowPlugin = createTestWorkflowPlugin('concurrent-state', {
+      progressUpdates: 5,
+      delay: 50, // 50ms between updates
+    });
+    workflowRuntime.register(slowPlugin);
+
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_concurrent_state',
+        args: {},
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
+    );
+
+    const parentTaskId = 'task-parent-concurrent';
+    const requestContext = createSimpleRequestContext(
+      'Test concurrent',
+      parentTaskId,
+      'ctx-concurrent',
+    );
+
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
+
+    // When: Execute and get workflow task ID
+    await executor.execute(requestContext, eventBus);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    const statusUpdates = parentBus!.findEventsByKind('status-update');
+    const refUpdate = statusUpdates.find(
+      (u) => 'status' in u && u.status.message && 'referenceTaskIds' in u.status.message,
+    );
+
+    const workflowTaskId =
+      refUpdate && 'status' in refUpdate
+        ? (refUpdate.status.message as any)?.referenceTaskIds?.[0]
+        : undefined;
+    expect(workflowTaskId).toBeDefined();
+
+    // When: Make concurrent calls to getTaskState during execution
+    const statePromises = Array.from({ length: 10 }, async (_, i) => {
+      await new Promise((resolve) => setTimeout(resolve, i * 20)); // Stagger calls
+      return workflowRuntime.getTaskState(workflowTaskId);
+    });
+
+    const states = await Promise.all(statePromises);
+
+    // Then: All calls should return valid, consistent state
+    states.forEach((state) => {
+      expect(state).toBeDefined();
+      expect(['working', 'completed']).toContain(state?.state);
+    });
+  });
+
+  it('should handle race condition when workflow pauses immediately before subscription', async () => {
+    // Given: Workflow that pauses immediately
+    const immediatelyPausingPlugin: WorkflowPlugin = {
+      id: 'immediate_pause',
+      name: 'Immediate Pause Workflow',
+      description: 'Pauses immediately for race condition testing',
+      version: '1.0.0',
+      async *execute(context: WorkflowContext) {
+        // Pause immediately without any prior status or artifacts
+        const input: unknown = yield {
+          type: 'pause',
+          status: {
+            state: 'input-required',
+            message: {
+              kind: 'message',
+              messageId: 'immediate-pause',
+              contextId: context.contextId,
+              role: 'agent',
+              parts: [{ kind: 'text', text: 'Paused immediately' }],
+            },
+          },
+          inputSchema: z.object({
+            value: z.string(),
+          }),
+        };
+
+        // After resume
+        yield {
+          type: 'artifact',
+          artifact: {
+            artifactId: 'after-resume.json',
+            name: 'after-resume.json',
+            mimeType: 'application/json',
+            parts: [
+              {
+                kind: 'data',
+                data: { resumed: true, input },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
+          },
+        };
+
+        return { success: true };
+      },
+    };
+    workflowRuntime.register(immediatelyPausingPlugin);
+
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_immediate_pause',
+        args: {},
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
+    );
+
+    const parentTaskId = 'task-parent-race';
+    const requestContext = createSimpleRequestContext('Test race', parentTaskId, 'ctx-race');
+
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
+
+    // When: Execute and immediately check state
+    await executor.execute(requestContext, eventBus);
+
+    // Small delay to ensure workflow starts but simulate race condition
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Get workflow task ID
+    const statusUpdates = parentBus!.findEventsByKind('status-update');
+    const refUpdate = statusUpdates.find(
+      (u) => 'status' in u && u.status.message && 'referenceTaskIds' in u.status.message,
+    );
+    const workflowTaskId =
+      refUpdate && 'status' in refUpdate
+        ? (refUpdate.status.message as any)?.referenceTaskIds?.[0]
+        : undefined;
+    expect(workflowTaskId).toBeDefined();
+
+    // Then: getTaskState should return paused state (handles race condition)
+    const taskState = workflowRuntime.getTaskState(workflowTaskId);
+    expect(taskState).toBeDefined();
+    expect(taskState?.state).toBe('input-required');
+    expect(taskState?.pauseInfo).toBeDefined();
+    // Verify pauseInfo has inputSchema (it's a Zod schema)
+    expect(taskState?.pauseInfo?.inputSchema).toBeDefined();
+
+    // When: Resume the workflow
+    await workflowRuntime.resumeWorkflow(workflowTaskId, { value: 'test-input' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Then: Task should complete
+    const finalState = workflowRuntime.getTaskState(workflowTaskId);
+    expect(finalState?.state).toBe('completed');
+  });
+
+  it('should handle multiple pause/resume cycles with artifact streaming', async () => {
+    // Given: Workflow with multiple pause points
+    const multiPausePlugin: WorkflowPlugin = {
+      id: 'multi_pause_artifact',
+      name: 'Multi-Pause Artifact Workflow',
+      description: 'Tests multiple pause/resume cycles',
+      version: '1.0.0',
+      async *execute(context: WorkflowContext) {
+        // First artifact batch
+        yield {
+          type: 'artifact',
+          artifact: {
+            artifactId: 'phase-1-start.json',
+            name: 'phase-1-start.json',
+            mimeType: 'application/json',
+            parts: [
+              {
+                kind: 'data',
+                data: { phase: 1, status: 'starting' },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
+          },
+        };
+
+        // First pause
+        const input1: unknown = yield {
+          type: 'pause',
+          status: {
+            state: 'input-required',
+            message: {
+              kind: 'message',
+              messageId: 'pause-1',
+              contextId: context.contextId,
+              role: 'agent',
+              parts: [{ kind: 'text', text: 'First pause - provide configuration' }],
+            },
+          },
+          inputSchema: z.object({
+            config: z.string(),
+          }),
+        };
+
+        // Artifacts after first resume
+        yield {
+          type: 'artifact',
+          artifact: {
+            artifactId: 'phase-1-complete.json',
+            name: 'phase-1-complete.json',
+            mimeType: 'application/json',
+            parts: [
+              {
+                kind: 'data',
+                data: { phase: 1, status: 'complete', config: input1 },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
+          },
+        };
+        yield {
+          type: 'artifact',
+          artifact: {
+            artifactId: 'phase-2-start.json',
+            name: 'phase-2-start.json',
+            mimeType: 'application/json',
+            parts: [
+              {
+                kind: 'data',
+                data: { phase: 2, status: 'starting' },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
+          },
+        };
+
+        // Second pause
+        const input2: unknown = yield {
+          type: 'pause',
+          status: {
+            state: 'input-required',
+            message: {
+              kind: 'message',
+              messageId: 'pause-2',
+              contextId: context.contextId,
+              role: 'agent',
+              parts: [{ kind: 'text', text: 'Second pause - provide data' }],
+            },
+          },
+          inputSchema: z.object({
+            data: z.any(),
+          }),
+        };
+
+        // Final artifacts after second resume
+        yield {
+          type: 'artifact',
+          artifact: {
+            artifactId: 'phase-2-complete.json',
+            name: 'phase-2-complete.json',
+            mimeType: 'application/json',
+            parts: [
+              {
+                kind: 'data',
+                data: { phase: 2, status: 'complete', data: input2 },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
+          },
+        };
+        yield {
+          type: 'artifact',
+          artifact: {
+            artifactId: 'final-result.json',
+            name: 'final-result.json',
+            mimeType: 'application/json',
+            parts: [
+              {
+                kind: 'data',
+                data: {
+                  success: true,
+                  phases: [input1, input2],
+                },
+                metadata: { mimeType: 'application/json' },
+              },
+            ],
+          },
+        };
+
+        return { completed: true, totalPhases: 2 };
+      },
+    };
+    workflowRuntime.register(multiPausePlugin);
+
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_multi_pause_artifact',
+        args: {},
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
+    );
+
+    const parentTaskId = 'task-parent-multi-pause';
+    const requestContext = createSimpleRequestContext(
+      'Test multi-pause',
+      parentTaskId,
+      'ctx-multi-pause',
+    );
+
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
+
+    // When: Execute workflow
+    await executor.execute(requestContext, eventBus);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Get workflow task ID
+    const statusUpdates = parentBus!.findEventsByKind('status-update');
+    const refUpdate = statusUpdates.find(
+      (u) => 'status' in u && u.status.message && 'referenceTaskIds' in u.status.message,
+    );
+    const workflowTaskId =
+      refUpdate && 'status' in refUpdate
+        ? (refUpdate.status.message as any)?.referenceTaskIds?.[0]
+        : undefined;
+    expect(workflowTaskId).toBeDefined();
+
+    // Then: First pause state
+    let state = workflowRuntime.getTaskState(workflowTaskId);
+    expect(state?.state).toBe('input-required');
+
+    // When: First resume
+    await workflowRuntime.resumeWorkflow(workflowTaskId, { config: 'test-config' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Then: Second pause state
+    state = workflowRuntime.getTaskState(workflowTaskId);
+    expect(state?.state).toBe('input-required');
+
+    // When: Second resume
+    await workflowRuntime.resumeWorkflow(workflowTaskId, { data: { value: 'test-data' } });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Then: Completed state
+    state = workflowRuntime.getTaskState(workflowTaskId);
+    expect(state?.state).toBe('completed');
+
+    // Get the child bus recording
+    const childBus = eventBusManager.getRecordingBus(workflowTaskId);
+    expect(childBus).toBeDefined();
+
+    // Verify artifacts were emitted via child event bus
+    const workflowArtifacts = childBus!.findEventsByKind('artifact-update');
+
+    // Verify all 5 artifacts were emitted
+    expect(workflowArtifacts.length).toBe(5);
+
+    // Verify artifact names
+    const artifactNames = workflowArtifacts
+      .map((a) => ('artifact' in a ? a.artifact.name : undefined))
+      .filter(Boolean);
+    expect(artifactNames).toContain('phase-1-start.json');
+    expect(artifactNames).toContain('phase-1-complete.json');
+    expect(artifactNames).toContain('phase-2-start.json');
+    expect(artifactNames).toContain('phase-2-complete.json');
+    expect(artifactNames).toContain('final-result.json');
+  });
+
+  it('should continue workflow events after parent task completes', async () => {
+    // Given: Long-running workflow
+    const longRunningPlugin = createTestWorkflowPlugin('long-runner', {
+      progressUpdates: 10,
+      delay: 100, // 100ms between updates = 1 second total
+    });
+    workflowRuntime.register(longRunningPlugin);
+
+    // Given: AI that completes quickly
+    aiService.setSimpleResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'dispatch_workflow_long_runner',
+        args: {},
+      },
+      {
+        type: 'text-delta',
+        textDelta: 'Workflow started.',
+      },
+    ]);
+
+    const executor = createAgentExecutor(
+      workflowRuntime,
+      aiService as unknown as AIService,
+      sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
+    );
+
+    const parentTaskId = 'task-parent-continues';
+    const requestContext = createSimpleRequestContext(
+      'Long workflow',
+      parentTaskId,
+      'ctx-continues',
+    );
+
+    // Create event bus for parent task via the manager
+    const eventBus = eventBusManager.createOrGetByTaskId(parentTaskId);
+
+    // When: Execute
+    await executor.execute(requestContext, eventBus);
+
+    // Wait for parent to complete (should be quick)
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Get the parent bus recording
+    const parentBus = eventBusManager.getRecordingBus(parentTaskId);
+    expect(parentBus).toBeDefined();
+
+    // Then: Parent should be completed
+    const statusUpdates = parentBus!.findEventsByKind('status-update');
+    const parentComplete = statusUpdates.find(
+      (u) =>
+        'taskId' in u &&
+        'status' in u &&
+        u.taskId === parentTaskId &&
+        u.status.state === 'completed',
+    );
+    expect(parentComplete).toBeDefined();
+
+    // Get workflow task ID
+    const refUpdate = statusUpdates.find(
+      (u) => 'status' in u && u.status.message && 'referenceTaskIds' in u.status.message,
+    );
+    const workflowTaskId =
+      refUpdate && 'status' in refUpdate
+        ? (refUpdate.status.message as any)?.referenceTaskIds?.[0]
+        : undefined;
+    expect(workflowTaskId).toBeDefined();
+
+    // Then: Workflow should still be running
+    let state = workflowRuntime.getTaskState(workflowTaskId);
+    expect(state?.state).toBe('working');
+
+    // Get the child bus recording
+    const childBus = eventBusManager.getRecordingBus(workflowTaskId);
+    expect(childBus).toBeDefined();
+
+    // Get initial artifact count from child event bus
+    const initialArtifacts = childBus!.findEventsByKind('artifact-update');
+    const artifactsAtParentComplete = initialArtifacts.length;
+
+    // Wait more time for workflow to continue
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Then: Workflow should have made progress after parent completed
+    state = workflowRuntime.getTaskState(workflowTaskId);
+
+    // Check artifacts via child event bus
+    const progressArtifacts = childBus!.findEventsByKind('artifact-update');
+    const artifactsAfterDelay = progressArtifacts.length;
+    expect(artifactsAfterDelay).toBeGreaterThan(artifactsAtParentComplete);
+
+    // Wait for workflow to complete
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    // Then: Workflow should be completed independently
+    state = workflowRuntime.getTaskState(workflowTaskId);
+    expect(state?.state).toBe('completed');
+
+    // Verify all artifacts via child event bus
+    const finalArtifacts = childBus!.findEventsByKind('artifact-update');
+    expect(finalArtifacts.length).toBe(10); // All artifacts
   });
 });

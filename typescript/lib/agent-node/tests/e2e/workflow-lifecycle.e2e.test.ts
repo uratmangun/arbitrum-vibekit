@@ -136,6 +136,7 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
     const artifactUpdates: TaskArtifactUpdateEvent[] = [];
     let taskId: string | undefined;
     let workflowTaskId: string | undefined;
+    let workflowContextId: string | undefined;
 
     // When: Start the workflow via message/stream
     const streamGenerator = client.sendMessageStream({
@@ -185,7 +186,7 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
             try {
               // Subscribe to workflow stream first to avoid missing pause events
               console.log('[E2E] Subscribing to workflow event stream...');
-              const workflowStream = client.resubscribeTask({ id: workflowTaskId });
+          const workflowStream = client.resubscribeTask({ id: workflowTaskId });
 
               // Kick off a backfill for current task state and artifacts
               (async () => {
@@ -200,6 +201,7 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                   }
                   const workflowTask = workflowTaskResponse.result;
                   if (workflowTask) {
+                    workflowContextId = workflowTask.contextId ?? workflowContextId ?? contextId;
                     console.log('[E2E] Workflow task state:', workflowTask.status?.state);
                     // Process any artifacts already emitted
                     if (workflowTask.artifacts) {
@@ -229,13 +231,19 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                       // Pause 1: Provide wallet address and amount
                       console.log('[E2E] Pause 1: Providing wallet address and amount');
                       const resumeMessageId = uuidv4();
-                      await client.sendMessage({
+                      const targetContextId = workflowContextId ?? contextId;
+                      const resumeResponse = await client.sendMessage({
                         message: {
                           kind: 'message',
                           messageId: resumeMessageId,
-                          contextId,
+                          contextId: targetContextId,
+                          taskId: workflowTaskId,
                           role: 'user',
                           parts: [
+                            {
+                              kind: 'text',
+                              text: 'Providing wallet details for workflow pause',
+                            },
                             {
                               kind: 'data',
                               data: {
@@ -248,6 +256,9 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                         },
                         taskId: workflowTaskId,
                       });
+                      if (!('result' in resumeResponse)) {
+                        throw new Error('Resume response for pause 1 returned error');
+                      }
                     }
                   }
                 } catch (err) {
@@ -257,6 +268,9 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
 
               for await (const wfEvent of workflowStream) {
                 console.log('[E2E] Workflow event:', wfEvent.kind);
+                if ('contextId' in wfEvent && typeof wfEvent.contextId === 'string') {
+                  workflowContextId = wfEvent.contextId;
+                }
 
                 if (wfEvent.kind === 'status-update') {
                   statusUpdates.push(wfEvent);
@@ -271,13 +285,19 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                       // Pause 1: Provide wallet address and amount
                       console.log('[E2E] Pause 1: Providing wallet address and amount');
                       const resumeMessageId = uuidv4();
-                      await client.sendMessage({
+                      const targetContextId = workflowContextId ?? contextId;
+                      const resumeResponse = await client.sendMessage({
                         message: {
                           kind: 'message',
                           messageId: resumeMessageId,
-                          contextId,
+                          contextId: targetContextId,
+                          taskId: workflowTaskId,
                           role: 'user',
                           parts: [
+                            {
+                              kind: 'text',
+                              text: 'Providing wallet details for workflow pause',
+                            },
                             {
                               kind: 'data',
                               data: {
@@ -290,6 +310,9 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                         },
                         taskId: workflowTaskId,
                       });
+                      if (!('result' in resumeResponse)) {
+                        throw new Error('Resume response for pause 1 returned error');
+                      }
                     } else if (!handledPause2) {
                       handledPause2 = true;
                       pauseCount++;
@@ -323,13 +346,19 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
 
                           // Resume with signed delegations
                           const resumeMessageId = uuidv4();
-                          await client.sendMessage({
+                          const targetContextId = workflowContextId ?? contextId;
+                          const resumeResponse = await client.sendMessage({
                             message: {
                               kind: 'message',
                               messageId: resumeMessageId,
-                              contextId,
+                              contextId: targetContextId,
+                              taskId: workflowTaskId,
                               role: 'user',
                               parts: [
+                                {
+                                  kind: 'text',
+                                  text: 'Submitting signed delegations for workflow',
+                                },
                                 {
                                   kind: 'data',
                                   data: {
@@ -341,6 +370,9 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                             },
                             taskId: workflowTaskId,
                           });
+                          if (!('result' in resumeResponse)) {
+                            throw new Error('Resume response for pause 2 returned error');
+                          }
                         }
                       }
                     }

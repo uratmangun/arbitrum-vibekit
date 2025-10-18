@@ -90,7 +90,7 @@ describe('A2A Server Live Tests', () => {
       console.error('[E2E] Failed to setup server:', error);
       throw error;
     }
-  }, 30000); // 30s timeout: MCP initialization + server startup can be slow
+  }, 60000); // 60s timeout: MCP initialization + external LLM warmup can take longer in CI
 
   afterAll(async () => {
     // Clean up agent config handle first
