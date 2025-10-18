@@ -112,47 +112,12 @@ export async function loadTools(
         const canonicalId = canonicalizeName(plugin.id);
         const toolName = `dispatch_workflow_${canonicalId}`;
 
-        // Create execute function that dispatches the workflow
-        // NOTE: In normal operation, workflow tools are intercepted by StreamProcessor
-        // and executed via WorkflowHandler.dispatchWorkflow() which receives contextId
-        // from the A2A conversation. This execute function serves as a fallback.
-        const executeWorkflow = async (args: unknown): Promise<unknown> => {
-          const params = (args ?? {}) as Record<string, unknown>;
-          logger.debug('Executing workflow tool directly (not intercepted)', {
-            tool: toolName,
-            pluginId: canonicalId,
-          });
-
-          // contextId should come from the A2A conversation context
-          // If this execute function is called, contextId must be in the arguments
-          if (!params['contextId'] || typeof params['contextId'] !== 'string') {
-            throw new Error(
-              `Workflow tool ${toolName} requires contextId parameter. ` +
-                `contextId should be provided from the A2A conversation context.`,
-            );
-          }
-
-          const contextId = params['contextId'] as string;
-
-          const execution = workflowRuntime!.dispatch(canonicalId, {
-            contextId,
-            parameters: params,
-          });
-
-          await execution.waitForCompletion();
-
-          if (execution.error) {
-            throw execution.error;
-          }
-
-          return execution.result ?? { id: execution.id, state: execution.state };
-        };
-
-        // Create AI SDK tool from workflow plugin
+        // Create AI SDK tool from workflow plugin (schema-only, no execute)
+        // NOTE: Workflow dispatch is handled by StreamProcessor which has access to contextId
         const description = plugin.description || `Dispatch ${plugin.name} workflow`;
         const inputSchema = plugin.inputSchema ?? z.object({}).passthrough();
 
-        const aiTool = workflowToCoreTools(canonicalId, description, inputSchema, executeWorkflow);
+        const aiTool = workflowToCoreTools(canonicalId, description, inputSchema);
 
         tools.set(toolName, aiTool);
         logger.debug(`Loaded workflow tool: ${toolName}`);

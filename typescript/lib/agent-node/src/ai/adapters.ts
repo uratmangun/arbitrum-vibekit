@@ -113,18 +113,18 @@ export function createCoreToolFromMCP(
 }
 
 /**
- * Convert workflow metadata to tool
+ * Convert workflow metadata to tool (schema-only, no execute)
  */
 export function workflowToCoreTools(
   workflowId: string,
   description: string,
   inputSchema: z.ZodObject<Record<string, z.ZodTypeAny>>,
-  execute: (args: { [x: string]: unknown }) => Promise<unknown>,
 ): Tool {
   return tool({
     description: description || `Dispatch ${workflowId} workflow`,
     inputSchema,
-    execute,
+    // Schema-only tool - no execute function
+    // Workflow dispatch is handled by StreamProcessor
   });
 }
 

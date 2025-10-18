@@ -1,4 +1,5 @@
 import type { TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import { DefaultExecutionEventBusManager, InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -21,12 +22,16 @@ describe('AgentExecutor', () => {
   let workflowRuntime: StubWorkflowRuntime;
   let llm: StubAIService;
   let sessionManager: MockSessionManager;
+  let eventBusManager: DefaultExecutionEventBusManager;
+  let taskStore: InMemoryTaskStore;
 
   beforeEach(() => {
     eventBus = new RecordingEventBus();
     workflowRuntime = new StubWorkflowRuntime();
     llm = new StubAIService();
     sessionManager = new MockSessionManager();
+    eventBusManager = new DefaultExecutionEventBusManager();
+    taskStore = new InMemoryTaskStore();
   });
 
   it('routes messages with taskId to existing paused workflows', async () => {
@@ -50,6 +55,8 @@ describe('AgentExecutor', () => {
       workflowRuntime,
       llm as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     // When: A message with taskId is received
@@ -84,6 +91,8 @@ describe('AgentExecutor', () => {
       workflowRuntime,
       llm as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     createUserMessage(contextId, 'Open a long position on ETH-USD');
@@ -127,6 +136,8 @@ describe('AgentExecutor', () => {
       workflowRuntime,
       llm as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     createTaskMessage(contextId, taskId, 'Update the order');
@@ -188,6 +199,8 @@ describe('AgentExecutor', () => {
       workflowRuntime,
       llm as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     createUserMessage(contextId, 'Execute complex workflow request');
@@ -250,6 +263,8 @@ describe('AgentExecutor', () => {
       workflowRuntime,
       llm as unknown as AIService,
       sessionManager as unknown as SessionManager,
+      eventBusManager,
+      taskStore,
     );
 
     createUserMessage(contextId, 'Start long running workflow');

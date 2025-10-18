@@ -1,4 +1,10 @@
-import { type AgentExecutor, type ExecutionEventBus, RequestContext } from '@a2a-js/sdk/server';
+import {
+  type AgentExecutor,
+  type ExecutionEventBus,
+  type ExecutionEventBusManager,
+  type TaskStore,
+  RequestContext
+} from '@a2a-js/sdk/server';
 
 import type { AIService } from '../ai/service.js';
 import type { SessionManager } from './sessions/manager.js';
@@ -15,8 +21,10 @@ export function createAgentExecutor(
   workflowRuntime: WorkflowRuntime | undefined,
   ai: AIService,
   sessionManager: SessionManager,
+  eventBusManager: ExecutionEventBusManager,
+  taskStore: TaskStore,
 ): AgentExecutor {
-  return new A2AAgentExecutor(workflowRuntime, ai, sessionManager);
+  return new A2AAgentExecutor(workflowRuntime, ai, sessionManager, eventBusManager, taskStore);
 }
 
 /**
@@ -32,9 +40,11 @@ class A2AAgentExecutor implements AgentExecutor {
     workflowRuntime: WorkflowRuntime | undefined,
     ai: AIService,
     sessionManager: SessionManager,
+    eventBusManager: ExecutionEventBusManager,
+    taskStore: TaskStore,
   ) {
     // Initialize handlers
-    this.workflowHandler = new WorkflowHandler(workflowRuntime);
+    this.workflowHandler = new WorkflowHandler(workflowRuntime, eventBusManager, taskStore);
     this.aiHandler = new AIHandler(ai, this.workflowHandler, sessionManager);
     this.messageHandler = new MessageHandler(this.workflowHandler, this.aiHandler);
   }

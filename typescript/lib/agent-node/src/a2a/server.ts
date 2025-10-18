@@ -162,7 +162,7 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
   }
 
   const sessionManager = new SessionManager();
-  const agentExecutor = createAgentExecutor(workflowRuntime, aiService, sessionManager);
+  const agentExecutor = createAgentExecutor(workflowRuntime, aiService, sessionManager, eventBusManager, taskStore);
 
   const requestHandler = new DefaultRequestHandler(
     agentConfig.agentCard,

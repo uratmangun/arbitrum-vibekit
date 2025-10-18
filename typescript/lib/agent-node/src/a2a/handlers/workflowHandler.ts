@@ -12,12 +12,19 @@ import type {
   TextPart,
   Part,
 } from '@a2a-js/sdk';
-import { type ExecutionEventBus } from '@a2a-js/sdk/server';
+import {
+  type ExecutionEventBus,
+  type ExecutionEventBusManager,
+  ExecutionEventQueue,
+  ResultManager,
+  type TaskStore
+} from '@a2a-js/sdk/server';
 import { v7 as uuidv7 } from 'uuid';
 
 import { Logger } from '../../utils/logger.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
 import type { ActiveTask, TaskState, WorkflowEvent } from '../types.js';
+import { canonicalizeName } from '../../config/validators/tool-validator.js';
 
 /**
  * Type guards
@@ -40,9 +47,38 @@ export class WorkflowHandler {
   private activeTasks = new Map<string, ActiveTask>();
   private pendingCancels = new Set<string>();
   private logger: Logger;
+  private contextTaskMap = new Map<string, string>();
 
-  constructor(private workflowRuntime?: WorkflowRuntime) {
+  constructor(
+    private workflowRuntime?: WorkflowRuntime,
+    private eventBusManager?: ExecutionEventBusManager,
+    private taskStore?: TaskStore,
+  ) {
     this.logger = Logger.getInstance('WorkflowHandler');
+    if (this.taskStore) {
+      const originalLoad = this.taskStore.load.bind(this.taskStore);
+      this.taskStore.load = async (taskId: string): Promise<Task | undefined> => {
+        const task = await originalLoad(taskId);
+        this.logger.debug('taskStore.load', {
+          taskId,
+          found: !!task,
+          state: task?.status?.state,
+        });
+        return task;
+      };
+    }
+  }
+
+  registerContextTask(contextId: string, taskId: string): void {
+    this.contextTaskMap.set(contextId, taskId);
+  }
+
+  resolveTaskIdForContext(contextId: string): string | undefined {
+    return this.contextTaskMap.get(contextId);
+  }
+
+  getEventBusByTaskId(taskId: string): ExecutionEventBus | undefined {
+    return this.eventBusManager?.getByTaskId(taskId);
   }
 
   /**
@@ -56,6 +92,13 @@ export class WorkflowHandler {
     taskState: TaskState,
     eventBus: ExecutionEventBus,
   ): Promise<void> {
+    this.logger.debug('resumeWorkflow called', {
+      taskId,
+      contextId,
+      taskState: taskState.state,
+      hasMessageData: messageData !== undefined,
+    });
+
     // Get the execution object - this has the event listeners set up in dispatchWorkflow()
     const execution = this.workflowRuntime?.getExecution(taskId);
 
@@ -175,7 +218,7 @@ export class WorkflowHandler {
       eventBus.publish(errorMessage);
     }
 
-    eventBus.finished();
+    this.logger.debug('resumeWorkflow finished', { taskId, contextId });
   }
 
   /**
@@ -198,12 +241,23 @@ export class WorkflowHandler {
 
     try {
       // Extract plugin ID from workflow name
-      const pluginId = workflowName.replace('dispatch_workflow_', '');
-      this.logger.debug('Extracted plugin ID', { pluginId });
+      const rawPluginId = workflowName.replace('dispatch_workflow_', '');
+      // Canonicalize the plugin ID to match how it's stored in the runtime
+      const pluginId = canonicalizeName(rawPluginId);
+      this.logger.debug('Extracted plugin ID', { rawPluginId, pluginId });
 
       // Get plugin metadata
+      const registeredPlugins = this.workflowRuntime.listPlugins ? this.workflowRuntime.listPlugins() : [];
+      this.logger.debug('Registered plugins in runtime', { registeredPlugins });
+
       const plugin = this.workflowRuntime.getPlugin(pluginId);
       if (!plugin) {
+        this.logger.error('Plugin not found', {
+          pluginId,
+          rawPluginId,
+          registeredPlugins,
+          hasGetPlugin: typeof this.workflowRuntime.getPlugin === 'function'
+        });
         throw new Error(`Plugin ${pluginId} not found`);
       }
 
@@ -215,6 +269,183 @@ export class WorkflowHandler {
         ...workflowParams,
         contextId,
       });
+
+      // Create a child-specific event bus for this workflow task
+      const childEventBus = this.eventBusManager?.createOrGetByTaskId(execution.id) ?? eventBus;
+
+      // Start persistence loop for child bus events BEFORE setting up handlers
+      let persistenceLoopPromise: Promise<void> | undefined;
+      let persistenceQueue: ExecutionEventQueue | undefined;
+      let resolveFirstEvent: (() => void) | undefined;
+      let firstEventProcessed: Promise<void> = Promise.resolve();
+      let firstEventResolved = false;
+      let hasStatusEvent = false;
+      const pendingChildEvents: Array<Message | TaskStatusUpdateEvent | TaskArtifactUpdateEvent> = [];
+
+      this.logger.debug('Checking persistence requirements', {
+        hasTaskStore: !!this.taskStore,
+        hasEventBusManager: !!this.eventBusManager,
+        childTaskId: execution.id,
+      });
+
+      if (this.taskStore && this.eventBusManager) {
+        const taskStore = this.taskStore; // Capture for closure
+
+        persistenceQueue = new ExecutionEventQueue(childEventBus);
+        const childResultManager = new ResultManager(taskStore);
+
+        // Track when the first event has been fully processed
+        firstEventProcessed = new Promise<void>((resolve) => {
+          resolveFirstEvent = resolve;
+        });
+
+        persistenceLoopPromise = (async () => {
+          this.logger.debug('Started persistence loop for child task', { taskId: execution.id });
+
+          try {
+            let isFirstEvent = true;
+            for await (const event of persistenceQueue.events()) {
+              await childResultManager.processEvent(event);
+              const currentTask = childResultManager.getCurrentTask();
+              this.logger.debug('Persisted child event', {
+                taskId: execution.id,
+                eventKind: event.kind,
+                persistedState: currentTask?.status?.state,
+                artifactCount: currentTask?.artifacts?.length ?? 0,
+              });
+
+              // Signal that first event has been processed and stored
+              if (isFirstEvent) {
+                this.logger.debug('First event processed for child task', { taskId: execution.id, eventKind: event.kind });
+                resolveFirstEvent?.();
+                 firstEventResolved = true;
+                 if (pendingChildEvents.length > 0) {
+                   this.logger.debug('Flushing buffered child events', {
+                     taskId: execution.id,
+                     count: pendingChildEvents.length,
+                   });
+                   while (pendingChildEvents.length > 0) {
+                     const bufferedEvent = pendingChildEvents.shift();
+                     if (bufferedEvent) {
+                       childEventBus.publish(bufferedEvent);
+                     }
+                   }
+                 }
+                isFirstEvent = false;
+              }
+            }
+          } catch (error) {
+            this.logger.error('Error in child persistence loop', error, { taskId: execution.id });
+          } finally {
+            this.logger.debug('Persistence loop ended for child task', { taskId: execution.id });
+          }
+        })();
+      } else {
+        firstEventResolved = true;
+      }
+
+      const executionId = execution.id;
+
+      const publishChildEvent = (
+        event: Message | TaskStatusUpdateEvent | TaskArtifactUpdateEvent,
+      ): void => {
+        if (firstEventResolved) {
+          this.logger.debug('Publishing child event', {
+            taskId: executionId,
+            eventKind: event.kind,
+          });
+          childEventBus.publish(event);
+        } else {
+          pendingChildEvents.push(event);
+        }
+      };
+
+      // Set up event handlers immediately; publish after first task persistence completes
+      if (hasEventEmitter(execution)) {
+        this.logger.debug('Setting up event handlers for workflow', { taskId: execution.id });
+
+        execution.on('artifact', (artifact: unknown) => {
+          const artifactUpdate: TaskArtifactUpdateEvent = {
+            kind: 'artifact-update',
+            taskId: execution.id,
+            contextId,
+            artifact: artifact as Artifact,
+            lastChunk: false,
+          };
+
+          publishChildEvent(artifactUpdate);
+        });
+
+        execution.on('update', (update: unknown) => {
+          const workflowUpdate = update as WorkflowEvent;
+          if (workflowUpdate?.type === 'status' && workflowUpdate?.status) {
+            const statusUpdate: TaskStatusUpdateEvent = {
+              kind: 'status-update',
+              taskId: execution.id,
+              contextId,
+              status: workflowUpdate.status as TaskStatus,
+              final: false,
+            };
+
+            hasStatusEvent = true;
+
+            publishChildEvent(statusUpdate);
+          }
+        });
+
+        execution.on('pause', (pauseInfo: unknown) => {
+          this.logger.debug('Workflow pausing', { taskId: execution.id, pauseInfo });
+          const workflowPauseInfo = pauseInfo as WorkflowEvent;
+          const parts: Part[] = [];
+          if (workflowPauseInfo?.message) {
+            parts.push({ kind: 'text', text: workflowPauseInfo.message } as TextPart);
+          }
+          if (workflowPauseInfo?.inputSchema && typeof workflowPauseInfo.inputSchema === 'object') {
+            parts.push({
+              kind: 'data',
+              data: { inputSchema: workflowPauseInfo.inputSchema },
+              metadata: { mimeType: 'application/json' },
+            });
+          }
+
+          const statusUpdate: TaskStatusUpdateEvent = {
+            kind: 'status-update',
+            taskId: execution.id,
+            contextId,
+            status: {
+              state:
+                (workflowPauseInfo?.state as TaskStatus['state']) ||
+                ('input-required' as TaskStatus['state']),
+              message: {
+                kind: 'message',
+                messageId: uuidv7(),
+                contextId,
+                role: 'agent',
+                parts,
+              },
+            },
+            final: false,
+          };
+
+          hasStatusEvent = true;
+
+          publishChildEvent(statusUpdate);
+        });
+
+        execution.on('error', (_err: unknown) => {
+          const failedUpdate: TaskStatusUpdateEvent = {
+            kind: 'status-update',
+            taskId: execution.id,
+            contextId,
+            status: { state: 'failed' },
+            final: true,
+          };
+
+          hasStatusEvent = true;
+
+          publishChildEvent(failedUpdate);
+        });
+      }
 
       // Create task event for the new workflow
       const task: Task = {
@@ -228,7 +459,26 @@ export class WorkflowHandler {
       };
 
       this.logger.debug('Created task', { task });
-      eventBus.publish(task);
+      // Publish task creation on the child bus (queue will buffer it)
+      childEventBus.publish(task);
+      this.registerContextTask(contextId, execution.id);
+
+      // Wait for the Task event to be fully processed and stored
+      await firstEventProcessed;
+      this.logger.debug('Task event processed and stored, continuing with workflow', { taskId: execution.id });
+
+      // Verify task is actually in the store
+      if (this.taskStore) {
+        const storedTask = await this.taskStore.load(execution.id);
+        this.logger.debug('Verified task in store', {
+          taskId: execution.id,
+          taskFound: !!storedTask,
+          taskState: storedTask?.status?.state
+        });
+      }
+
+      // NOW set up event handlers AFTER task is persisted to avoid race conditions
+      // Event handlers publish via first-event gating to avoid race conditions
 
       // Create abort controller
       const abortController = new AbortController();
@@ -268,93 +518,22 @@ export class WorkflowHandler {
         abortController.abort();
       }
 
-      // Update to working state
-      const workingUpdate: TaskStatusUpdateEvent = {
-        kind: 'status-update',
-        taskId: execution.id,
-        contextId,
-        status: {
-          state: 'working',
-        },
-        final: false,
-      };
-      eventBus.publish(workingUpdate);
-
-      // Subscribe to execution events for streaming
-      if (hasEventEmitter(execution)) {
-        execution.on('artifact', (artifact: unknown) => {
-          // Publish as TaskArtifactUpdateEvent with taskId for proper A2A routing
-          const artifactUpdate: TaskArtifactUpdateEvent = {
-            kind: 'artifact-update',
-            taskId: execution.id,
-            contextId,
-            artifact: artifact as Artifact,
-            lastChunk: false,
-          };
-          eventBus.publish(artifactUpdate);
-        });
-
-        execution.on('update', (update: unknown) => {
-          const workflowUpdate = update as WorkflowEvent;
-          if (workflowUpdate?.type === 'status' && workflowUpdate?.status) {
-            const statusUpdate: TaskStatusUpdateEvent = {
-              kind: 'status-update',
-              taskId: execution.id,
-              contextId,
-              status: workflowUpdate.status as TaskStatus,
-              final: false,
-            };
-            eventBus.publish(statusUpdate);
-          }
-        });
-
-        execution.on('pause', (pauseInfo: unknown) => {
-          const workflowPauseInfo = pauseInfo as WorkflowEvent;
-          const parts: Part[] = [];
-          if (workflowPauseInfo?.message) {
-            parts.push({ kind: 'text', text: workflowPauseInfo.message } as TextPart);
-          }
-          // Best effort: attach a serializable schema hint if present
-          if (workflowPauseInfo?.inputSchema && typeof workflowPauseInfo.inputSchema === 'object') {
-            parts.push({
-              kind: 'data',
-              data: { inputSchema: workflowPauseInfo.inputSchema },
-              metadata: { mimeType: 'application/json' },
-            });
-          }
-
-          const statusUpdate: TaskStatusUpdateEvent = {
-            kind: 'status-update',
-            taskId: execution.id,
-            contextId,
-            status: {
-              state:
-                (workflowPauseInfo?.state as TaskStatus['state']) ||
-                ('input-required' as TaskStatus['state']),
-              message: {
-                kind: 'message',
-                messageId: uuidv7(),
-                contextId,
-                role: 'agent',
-                parts,
-              },
-            },
-            final: false,
-          };
-          eventBus.publish(statusUpdate);
-        });
-
-        execution.on('error', (_err: unknown) => {
-          const failedUpdate: TaskStatusUpdateEvent = {
-            kind: 'status-update',
-            taskId: execution.id,
-            contextId,
-            status: { state: 'failed' },
-            final: true,
-          };
-          eventBus.publish(failedUpdate);
-        });
+      // Update to working state AFTER handlers are set up to ensure proper event ordering
+      if (!hasStatusEvent) {
+        const workingUpdate: TaskStatusUpdateEvent = {
+          kind: 'status-update',
+          taskId: execution.id,
+          contextId,
+          status: {
+            state: 'working',
+          },
+          final: false,
+        };
+        // Publish working state on child bus
+        childEventBus.publish(workingUpdate);
       }
+
+      // Event handlers have been set up above to avoid race conditions
 
       const monitorExecution = async (): Promise<void> => {
         try {
@@ -372,7 +551,8 @@ export class WorkflowHandler {
               },
               final: true,
             };
-            eventBus.publish(canceledUpdate);
+            // Publish cancellation on child bus
+            childEventBus.publish(canceledUpdate);
             return;
           }
 
@@ -389,7 +569,8 @@ export class WorkflowHandler {
               },
               final: true,
             };
-            eventBus.publish(completedUpdate);
+            // Publish completion on child bus
+            childEventBus.publish(completedUpdate);
           } else if (execution.state === 'failed') {
             const failedUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
@@ -400,7 +581,8 @@ export class WorkflowHandler {
               },
               final: true,
             };
-            eventBus.publish(failedUpdate);
+            // Publish failure on child bus
+            childEventBus.publish(failedUpdate);
           } else if (execution.state === 'canceled') {
             const canceledUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
@@ -411,7 +593,8 @@ export class WorkflowHandler {
               },
               final: true,
             };
-            eventBus.publish(canceledUpdate);
+            // Publish cancellation on child bus
+            childEventBus.publish(canceledUpdate);
           }
         } catch (error: unknown) {
           const errorMessage: Message = {
@@ -426,9 +609,34 @@ export class WorkflowHandler {
               } as TextPart,
             ],
           };
-          eventBus.publish(errorMessage);
+          // Publish error message on child bus
+          childEventBus.publish(errorMessage);
         } finally {
-          eventBus.finished();
+          // Allow time for final events to be processed by the persistence loop
+          // This ensures final status updates are stored before cleanup
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          // Call finished on child bus to complete the child stream
+          childEventBus.finished();
+
+          // Clean up persistence loop after workflow completes
+          if (persistenceQueue) {
+            this.logger.debug('Stopping persistence queue for child task', { taskId: execution.id });
+            persistenceQueue.stop();
+          }
+
+          if (persistenceLoopPromise) {
+            this.logger.debug('Waiting for persistence loop to complete', { taskId: execution.id });
+            await persistenceLoopPromise;
+          }
+
+          if (this.eventBusManager) {
+            this.eventBusManager.cleanupByTaskId(execution.id);
+            this.logger.debug('Cleaned up persistence loop for child task', { taskId: execution.id });
+            if (this.contextTaskMap.get(contextId) === execution.id) {
+              this.contextTaskMap.delete(contextId);
+            }
+          }
         }
       };
 
@@ -485,6 +693,12 @@ export class WorkflowHandler {
    * Gets task state from the workflow runtime
    */
   getTaskState(taskId: string): TaskState | undefined {
-    return this.workflowRuntime?.getTaskState?.(taskId) as TaskState | undefined;
+    const state = this.workflowRuntime?.getTaskState?.(taskId) as TaskState | undefined;
+    this.logger.debug('getTaskState', {
+      taskId,
+      state: state?.state,
+      found: !!state,
+    });
+    return state;
   }
 }

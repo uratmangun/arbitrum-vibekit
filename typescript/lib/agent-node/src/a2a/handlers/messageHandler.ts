@@ -7,11 +7,14 @@ import { A2AError, type ExecutionEventBus } from '@a2a-js/sdk/server';
 
 import { AIHandler } from './aiHandler.js';
 import { WorkflowHandler } from './workflowHandler.js';
+import { Logger } from '../../utils/logger.js';
 
 /**
  * Handles message routing and processing for the agent executor
  */
 export class MessageHandler {
+  private logger = Logger.getInstance('MessageHandler');
+
   constructor(
     private workflowHandler: WorkflowHandler,
     private aiHandler: AIHandler,
@@ -27,8 +30,31 @@ export class MessageHandler {
     messageData: unknown,
     eventBus: ExecutionEventBus,
   ): Promise<void> {
+    this.logger.debug('handleMessage invoked', {
+      requestTaskId: taskId,
+      contextId,
+    });
     // Get task state from workflow runtime (only exists for workflow tasks)
-    const taskState = this.workflowHandler.getTaskState(taskId);
+    let effectiveTaskId = taskId;
+    let effectiveEventBus = eventBus;
+    let taskState = this.workflowHandler.getTaskState(taskId);
+
+    if (!taskState) {
+      const mappedTaskId = this.workflowHandler.resolveTaskIdForContext(contextId);
+      if (mappedTaskId) {
+        this.logger.debug('Resolved task via context mapping', {
+          contextId,
+          originalTaskId: taskId,
+          mappedTaskId,
+        });
+        effectiveTaskId = mappedTaskId;
+        taskState = this.workflowHandler.getTaskState(mappedTaskId);
+        const mappedBus = this.workflowHandler.getEventBusByTaskId(mappedTaskId);
+        if (mappedBus) {
+          effectiveEventBus = mappedBus;
+        }
+      }
+    }
 
     // If task exists in workflow runtime, handle workflow resumption
     if (taskState) {
@@ -38,11 +64,11 @@ export class MessageHandler {
         taskState.state === 'failed' ||
         taskState.state === 'canceled'
       ) {
-        eventBus.finished();
+        effectiveEventBus.finished();
         throw A2AError.invalidRequest(
-          `Task ${taskId} is in a terminal state (${taskState.state}) and cannot be modified.`,
+          `Task ${effectiveTaskId} is in a terminal state (${taskState.state}) and cannot be modified.`,
           {
-            taskId,
+            taskId: effectiveTaskId,
             state: taskState.state,
           },
         );
@@ -56,12 +82,12 @@ export class MessageHandler {
       if (canAttemptResume) {
         try {
           await this.workflowHandler.resumeWorkflow(
-            taskId,
+            effectiveTaskId,
             contextId,
             messageContent,
             messageData,
             taskState,
-            eventBus,
+            effectiveEventBus,
           );
           return;
         } catch (error) {
@@ -77,8 +103,8 @@ export class MessageHandler {
     this.aiHandler.handleStreamingAIProcessing(
       messageContent,
       contextId,
-      taskId,
-      eventBus,
+      effectiveTaskId,
+      effectiveEventBus,
       messageData,
     );
   }
