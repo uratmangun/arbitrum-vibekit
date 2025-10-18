@@ -28,7 +28,7 @@
     "start:anvil": "pnpm run lint:require-submodule && npx tsx test/start-anvil.ts",
     "start:mainnet": "pnpm run lint:require-submodule && npx tsx test/start-mainnet.ts",
     "release": "multi-semantic-release --sequential --packages \"lib/ember-plugin-registry\" --ignore-private-packages",
-    "sync:rules": "rulesync generate"
+    "sync:rules": "cd .. && npx rulesync generate"
   },
   "keywords": [],
   "author": "",

@@ -72,7 +72,7 @@
     "test": "pnpm test:unit && pnpm test:int",
     "test:unit": "vitest run --config vitest.config.unit.ts",
     "test:int": "tsx --env-file=.env.test ./node_modules/vitest/vitest.mjs run --config vitest.config.int.ts",
-    "test:e2e": "tsx --env-file=.env.test ./node_modules/vitest/vitest.mjs run --config vitest.config.e2e.ts",
+    "test:e2e": "tsx --env-file=.env.test ./node_modules/vitest/vitest.mjs run --config vitest.config.e2e.ts --no-file-parallelism --maxConcurrency=1",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
