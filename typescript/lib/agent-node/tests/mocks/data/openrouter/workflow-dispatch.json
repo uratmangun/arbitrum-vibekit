@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "service": "openrouter",
+    "endpoint": "/api/v1/chat/completions",
+    "method": "POST",
+    "recordedAt": "2025-10-17T22:11:01.169Z"
+  },
+  "request": {
+    "headers": {
+      "Authorization": "***"
+    },
+    "body": {
+      "model": "openai/gpt-4o-mini",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are an AI agent that can dispatch workflows. Use the dispatch_workflow_* tools to start workflows when requested."
+        },
+        {
+          "role": "user",
+          "content": "Please execute the defi-strategy-lifecycle-mock workflow"
+        }
+      ],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "dispatch_workflow_defi_strategy_lifecycle_mock",
+            "description": "Dispatch the defi-strategy-lifecycle-mock workflow",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "description": "Optional parameters for the workflow"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "stream": false
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "date": "Fri, 17 Oct 2025 22:11:01 GMT",
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-allow-origin": "*",
+      "vary": "Accept-Encoding",
+      "permissions-policy": "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")",
+      "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
+      "x-content-type-options": "nosniff",
+      "server": "cloudflare",
+      "cf-ray": "9903210c7d53da48-EWR",
+      "content-encoding": "gzip"
+    },
+    "rawBody": "H4sIAAAAAAAAA+JSgAEuAAAAAP//4kIwAQAAAP//QmICAAAA//9CYgIAAAD//0JiAgAAAP//QmICAAAA//98kUtv1DAUhf/LWXsgnc4j9Y5NhyIhoOoGocpy7ZvMZRzb2E6HaZT/jlKYBxJiZ537OMffHcAWEi352dV6Va2vb6plPbt70C+1WczfV7W9JXqoFx9uIRBTeGZLCRKfIvl3dxDogiUHiRDJa37bxjJbhFnHniEQnr6TKZAwW13emNBFR4WDh4BJpAtZyLOtgNkGNpQhvw1woY0pPGVI3zsn0LDnvFWJdA4eEiUEp4x2LkPA68LPpP7bw97ST8hKoKOcdUuQA1JwBAmdM+eifZmSBV/IT6khkKjps3bHEL83s2+PwoXDFPrs8Yp1KqgvXH/cxHQ/f+k+z+9XG3ab6vB1/wMC5RAn96b35g+W01MO8LqbqpZz1MVs1T6kXePCXllqWOWSdKH2oBw3ZA7GkeqC2UFAp7bvyJcMiWHEOD6O46NAPuRC3cSopRQTv36xiWq5qnSzouXyBgL9EUxMoYtFlbAjnyHr6wnM8X4n+Wo9ISjanZWqEn8PK0tF8wRogNFmS/bUXAno3nI4C+M/bC4XnA5wMTKOvwAAAP//AwDFPBN7CAMAAA=="
+  }
+}

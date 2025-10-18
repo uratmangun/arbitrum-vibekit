@@ -3,7 +3,7 @@
     "service": "openrouter",
     "endpoint": "/api/v1/chat/completions",
     "method": "POST",
-    "recordedAt": "2025-10-10T00:47:56.145Z"
+    "recordedAt": "2025-10-17T22:10:51.389Z"
   },
   "request": {
     "headers": {
@@ -23,7 +23,7 @@
   "response": {
     "status": 200,
     "headers": {
-      "date": "Fri, 10 Oct 2025 00:47:56 GMT",
+      "date": "Fri, 17 Oct 2025 22:10:51 GMT",
       "content-type": "application/json",
       "transfer-encoding": "chunked",
       "connection": "keep-alive",
@@ -34,8 +34,8 @@
       "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
       "x-content-type-options": "nosniff",
       "server": "cloudflare",
-      "cf-ray": "98c21bf15e9175e1-EWR"
+      "cf-ray": "990320d2ea1bda48-EWR"
     },
-    "rawBody": "H4sIAAAAAAAAA+JSgAEuAAAAAP//4kIwAQAAAP//tJFNittAEIWv0rzttB1b8Q80DCEEErIJgYTMIjOYtlSSetzq0nS17BmMwDfynXySoDh2spllVgVVi+97r/ZwBQwqCqPpcjGZzJfZcj76sf1Yffowl1359v32qei8+/wNGm3krSsowuBrbb2FRsMFeRhwS8G6N1WbRiwymmaTNTR4/Uh5gkFe2zTOuWk9JccBGnkkm6iA+YvVyGt2OQnMzz08V23ktcCEznuN0gUn9SqSFQ4wkMQtNIJNbkurV64uFPQMM9FoSMRWBLNHZE8wsCJOkg1psOGQKAym2elwvDkdjsO8PR2OszE0IpWdWH9ROVNcqGDwvSbVCUVlZSPKKnFDSPXUkQxJjbrHXW2TcqKym+zdPdQdqcdOkrJBdhSNmo3VF1Yte5e/qJxD6V2eztQ/mFVByTp/7iW9tIP99ThO9DxE+D3+q0/JsbEDowubwLvwT7/9Q98/aHSXitvITZtWiTcUBGa5GCq+fP+6ni00Eifrr5tplvX9LwAAAP//AwCnhmJvqgIAAA=="
+    "rawBody": "H4sIAAAAAAAAA+JSgAEuAAAAAP//4kIwAQAAAP//QmICAAAA//9CYgIAAAD//7SRwYpaMRSGXyX820arjlQn0NXAlKEUZtE6hTJIvPd4Tc3NSXNyZxxE8I18J5+kpFanXXTZ1YETkv/7v2zhahg0FHrDybvB5Op6ML7uTT9/DbPNrdw9zB6aOP04u/G30IiJn1xNCQYfPt3deO5qaLRck4cBRwrWvW1i7rFIbzgaLKDBi+9UZRhUK5v7FbfRU3YcoFElsplqmNdkjWrFriKB+baF5yYmXghM6LzXWLrgZDVPZIUDDCRzhEaw2T3R/B+nLtS0gRlotCRiG4LZIrEnGFgRJ9mGXGg4ZAqFdHTcH94c94cy3x/3h3EfGomWnVh/RjmluNDA4ItQUlbWoqwSVwqq1uaV+tGRlKp9dX8Sp2yQZ0pGjfvqnkXcwr8oW9dqkRwtFW2it6UMh1Pi74h5Tdk6f3KSX2Ihvxz2M20K/q/x31iWnFpb3u/COvBz+MPr7nG3e9Tozmpj4jbmeeY1BYGZjIva869f1ldTjczZ+stmOBzpvy+/9i7Od7ufAAAA//8DAJxDk4vYAgAA"
   }
 }

@@ -3,7 +3,7 @@
     "service": "hyperbolic",
     "endpoint": "/v1/chat/completions",
     "method": "POST",
-    "recordedAt": "2025-10-10T00:48:26.320Z"
+    "recordedAt": "2025-10-17T22:11:18.410Z"
   },
   "request": {
     "headers": {
@@ -23,16 +23,16 @@
   "response": {
     "status": 200,
     "headers": {
-      "date": "Fri, 10 Oct 2025 00:48:26 GMT",
+      "date": "Fri, 17 Oct 2025 22:11:18 GMT",
       "content-type": "application/json",
       "transfer-encoding": "chunked",
       "connection": "keep-alive",
       "server": "cloudflare",
-      "x-inference-request-id": "573ed663-f956-47da-9d3c-df67510adb4e",
+      "x-inference-request-id": "e9a34e8c-34d3-49ad-b32c-02ed25e5324d",
       "cf-cache-status": "DYNAMIC",
       "content-encoding": "gzip",
-      "cf-ray": "98c21cb0ead0577b-EWR"
+      "cf-ray": "990321847a0c6c99-EWR"
     },
-    "rawBody": "H4sIAAAAAAAA/z2QUWvCQAzHv0rJc+ta6+rsy2AgKNv7YGOU9HrqzfRSeilTxO++dM6+3EHyyy9/cgHXQAm8/lgf6/dk0YbT6zpZPZl5ZuqsxhXOdysDMXD9bY0oag4oM8NtR1Yce22Z3qJY1WTLIk0fl3laxNByY0nx1gomRNjiw9v4JvlsnuQvydYH6Qc16vyBnbEBys8LON/YE5SpCmwIuLdQXqBn0h8wBBcE/d8Me7F+zLOxRDyLNvwTGfTRNrph0ZmHSLjB87PiwkyVQaJxy1cMmjiwd35fTSI/EF1j2DnvwqG6AaoPwp0KiPddz3X451Qx3NNpve2kEj5ar/28GNcJ0lRZFGPe+8GmcpZer783SzirfwEAAA=="
+    "rawBody": "H4sIAAAAAAAA/z2QwW7CMAyGX6XzuWUtBVp6mcSkCaSdd5mmKqQeDXPjqnG1IcS7zx2DSyLZnz//8hlcAxXwy/4ta4tkWfjnzTFZr9N8npXLsikWTblAiIH3R7SiqG2NzCx3PaE49tqyAxpB1WTFKi3ydVqUMXTcICneoZiEyHTm8XV6k3w2T/JNsvNBhlGNOt+ysxigej+D8w3+QJWqAEMwB4TqDAOT/mBCcEGM/5thL+inPFsk4odoy9+RNT7aRVcsOvEYCTfm9KS4MFNtDdG05SMGTRzYO3+o7yI/El1i+HTehba+AqoPwr0KiA/9wPvwz6livKXTetdLLfyFXvv5alonhu6VxWrKezvYvZyll8svbLqbmH8BAAA="
   }
 }
