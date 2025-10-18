@@ -49,6 +49,14 @@ export class MockSessionManager implements Partial<SessionManager> {
     return this.histories.get(contextId) || [];
   }
 
+  getTasks(contextId: string): string[] {
+    const session = this.sessions.get(contextId);
+    if (!session) {
+      return [];
+    }
+    return session.state.tasks;
+  }
+
   // Helper for tests to inspect state
   getAllSessions(): Map<string, Session> {
     return this.sessions;

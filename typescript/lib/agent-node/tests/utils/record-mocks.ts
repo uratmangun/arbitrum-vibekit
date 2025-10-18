@@ -183,6 +183,126 @@ async function main(): Promise<void> {
             stream: true,
           },
         },
+        // Workflow dispatch with tool calling
+        {
+          path: '/api/v1/chat/completions',
+          method: 'POST',
+          key: 'streaming-workflow-dispatch',
+          requiresAuth: true,
+          body: {
+            model: 'openai/gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are an AI agent that can dispatch workflows. Use the dispatch_workflow_* tools to start workflows when requested.',
+              },
+              {
+                role: 'user',
+                content: 'Please execute the defi-strategy-lifecycle-mock workflow',
+              },
+            ],
+            tools: [
+              {
+                type: 'function',
+                function: {
+                  name: 'dispatch_workflow_defi_strategy_lifecycle_mock',
+                  description: 'Dispatch the defi-strategy-lifecycle-mock workflow',
+                  parameters: {
+                    type: 'object',
+                    properties: {
+                      params: {
+                        type: 'object',
+                        description: 'Optional parameters for the workflow',
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+            tool_choice: 'auto',
+            stream: true,
+          },
+        },
+        {
+          path: '/api/v1/chat/completions',
+          method: 'POST',
+          key: 'workflow-dispatch',
+          requiresAuth: true,
+          body: {
+            model: 'openai/gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are an AI agent that can dispatch workflows. Use the dispatch_workflow_* tools to start workflows when requested.',
+              },
+              {
+                role: 'user',
+                content: 'Please execute the defi-strategy-lifecycle-mock workflow',
+              },
+            ],
+            tools: [
+              {
+                type: 'function',
+                function: {
+                  name: 'dispatch_workflow_defi_strategy_lifecycle_mock',
+                  description: 'Dispatch the defi-strategy-lifecycle-mock workflow',
+                  parameters: {
+                    type: 'object',
+                    properties: {
+                      params: {
+                        type: 'object',
+                        description: 'Optional parameters for the workflow',
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+            tool_choice: 'auto',
+            stream: false,
+          },
+        },
+        {
+          path: '/api/v1/chat/completions',
+          method: 'POST',
+          key: 'streaming-multi-tool-dispatch',
+          requiresAuth: true,
+          body: {
+            model: 'openai/gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an AI agent that can dispatch workflows using tools.',
+              },
+              {
+                role: 'user',
+                content: 'Start both workflow filter_test_1 and filter_test_2',
+              },
+            ],
+            tools: [
+              {
+                type: 'function',
+                function: {
+                  name: 'dispatch_workflow_filter_test_1',
+                  description: 'Dispatch the filter_test_1 workflow',
+                  parameters: { type: 'object', properties: {} },
+                },
+              },
+              {
+                type: 'function',
+                function: {
+                  name: 'dispatch_workflow_filter_test_2',
+                  description: 'Dispatch the filter_test_2 workflow',
+                  parameters: { type: 'object', properties: {} },
+                },
+              },
+            ],
+            tool_choice: 'auto',
+            stream: true,
+          },
+        },
         // Error response mocks
         {
           path: '/api/v1/chat/completions',
