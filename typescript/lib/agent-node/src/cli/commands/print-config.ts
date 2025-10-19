@@ -12,8 +12,8 @@ import {
   extractToolPolicies,
   type CardWithExtensions,
 } from '../../config/utils/card-inspector.js';
-import { cliOutput } from '../output.js';
 import { serviceConfig } from '../../config.js';
+import { cliOutput } from '../output.js';
 
 export interface PrintConfigOptions {
   configDir?: string;

@@ -7,10 +7,10 @@ import {
   type StreamTextResult,
 } from 'ai';
 
+import type { ModelConfigRuntime } from '../config/runtime/init.js';
+import type { SkillModelOverride } from '../config/schemas/skill.schema.js';
 import { serviceConfig } from '../config.js';
 import { Logger } from '../utils/logger.js';
-import type { SkillModelOverride } from '../config/schemas/skill.schema.js';
-import type { ModelConfigRuntime } from '../config/runtime/init.js';
 
 import {
   createProviderSelector,
@@ -207,7 +207,7 @@ export class AIService {
     this.agentModelParams = params;
 
     if (!this.providerLocked && modelConfig.agent.provider) {
-      const provider = modelConfig.agent.provider as 'openrouter' | 'openai' | 'xai' | 'hyperbolic';
+      const provider = modelConfig.agent.provider;
       const providerFn = this.providerSelector[provider];
       if (!providerFn) {
         throw new Error(

@@ -7,12 +7,12 @@ import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool, TextStreamPart } from 'ai';
 
 import type { AIService } from '../../ai/service.js';
-import type { SessionManager } from '../sessions/manager.js';
 import { Logger } from '../../utils/logger.js';
+import type { SessionManager } from '../sessions/manager.js';
 
 import { StreamProcessor } from './streaming/StreamProcessor.js';
 import { ToolHandler } from './toolHandler.js';
-import { WorkflowHandler } from './workflowHandler.js';
+import type { WorkflowHandler } from './workflowHandler.js';
 
 /**
  * Handles AI-related operations for the agent executor

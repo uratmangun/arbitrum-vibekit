@@ -9,13 +9,13 @@
 import type { TextStreamPart, Tool } from 'ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { RecordingEventBus } from '../../../tests/utils/mocks/event-bus.mock.js';
+import { MockSessionManager } from '../../../tests/utils/mocks/session-manager.mock.js';
 import type { AIService } from '../../ai/service.js';
 import type { SessionManager } from '../sessions/manager.js';
-import { MockSessionManager } from '../../../tests/utils/mocks/session-manager.mock.js';
-import { RecordingEventBus } from '../../../tests/utils/mocks/event-bus.mock.js';
 
 import { AIHandler } from './aiHandler.js';
-import { WorkflowHandler } from './workflowHandler.js';
+import type { WorkflowHandler } from './workflowHandler.js';
 
 type AIServiceDouble = {
   streamMessage: ReturnType<
@@ -61,7 +61,7 @@ describe('AIHandler - streaming fix', () => {
 
     // Create mock workflow handler
     mockWorkflowHandler = {
-      dispatchWorkflow: vi.fn(async () => ({})),
+      dispatchWorkflow: vi.fn(() => Promise.resolve({})),
     };
 
     // Create event bus

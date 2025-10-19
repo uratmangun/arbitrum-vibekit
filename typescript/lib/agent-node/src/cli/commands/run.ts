@@ -7,9 +7,9 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 
 import { createA2AServer } from '../../a2a/server.js';
-import { serviceConfig } from '../../config.js';
 import { initFromConfigWorkspace } from '../../config/runtime/init.js';
 import type { HotReloadEvent } from '../../config/runtime/init.js';
+import { serviceConfig } from '../../config.js';
 import { cliOutput } from '../output.js';
 
 function summarizeHotReload(updated: HotReloadEvent['updated']): string[] {

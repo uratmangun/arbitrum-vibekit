@@ -553,50 +553,58 @@ Tool names must be unique across all MCP servers.
 - Verify workflow plugin exports default
 `;
 
-export async function initCommand(options: InitOptions = {}): Promise<void> {
-  const targetDir = resolve(process.cwd(), options.target ?? 'config');
+export function initCommand(options: InitOptions = {}): Promise<void> {
+  return new Promise<void>((resolvePromise, rejectPromise) => {
+    try {
+      const targetDir = resolve(process.cwd(), options.target ?? 'config');
 
-  // Check if target already exists
-  if (existsSync(targetDir) && !options.force) {
-    throw new Error(
-      `Directory already exists: ${targetDir}\nUse --force to overwrite existing directory`,
-    );
-  }
+      // Check if target already exists
+      if (existsSync(targetDir) && !options.force) {
+        throw new Error(
+          `Directory already exists: ${targetDir}\nUse --force to overwrite existing directory`,
+        );
+      }
 
-  cliOutput.print(`Initializing config workspace at ${targetDir}`);
+      cliOutput.print(`Initializing config workspace at ${targetDir}`);
 
-  // Create directory structure
-  mkdirSync(targetDir, { recursive: true });
-  mkdirSync(resolve(targetDir, 'skills'), { recursive: true });
-  mkdirSync(resolve(targetDir, 'workflows'), { recursive: true });
+      // Create directory structure
+      mkdirSync(targetDir, { recursive: true });
+      mkdirSync(resolve(targetDir, 'skills'), { recursive: true });
+      mkdirSync(resolve(targetDir, 'workflows'), { recursive: true });
 
-  // Write sample files
-  writeFileSync(resolve(targetDir, 'agent.md'), SAMPLE_AGENT_MD);
-  writeFileSync(resolve(targetDir, 'agent.manifest.json'), SAMPLE_MANIFEST);
-  writeFileSync(resolve(targetDir, 'mcp.json'), SAMPLE_MCP_JSON);
-  writeFileSync(resolve(targetDir, 'workflow.json'), SAMPLE_WORKFLOW_JSON);
-  writeFileSync(resolve(targetDir, 'README.md'), SAMPLE_README);
-  writeFileSync(resolve(targetDir, 'skills', 'general-assistant.md'), SAMPLE_GENERAL_SKILL);
-  writeFileSync(resolve(targetDir, 'skills', 'ember-onchain-actions.md'), SAMPLE_EMBER_SKILL);
-  writeFileSync(resolve(targetDir, 'workflows', 'example-workflow.ts'), SAMPLE_WORKFLOW_TS);
+      // Write sample files
+      writeFileSync(resolve(targetDir, 'agent.md'), SAMPLE_AGENT_MD);
+      writeFileSync(resolve(targetDir, 'agent.manifest.json'), SAMPLE_MANIFEST);
+      writeFileSync(resolve(targetDir, 'mcp.json'), SAMPLE_MCP_JSON);
+      writeFileSync(resolve(targetDir, 'workflow.json'), SAMPLE_WORKFLOW_JSON);
+      writeFileSync(resolve(targetDir, 'README.md'), SAMPLE_README);
+      writeFileSync(resolve(targetDir, 'skills', 'general-assistant.md'), SAMPLE_GENERAL_SKILL);
+      writeFileSync(resolve(targetDir, 'skills', 'ember-onchain-actions.md'), SAMPLE_EMBER_SKILL);
+      writeFileSync(resolve(targetDir, 'workflows', 'example-workflow.ts'), SAMPLE_WORKFLOW_TS);
 
-  cliOutput.success('Created `agent.md`');
-  cliOutput.success('Created `agent.manifest.json`');
-  cliOutput.success('Created `mcp.json`');
-  cliOutput.success('Created `workflow.json`');
-  cliOutput.success('Created `README.md`');
-  cliOutput.success('Created `skills/` directory');
-  cliOutput.success('Created `skills/general-assistant.md`');
-  cliOutput.success('Created `skills/ember-onchain-actions.md`');
-  cliOutput.success('Created `workflows/` directory');
-  cliOutput.success('Created `workflows/example-workflow.ts`');
+      cliOutput.success('Created `agent.md`');
+      cliOutput.success('Created `agent.manifest.json`');
+      cliOutput.success('Created `mcp.json`');
+      cliOutput.success('Created `workflow.json`');
+      cliOutput.success('Created `README.md`');
+      cliOutput.success('Created `skills/` directory');
+      cliOutput.success('Created `skills/general-assistant.md`');
+      cliOutput.success('Created `skills/ember-onchain-actions.md`');
+      cliOutput.success('Created `workflows/` directory');
+      cliOutput.success('Created `workflows/example-workflow.ts`');
 
-  cliOutput.blank();
-  cliOutput.print('Config workspace initialized successfully!', 'cyan');
-  cliOutput.blank();
-  cliOutput.print('**Next steps:**');
-  cliOutput.print('  1. Edit `config/agent.md` to customize your agent');
-  cliOutput.print('  2. Customize `config/skills/general-assistant.md` or add more skills');
-  cliOutput.print('  3. Run: `pnpm agent doctor`');
-  cliOutput.print('  4. Run: `pnpm agent run --dev`');
+      cliOutput.blank();
+      cliOutput.print('Config workspace initialized successfully!', 'cyan');
+      cliOutput.blank();
+      cliOutput.print('**Next steps:**');
+      cliOutput.print('  1. Edit `config/agent.md` to customize your agent');
+      cliOutput.print('  2. Customize `config/skills/general-assistant.md` or add more skills');
+      cliOutput.print('  3. Run: `pnpm agent doctor`');
+      cliOutput.print('  4. Run: `pnpm agent run --dev`');
+
+      resolvePromise();
+    } catch (error) {
+      rejectPromise(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
 }

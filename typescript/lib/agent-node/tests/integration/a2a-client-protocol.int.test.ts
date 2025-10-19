@@ -9,19 +9,20 @@
  */
 
 import type { Server } from 'http';
-import { A2AClient } from '@a2a-js/sdk/client';
+
 import type { Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import { A2AClient } from '@a2a-js/sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 
+import type { AgentConfigHandle } from '../../src/config/runtime/init.js';
+import { WorkflowRuntime } from '../../src/workflows/runtime.js';
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 import {
   createTestA2AServerWithStubs,
   cleanupTestServer,
 } from '../utils/test-server-with-stubs.js';
-import type { AgentConfigHandle } from '../../src/config/runtime/init.js';
-import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
-import { WorkflowRuntime } from '../../src/workflows/runtime.js';
 
 /**
  * Create a workflow that emits artifacts and pauses
@@ -221,7 +222,6 @@ describe('A2A Client Protocol Integration', () => {
     console.log(`[beforeEach] About to fetch agent card from ${cardUrl}...`);
     client = await A2AClient.fromCardUrl(cardUrl);
     console.log('[beforeEach] Client initialized successfully');
-
   });
 
   afterEach(async () => {
@@ -370,10 +370,12 @@ describe('A2A Client Protocol Integration', () => {
     await parentStreamPromise;
 
     const streamedPostResume = workflowEvents.some(
-      (event) => event.kind === 'artifact-update' && event.artifact.artifactId === 'post-resume-0.json',
+      (event) =>
+        event.kind === 'artifact-update' && event.artifact.artifactId === 'post-resume-0.json',
     );
     const streamedCompletion = workflowEvents.some(
-      (event) => event.kind === 'status-update' && event.final && event.status.state === 'completed',
+      (event) =>
+        event.kind === 'status-update' && event.final && event.status.state === 'completed',
     );
 
     const finalTask = await waitForTaskState(

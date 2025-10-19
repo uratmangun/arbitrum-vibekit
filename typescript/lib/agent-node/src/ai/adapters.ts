@@ -3,7 +3,7 @@ import type { Tool as MCPTool } from '@modelcontextprotocol/sdk/types.js';
 import type { ModelMessage, Tool, JSONSchema7 } from 'ai';
 import { tool, jsonSchema } from 'ai';
 import { v7 as uuidv7 } from 'uuid';
-import { z } from 'zod';
+import type { z } from 'zod';
 
 /**
  * Type adapters for converting between A2A SDK and Vercel AI SDK types

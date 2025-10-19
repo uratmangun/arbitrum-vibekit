@@ -6,9 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { createA2AServer } from '../../src/a2a/server.js';
-import { aggregateArtifacts } from '../utils/artifact-aggregator.js';
 import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
 import { serviceConfig } from '../../src/config.js';
+import { aggregateArtifacts } from '../utils/artifact-aggregator.js';
 import { createTestConfigWorkspace } from '../utils/test-config-workspace.js';
 
 /**
@@ -229,7 +229,7 @@ describe('A2A Server Live Tests', () => {
           const texts: string[] = [];
           for (const artifact of response.result.artifacts ?? []) {
             for (const part of artifact.parts ?? []) {
-              if ((part as Part).kind === 'text' && 'text' in (part as Part)) {
+              if (part.kind === 'text' && 'text' in part) {
                 texts.push((part as Part & { kind: 'text'; text: string }).text);
               }
             }

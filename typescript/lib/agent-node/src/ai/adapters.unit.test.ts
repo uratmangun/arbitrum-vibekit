@@ -3,10 +3,11 @@
  * Tests conversion functions for workflows and MCP tools
  */
 
+import type { Tool as MCPTool } from '@modelcontextprotocol/sdk/types.js';
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
+
 import { workflowToCoreTools, createCoreToolFromMCP } from './adapters.js';
-import type { Tool as MCPTool } from '@modelcontextprotocol/sdk/types.js';
 
 describe('workflowToCoreTools', () => {
   describe('Tool Creation', () => {
@@ -94,11 +95,7 @@ describe('workflowToCoreTools', () => {
         requiredField: z.string(),
       });
 
-      const tool = workflowToCoreTools(
-        'validation-workflow',
-        'Validation workflow',
-        inputSchema,
-      );
+      const tool = workflowToCoreTools('validation-workflow', 'Validation workflow', inputSchema);
 
       // When/Then: schema should enforce requirements
       expect(tool.inputSchema.safeParse({ requiredField: 'value' }).success).toBe(true);
@@ -113,11 +110,7 @@ describe('workflowToCoreTools', () => {
         optional: z.string().optional(),
       });
 
-      const tool = workflowToCoreTools(
-        'optional-workflow',
-        'Optional workflow',
-        inputSchema,
-      );
+      const tool = workflowToCoreTools('optional-workflow', 'Optional workflow', inputSchema);
 
       // When/Then: schema should accept both forms
       expect(tool.inputSchema.safeParse({ required: 'value' }).success).toBe(true);
@@ -134,11 +127,7 @@ describe('workflowToCoreTools', () => {
         count: z.number().int().positive().default(1),
       });
 
-      const tool = workflowToCoreTools(
-        'defaults-workflow',
-        'Defaults workflow',
-        inputSchema,
-      );
+      const tool = workflowToCoreTools('defaults-workflow', 'Defaults workflow', inputSchema);
 
       // When/Then: defaults should apply via parse
       const parsed = tool.inputSchema.parse({});

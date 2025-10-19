@@ -3,8 +3,8 @@
  * Tests A2A v0.3.0 agent card validation
  */
 
-import { describe, it, expect } from 'vitest';
 import type { AgentCard } from '@a2a-js/sdk';
+import { describe, it, expect } from 'vitest';
 
 import { validateAgentCard } from './a2a-validator.js';
 

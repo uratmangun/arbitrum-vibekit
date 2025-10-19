@@ -56,23 +56,25 @@ export function resolveEnvRef(ref: string, options: EnvResolverOptions = {}): st
  * @returns Object with resolved values
  */
 export function resolveEnvRefs<T>(obj: T, options: EnvResolverOptions = {}): T {
-  if (typeof obj === 'string') {
-    return resolveEnvRef(obj, options) as T;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map((item) => resolveEnvRefs(item, options)) as T;
-  }
-
-  if (obj && typeof obj === 'object') {
-    const resolved: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      resolved[key] = resolveEnvRefs(value, options);
+  const resolveValue = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      return resolveEnvRef(value, options);
     }
-    return resolved as T;
-  }
 
-  return obj;
+    if (Array.isArray(value)) {
+      return value.map((item) => resolveValue(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, entryValue]) => [key, resolveValue(entryValue)]),
+      );
+    }
+
+    return value;
+  };
+
+  return resolveValue(obj) as T;
 }
 
 /**
@@ -81,43 +83,44 @@ export function resolveEnvRefs<T>(obj: T, options: EnvResolverOptions = {}): T {
  * @returns Object with redacted values
  */
 export function redactEnvRefs<T>(obj: T): T {
-  if (typeof obj === 'string') {
-    if (ENV_REF_PATTERN.test(obj)) {
-      return '***REDACTED***' as T;
-    }
-    // Redact resolved values that look like secrets (keys, tokens, etc.)
-    if (
-      obj.length > 20 &&
-      (obj.includes('key') || obj.includes('token') || obj.includes('secret'))
-    ) {
-      return '***REDACTED***' as T;
-    }
-    return obj as T;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map((item) => redactEnvRefs(item)) as T;
-  }
-
-  if (obj && typeof obj === 'object') {
-    const redacted: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      // Redact known secret fields
-      if (
-        key.toLowerCase().includes('secret') ||
-        key.toLowerCase().includes('password') ||
-        key.toLowerCase().includes('token') ||
-        key.toLowerCase().includes('key')
-      ) {
-        redacted[key] = '***REDACTED***';
-      } else {
-        redacted[key] = redactEnvRefs(value);
+  const redactValue = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      if (ENV_REF_PATTERN.test(value)) {
+        return '***REDACTED***';
       }
+      if (
+        value.length > 20 &&
+        (value.includes('key') || value.includes('token') || value.includes('secret'))
+      ) {
+        return '***REDACTED***';
+      }
+      return value;
     }
-    return redacted as T;
-  }
 
-  return obj;
+    if (Array.isArray(value)) {
+      return value.map((item) => redactValue(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, entryValue]) => {
+          if (
+            key.toLowerCase().includes('secret') ||
+            key.toLowerCase().includes('password') ||
+            key.toLowerCase().includes('token') ||
+            key.toLowerCase().includes('key')
+          ) {
+            return [key, '***REDACTED***'];
+          }
+          return [key, redactValue(entryValue)];
+        }),
+      );
+    }
+
+    return value;
+  };
+
+  return redactValue(obj) as T;
 }
 
 /**

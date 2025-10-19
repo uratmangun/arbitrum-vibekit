@@ -8,14 +8,14 @@ import {
   createUserMessage,
   createWorkflowExecutionStub,
 } from '../../tests/utils/factories/index.js';
-import { RecordingEventBus } from '../../tests/utils/mocks/event-bus.mock.js';
 import { StubAIService } from '../../tests/utils/mocks/ai-service.mock.js';
+import { RecordingEventBus } from '../../tests/utils/mocks/event-bus.mock.js';
 import { MockSessionManager } from '../../tests/utils/mocks/session-manager.mock.js';
 import { StubWorkflowRuntime } from '../../tests/utils/mocks/workflow-runtime.mock.js';
 import type { AIService } from '../ai/service.js';
-import type { SessionManager } from './sessions/manager.js';
 
 import { createAgentExecutor } from './agentExecutor.js';
+import type { SessionManager } from './sessions/manager.js';
 
 describe('AgentExecutor', () => {
   let eventBus: RecordingEventBus;
@@ -171,6 +171,7 @@ describe('AgentExecutor', () => {
       description: 'Execute complex workflow',
       version: '1.0.0',
       execute: async function* () {
+        await Promise.resolve(); // Ensure async context
         yield { type: 'status', status: { state: 'working' } };
       },
     });

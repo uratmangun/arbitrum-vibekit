@@ -1,9 +1,9 @@
-import { v7 as uuidv7 } from 'uuid';
 import type { TaskState } from '@a2a-js/sdk';
+import { v7 as uuidv7 } from 'uuid';
 
-import { ensureTransition } from './tasks/stateMachine.js';
 import { canonicalizeName } from '../config/validators/tool-validator.js';
 
+import { ensureTransition } from './tasks/stateMachine.js';
 import type {
   WorkflowPlugin,
   WorkflowContext,
@@ -378,7 +378,7 @@ export class WorkflowRuntime {
 
       // Update execution with result
       execution.result = result;
-      const currentState = execution.state as TaskState;
+      const currentState = execution.state;
       const targetState: TaskState = this.isShuttingDown ? 'canceled' : 'completed';
       if (currentState !== targetState) {
         ensureTransition(execution.id, currentState, targetState);
@@ -565,7 +565,7 @@ export class WorkflowRuntime {
 
     // Resume the generator with input
     try {
-      ensureTransition(taskId, execution.state as TaskState, 'working');
+      ensureTransition(taskId, execution.state, 'working');
       execution.state = 'working';
       this.taskStates.set(taskId, {
         state: 'working',
@@ -582,7 +582,7 @@ export class WorkflowRuntime {
       await Promise.resolve(); // Ensure async compliance
       return { valid: true, metadata: updatedMetadata };
     } catch (error) {
-      ensureTransition(taskId, execution.state as TaskState, 'failed');
+      ensureTransition(taskId, execution.state, 'failed');
       execution.state = 'failed';
       execution.error = error as Error;
       execution.completedAt = new Date();
@@ -699,7 +699,7 @@ export class WorkflowRuntime {
 
       // Update execution with result
       execution.result = result.value;
-      const currentState = execution.state as TaskState;
+      const currentState = execution.state;
       const targetState: TaskState = this.isShuttingDown ? 'canceled' : 'completed';
       if (currentState !== targetState) {
         ensureTransition(executionId, currentState, targetState);
@@ -746,7 +746,7 @@ export class WorkflowRuntime {
     // Cancel all running executions
     for (const execution of this.executions.values()) {
       if (!['completed', 'failed', 'canceled'].includes(execution.state)) {
-        ensureTransition(execution.id, execution.state as TaskState, 'canceled');
+        ensureTransition(execution.id, execution.state, 'canceled');
         execution.state = 'canceled';
         execution.completedAt = new Date();
       }

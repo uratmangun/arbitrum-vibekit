@@ -1,12 +1,12 @@
-import { Server } from 'http';
+import type { Server } from 'http';
 
+import type { AgentCard } from '@a2a-js/sdk';
 import {
   DefaultRequestHandler,
   InMemoryTaskStore,
   DefaultExecutionEventBusManager,
 } from '@a2a-js/sdk/server';
 import { A2AExpressApp } from '@a2a-js/sdk/server/express';
-import type { AgentCard } from '@a2a-js/sdk';
 import cors from 'cors';
 import express, {
   type Express,
@@ -16,15 +16,15 @@ import express, {
   json,
 } from 'express';
 
-import { AIService } from '../ai/service.js';
 import { DEFAULT_MODELS } from '../ai/providers/index.js';
-import { SessionManager } from './sessions/manager.js';
-import { Logger } from '../utils/logger.js';
-import { WorkflowRuntime } from '../workflows/runtime.js';
+import { AIService } from '../ai/service.js';
 import type { AgentConfigHandle, HotReloadHandler } from '../config/runtime/init.js';
 import type { ServiceConfig } from '../config.js';
+import { Logger } from '../utils/logger.js';
+import { WorkflowRuntime } from '../workflows/runtime.js';
 
 import { createAgentExecutor } from './agentExecutor.js';
+import { SessionManager } from './sessions/manager.js';
 
 interface ServerConfig {
   serviceConfig: ServiceConfig;
@@ -142,9 +142,7 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
   const providerValue =
     config.serviceConfig.ai.provider ?? agentConfig.models.agent.provider ?? 'openrouter';
   const defaultModelForProvider =
-    agentConfig.models.agent.name ??
-    DEFAULT_MODELS[providerValue as keyof typeof DEFAULT_MODELS] ??
-    DEFAULT_MODELS.openrouter;
+    agentConfig.models.agent.name ?? DEFAULT_MODELS[providerValue] ?? DEFAULT_MODELS.openrouter;
   const modelValue = agentConfig.models.agent.name ?? defaultModelForProvider;
 
   logger.info('=== AI Configuration ===');
@@ -162,7 +160,13 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
   }
 
   const sessionManager = new SessionManager();
-  const agentExecutor = createAgentExecutor(workflowRuntime, aiService, sessionManager, eventBusManager, taskStore);
+  const agentExecutor = createAgentExecutor(
+    workflowRuntime,
+    aiService,
+    sessionManager,
+    eventBusManager,
+    taskStore,
+  );
 
   const requestHandler = new DefaultRequestHandler(
     agentConfig.agentCard,
@@ -210,7 +214,7 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
   (app as ExpressWithRuntime).taskStore = taskStore;
   (app as ExpressWithRuntime).loggingEnabled = loggingEnabled;
 
-  const handleHotReload: HotReloadHandler = async (event) => {
+  const handleHotReload: HotReloadHandler = (event) => {
     logger.info('Hot reload event received', { change: event.change.type });
 
     if (event.updated.prompt || event.updated.agentCard) {

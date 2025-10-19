@@ -5,12 +5,14 @@
 
 import { writeFileSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+
 import { describe, it, expect, afterEach } from 'vitest';
 
-import { loadTools } from '../src/config/runtime/tool-loader.js';
-import { WorkflowPluginLoader } from '../src/config/runtime/workflow-loader.js';
 import type { EffectiveWorkflow } from '../src/config/composers/effective-set-composer.js';
 import type { MCPServerInstance } from '../src/config/runtime/mcp-instantiator.js';
+import { loadTools } from '../src/config/runtime/tool-loader.js';
+import { WorkflowPluginLoader } from '../src/config/runtime/workflow-loader.js';
+
 import { createTestConfigWorkspace } from './utils/test-config-workspace.js';
 
 describe('Tool Loader - Workflow Integration', () => {
@@ -353,10 +355,13 @@ export default {
       expect('execute' in (tool as Record<string, unknown>)).toBe(false);
       const defaultSchema = (tool as Record<string, unknown>).inputSchema;
       expect(defaultSchema).toBeDefined();
-      if (defaultSchema && typeof (defaultSchema as { safeParse?: unknown }).safeParse === 'function') {
-        const result = (defaultSchema as { safeParse: (value: unknown) => { success: boolean } }).safeParse(
-          { unexpected: 'value' },
-        );
+      if (
+        defaultSchema &&
+        typeof (defaultSchema as { safeParse?: unknown }).safeParse === 'function'
+      ) {
+        const result = (
+          defaultSchema as { safeParse: (value: unknown) => { success: boolean } }
+        ).safeParse({ unexpected: 'value' });
         expect(result.success).toBe(true);
       }
     });

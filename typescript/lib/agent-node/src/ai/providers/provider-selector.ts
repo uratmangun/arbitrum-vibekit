@@ -3,10 +3,10 @@
  * Enables selection of different AI providers (OpenRouter, OpenAI, xAI, Hyperbolic)
  */
 
-import type { LanguageModel } from 'ai';
-import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createXai } from '@ai-sdk/xai';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import type { LanguageModel } from 'ai';
 
 // ============================================================================
 // Types

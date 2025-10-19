@@ -8,8 +8,8 @@
  * Usage: OPENROUTER_API_KEY=your-key tsx tests/utils/discover-openrouter-requests.ts
  */
 
-import { streamText, tool } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { streamText, tool } from 'ai';
 import { z } from 'zod';
 
 // Track requests
@@ -28,7 +28,7 @@ global.fetch = async (input: any, init?: any) => {
 
   if (init?.headers) {
     const headers: any = {};
-    for (const [key, value] of Object.entries(init.headers as any)) {
+    for (const [key, value] of Object.entries(init.headers)) {
       if (key.toLowerCase() === 'authorization') {
         headers[key] = 'Bearer [REDACTED]';
       } else {

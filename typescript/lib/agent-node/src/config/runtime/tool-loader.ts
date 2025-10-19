@@ -4,16 +4,17 @@
  */
 
 import { Client as MCPClient } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Tool } from 'ai';
 import { z } from 'zod';
 
-import { Logger } from '../../utils/logger.js';
 import { createCoreToolFromMCP } from '../../ai/adapters.js';
-import { canonicalizeName } from '../validators/tool-validator.js';
-import { WorkflowRuntime } from '../../workflows/runtime.js';
 import { workflowToCoreTools } from '../../ai/adapters.js';
+import { Logger } from '../../utils/logger.js';
+import { WorkflowRuntime } from '../../workflows/runtime.js';
+import { canonicalizeName } from '../validators/tool-validator.js';
+
 import type { MCPServerInstance } from './mcp-instantiator.js';
 import type { LoadedWorkflowPlugin } from './workflow-loader.js';
 
@@ -21,6 +22,10 @@ export interface ToolLoaderResult {
   tools: Map<string, Tool>;
   mcpClients: Map<string, MCPClient>;
   workflowRuntime?: WorkflowRuntime;
+}
+
+function assertUnreachable(value: never): never {
+  throw new Error(`Unknown MCP server type: ${String(value)}`);
 }
 
 /**
@@ -166,7 +171,7 @@ async function connectMCPClient(instance: MCPServerInstance): Promise<MCPClient 
       await client.connect(transport);
       logger.info(`Connected MCP client to stdio server ${instance.id}`);
     } else {
-      throw new Error(`Unknown MCP server type: ${instance.type}`);
+      return assertUnreachable(instance.type);
     }
 
     return client;

@@ -1,8 +1,7 @@
 import { EventEmitter } from 'events';
 
-import { v7 as uuidv7 } from 'uuid';
-
 import type { ModelMessage } from 'ai';
+import { v7 as uuidv7 } from 'uuid';
 
 import type { Session, SessionState } from './types.js';
 

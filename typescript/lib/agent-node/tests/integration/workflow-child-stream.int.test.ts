@@ -10,21 +10,7 @@
  */
 
 import type { Server } from 'http';
-import express from 'express';
-import {
-  DefaultRequestHandler,
-  InMemoryTaskStore,
-  DefaultExecutionEventBusManager,
-  ExecutionEventQueue,
-  ResultManager,
-  RequestContext,
-  type AgentExecutor,
-  type ExecutionEventBus,
-  type ExecutionEventBusManager,
-  type TaskStore,
-} from '@a2a-js/sdk/server';
-import { A2AExpressApp } from '@a2a-js/sdk/server/express';
-import { A2AClient } from '@a2a-js/sdk/client';
+
 import type {
   Task,
   TaskStatusUpdateEvent,
@@ -34,6 +20,21 @@ import type {
   Message,
   TextPart,
 } from '@a2a-js/sdk';
+import { A2AClient } from '@a2a-js/sdk/client';
+import type { RequestContext } from '@a2a-js/sdk/server';
+import {
+  DefaultRequestHandler,
+  InMemoryTaskStore,
+  DefaultExecutionEventBusManager,
+  ExecutionEventQueue,
+  ResultManager,
+  type AgentExecutor,
+  type ExecutionEventBus,
+  type ExecutionEventBusManager,
+  type TaskStore,
+} from '@a2a-js/sdk/server';
+import { A2AExpressApp } from '@a2a-js/sdk/server/express';
+import express from 'express';
 import { v7 as uuidv7 } from 'uuid';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
@@ -314,9 +315,7 @@ async function collectStreamEvents(
     }
   })();
 
-  const timeoutPromise = new Promise<void>((resolve) =>
-    setTimeout(() => resolve(), timeoutMs),
-  );
+  const timeoutPromise = new Promise<void>((resolve) => setTimeout(() => resolve(), timeoutMs));
 
   // Wait for either stream to end or timeout
   await Promise.race([streamPromise, timeoutPromise]);
@@ -460,7 +459,7 @@ describe('Workflow Child Stream (SDK Contract)', () => {
         'kind' in event &&
         event.kind === 'status-update'
       ) {
-        const statusEvent = event as TaskStatusUpdateEvent;
+        const statusEvent = event;
         if (
           statusEvent.status?.message &&
           'referenceTaskIds' in statusEvent.status.message &&
@@ -533,11 +532,11 @@ describe('Workflow Child Stream (SDK Contract)', () => {
       }
 
       if (event.kind === 'task') {
-        const taskEvent = event as Task;
+        const taskEvent = event;
         parentTaskId = taskEvent.id;
         parentContextId = taskEvent.contextId;
       } else if (event.kind === 'status-update') {
-        const statusEvent = event as TaskStatusUpdateEvent;
+        const statusEvent = event;
         if (!parentContextId) {
           parentContextId = statusEvent.contextId;
         }
@@ -637,13 +636,13 @@ describe('Workflow Child Stream (SDK Contract)', () => {
 
       if (typeof event === 'object' && event !== null && 'kind' in event) {
         if (event.kind === 'task') {
-          const taskEvent = event as Task;
+          const taskEvent = event;
           parentTaskId = taskEvent.id;
           parentContextId = taskEvent.contextId;
         }
 
         if (event.kind === 'status-update') {
-          const statusEvent = event as TaskStatusUpdateEvent;
+          const statusEvent = event;
           if (!parentContextId) {
             parentContextId = statusEvent.contextId;
           }

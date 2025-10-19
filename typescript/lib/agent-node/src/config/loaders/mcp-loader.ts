@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
 import { MCPRegistrySchema, type MCPRegistry } from '../schemas/mcp.schema.js';
+
 import { resolveEnvRefs, extractEnvRefs, validateEnvVars } from './env-resolver.js';
 
 export interface LoadedMCPRegistry {
@@ -24,7 +25,7 @@ export function loadMCPRegistry(mcpPath: string): LoadedMCPRegistry {
 
   try {
     const fileContent = readFileSync(fullPath, 'utf-8');
-    const data = JSON.parse(fileContent);
+    const data: unknown = JSON.parse(fileContent);
 
     // Validate schema
     const registry = MCPRegistrySchema.parse(data);

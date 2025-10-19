@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { LanguageModel } from 'ai';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import {
   createProviderSelector,

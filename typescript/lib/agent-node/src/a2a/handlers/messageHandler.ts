@@ -5,9 +5,10 @@
 import type { Message, Part } from '@a2a-js/sdk';
 import { A2AError, type ExecutionEventBus } from '@a2a-js/sdk/server';
 
-import { AIHandler } from './aiHandler.js';
-import { WorkflowHandler } from './workflowHandler.js';
 import { Logger } from '../../utils/logger.js';
+
+import type { AIHandler } from './aiHandler.js';
+import type { WorkflowHandler } from './workflowHandler.js';
 
 /**
  * Handles message routing and processing for the agent executor

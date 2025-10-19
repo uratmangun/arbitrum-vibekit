@@ -5,11 +5,26 @@
  */
 
 import { resolve } from 'path';
+
 import { createJiti } from 'jiti';
 
+import { Logger } from '../../utils/logger.js';
 import type { WorkflowPlugin } from '../../workflows/types.js';
 import type { EffectiveWorkflow } from '../composers/effective-set-composer.js';
-import { Logger } from '../../utils/logger.js';
+
+function assertWorkflowModuleHasDefault(
+  value: unknown,
+  modulePath: string,
+): asserts value is { default: WorkflowPlugin } {
+  if (!value || typeof value !== 'object' || value === null || !('default' in value)) {
+    throw new Error(`Workflow module ${modulePath} does not export a default WorkflowPlugin`);
+  }
+
+  const candidate = (value as { default: unknown }).default;
+  if (!candidate || typeof candidate !== 'object') {
+    throw new Error(`Workflow module ${modulePath} does not export a default WorkflowPlugin`);
+  }
+}
 
 export interface LoadedWorkflowPlugin {
   id: string;
@@ -65,29 +80,17 @@ export class WorkflowPluginLoader {
         interopDefault: true,
       });
 
-      const module = (await jiti.import(modulePath)) as
-        | WorkflowPlugin
-        | { default: WorkflowPlugin };
+      const module = await jiti.import(modulePath);
 
       // Check if module has a default export
-      if (!('default' in module)) {
-        throw new Error(
-          `Workflow module ${workflow.entry.from} does not export a default WorkflowPlugin`,
-        );
-      }
+      assertWorkflowModuleHasDefault(module, workflow.entry.from);
 
       const plugin = module.default;
-
-      if (!plugin) {
-        throw new Error(
-          `Workflow module ${workflow.entry.from} does not export a default WorkflowPlugin`,
-        );
-      }
 
       // Validate plugin structure
       if (!plugin.id || !plugin.name || !plugin.execute) {
         throw new Error(
-          `Invalid workflow plugin ${workflow.id}: missing required fields (id, name, execute)`,
+          `Invalid workflow plugin ${workflow.id}: missing required fields (id, name, execute). Ensure the module exports a default WorkflowPlugin.`,
         );
       }
 

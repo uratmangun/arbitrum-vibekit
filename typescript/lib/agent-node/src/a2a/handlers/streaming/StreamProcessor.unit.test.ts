@@ -59,6 +59,7 @@ function loggerMockFactory(): LoggerModuleDouble {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 type StreamProcessorModule = typeof import('./StreamProcessor.js');
 
 type StreamProcessorInstance = InstanceType<StreamProcessorModule['StreamProcessor']>;

@@ -1,6 +1,7 @@
 import type { Artifact, Message } from '@a2a-js/sdk';
-import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 import { z } from 'zod';
+
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 
 /**
  * Mock workflow plugin for testing DeFi strategy lifecycle with A2A

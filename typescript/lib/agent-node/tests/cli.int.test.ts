@@ -4,14 +4,16 @@
  */
 
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
 import { tmpdir } from 'os';
+import { join } from 'path';
+
 import { describe, it, expect, afterEach } from 'vitest';
 
-import { initCommand } from '../src/cli/commands/init.js';
-import { doctorCommand } from '../src/cli/commands/doctor.js';
-import { printConfigCommand } from '../src/cli/commands/print-config.js';
 import { bundleCommand } from '../src/cli/commands/bundle.js';
+import { doctorCommand } from '../src/cli/commands/doctor.js';
+import { initCommand } from '../src/cli/commands/init.js';
+import { printConfigCommand } from '../src/cli/commands/print-config.js';
+
 import { createTestConfigWorkspace } from './utils/test-config-workspace.js';
 
 describe('CLI Commands Integration Tests', () => {

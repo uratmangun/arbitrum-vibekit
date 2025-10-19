@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 
 import type { MCPServerConfig } from '../schemas/mcp.schema.js';
 import type { WorkflowEntry } from '../schemas/workflow.schema.js';
+
 import {
   validateMCPServers,
   validateWorkflows,

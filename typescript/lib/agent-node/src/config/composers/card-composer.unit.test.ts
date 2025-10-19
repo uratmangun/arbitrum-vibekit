@@ -3,12 +3,13 @@
  * Tests A2A card composition with merge policies (union, intersect, tightest)
  */
 
-import { describe, it, expect, vi } from 'vitest';
 import type { AgentCard } from '@a2a-js/sdk';
+import { describe, it, expect, vi } from 'vitest';
 
 import type { LoadedAgentBase } from '../loaders/agent-loader.js';
 import type { LoadedSkill } from '../loaders/skill-loader.js';
 import type { MergePolicy } from '../schemas/manifest.schema.js';
+
 import { composeAgentCard } from './card-composer.js';
 
 // Mock the validator

@@ -3,10 +3,11 @@
  * Tests loading and validation of skill markdown files with YAML frontmatter
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
 import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { loadSkill, loadSkills } from './skill-loader.js';
 

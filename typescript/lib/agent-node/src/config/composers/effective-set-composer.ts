@@ -3,8 +3,8 @@
  * Computes effective MCP servers and workflows from selections
  */
 
-import type { LoadedSkill } from '../loaders/skill-loader.js';
 import type { LoadedMCPRegistry } from '../loaders/mcp-loader.js';
+import type { LoadedSkill } from '../loaders/skill-loader.js';
 import type { LoadedWorkflowRegistry } from '../loaders/workflow-loader.js';
 import type { MCPServerConfig } from '../schemas/mcp.schema.js';
 import type { WorkflowEntry } from '../schemas/workflow.schema.js';
@@ -33,15 +33,15 @@ export interface EffectiveSets {
 
 function deepClone<T>(value: T): T {
   if (Array.isArray(value)) {
-    return value.map((item) => deepClone(item)) as unknown as T;
+    const source = value as unknown[];
+    const clonedArray = source.map((item) => deepClone(item));
+    return clonedArray as unknown as T;
   }
 
   if (value && typeof value === 'object') {
-    const clone: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      clone[key] = deepClone(val);
-    }
-    return clone as T;
+    const entries = Object.entries(value as Record<string, unknown>);
+    const clonedEntries = entries.map(([key, entryValue]) => [key, deepClone(entryValue)]);
+    return Object.fromEntries(clonedEntries) as T;
   }
 
   return value;

@@ -9,7 +9,7 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { Logger } from '../../../utils/logger.js';
 
-import { ArtifactManager } from './ArtifactManager.js';
+import type { ArtifactManager } from './ArtifactManager.js';
 import type { ToolCallCollector } from './ToolCallCollector.js';
 
 export interface StreamProcessingState {

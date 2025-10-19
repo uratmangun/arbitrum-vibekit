@@ -1,18 +1,18 @@
+import type { RequestContext } from '@a2a-js/sdk/server';
 import {
   type AgentExecutor,
   type ExecutionEventBus,
   type ExecutionEventBusManager,
   type TaskStore,
-  RequestContext
 } from '@a2a-js/sdk/server';
 
 import type { AIService } from '../ai/service.js';
-import type { SessionManager } from './sessions/manager.js';
 import type { WorkflowRuntime } from '../workflows/runtime.js';
 
 import { AIHandler } from './handlers/aiHandler.js';
 import { MessageHandler } from './handlers/messageHandler.js';
 import { WorkflowHandler } from './handlers/workflowHandler.js';
+import type { SessionManager } from './sessions/manager.js';
 
 /**
  * Creates an AgentExecutor that integrates with the workflow runtime and AI

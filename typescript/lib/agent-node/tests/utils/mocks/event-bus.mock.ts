@@ -211,8 +211,14 @@ export class RecordingEventBusManager implements ExecutionEventBusManager {
    */
   findEventsByKindAcrossAllBuses<T extends AgentExecutionEvent>(
     kind: T['kind'],
-  ): Array<{ bus: RecordingRealEventBus; event: Extract<AgentExecutionEvent, { kind: T['kind'] }> }> {
-    const results: Array<{ bus: RecordingRealEventBus; event: Extract<AgentExecutionEvent, { kind: T['kind'] }> }> = [];
+  ): Array<{
+    bus: RecordingRealEventBus;
+    event: Extract<AgentExecutionEvent, { kind: T['kind'] }>;
+  }> {
+    const results: Array<{
+      bus: RecordingRealEventBus;
+      event: Extract<AgentExecutionEvent, { kind: T['kind'] }>;
+    }> = [];
 
     for (const bus of this.recordedBuses.values()) {
       const events = bus.findEventsByKind(kind);

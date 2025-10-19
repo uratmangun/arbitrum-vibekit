@@ -1,8 +1,9 @@
 import type { Server } from 'http';
 
 import { createA2AServer } from '../../src/a2a/server.js';
-import type { ServiceConfig } from '../../src/config.js';
 import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
+import type { ServiceConfig } from '../../src/config.js';
+
 import { createTestConfigWorkspace } from './test-config-workspace.js';
 
 /**

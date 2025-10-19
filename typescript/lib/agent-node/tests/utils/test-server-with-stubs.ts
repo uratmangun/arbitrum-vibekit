@@ -1,5 +1,5 @@
 import type { Server } from 'http';
-import express from 'express';
+
 import {
   DefaultRequestHandler,
   InMemoryTaskStore,
@@ -7,17 +7,19 @@ import {
 } from '@a2a-js/sdk/server';
 import { A2AExpressApp } from '@a2a-js/sdk/server/express';
 import type { Tool } from 'ai';
+import express from 'express';
 import { z } from 'zod';
 
-import type { ServiceConfig } from '../../src/config.js';
-import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
-import { createTestConfigWorkspace } from './test-config-workspace.js';
-import { SessionManager } from '../../src/a2a/sessions/manager.js';
 import { createAgentExecutor } from '../../src/a2a/agentExecutor.js';
-import { WorkflowRuntime } from '../../src/workflows/runtime.js';
-import { AIService } from '../../src/ai/service.js';
-import { Logger } from '../../src/utils/logger.js';
+import { SessionManager } from '../../src/a2a/sessions/manager.js';
 import { workflowToCoreTools } from '../../src/ai/adapters.js';
+import { AIService } from '../../src/ai/service.js';
+import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
+import type { ServiceConfig } from '../../src/config.js';
+import { Logger } from '../../src/utils/logger.js';
+import { WorkflowRuntime } from '../../src/workflows/runtime.js';
+
+import { createTestConfigWorkspace } from './test-config-workspace.js';
 
 /**
  * Creates a test A2A server with the ability to inject custom services (like AI service)
@@ -42,7 +44,6 @@ export async function createTestA2AServerWithStubs(overrides?: {
   configDir: string;
   workflowRuntime?: WorkflowRuntime;
 }> {
-
   // Create minimal ServiceConfig for testing
   const serviceConfig: ServiceConfig = {
     server: {
@@ -113,11 +114,7 @@ export async function createTestA2AServerWithStubs(overrides?: {
       }
 
       const description = plugin.description ?? `Dispatch ${plugin.name} workflow`;
-      const inputSchema =
-        plugin.inputSchema ??
-        z
-          .object({})
-          .passthrough();
+      const inputSchema = plugin.inputSchema ?? z.object({}).passthrough();
 
       // Create schema-only tool (no execute function)
       // Workflow dispatch is handled by StreamProcessor
@@ -182,7 +179,13 @@ export async function createTestA2AServerWithStubs(overrides?: {
 
   // Create session manager and agent executor
   const sessionManager = new SessionManager();
-  const agentExecutor = createAgentExecutor(workflowRuntime, aiService, sessionManager, eventBusManager, taskStore);
+  const agentExecutor = createAgentExecutor(
+    workflowRuntime,
+    aiService,
+    sessionManager,
+    eventBusManager,
+    taskStore,
+  );
 
   // Create request handler
   const requestHandler = new DefaultRequestHandler(

@@ -8,19 +8,20 @@
  * - Events are properly isolated by taskId
  */
 
+import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
-import { InMemoryTaskStore } from '@a2a-js/sdk/server';
 
 import { createAgentExecutor } from '../src/a2a/agentExecutor.js';
-import type { AIService } from '../src/ai/service.js';
 import type { SessionManager } from '../src/a2a/sessions/manager.js';
-import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../src/workflows/types.js';
+import type { AIService } from '../src/ai/service.js';
 import { WorkflowRuntime } from '../src/workflows/runtime.js';
-import { RecordingEventBusManager } from './utils/mocks/event-bus.mock.js';
-import { StubAIService } from './utils/mocks/ai-service.mock.js';
-import { MockSessionManager } from './utils/mocks/session-manager.mock.js';
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../src/workflows/types.js';
+
 import { createSimpleRequestContext } from './utils/factories/index.js';
+import { StubAIService } from './utils/mocks/ai-service.mock.js';
+import { RecordingEventBusManager } from './utils/mocks/event-bus.mock.js';
+import { MockSessionManager } from './utils/mocks/session-manager.mock.js';
 
 /**
  * Create a test workflow plugin that yields progress updates
@@ -273,7 +274,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(childTaskId).toBeDefined();
 
     // Get the child bus recording
-    const childBus = eventBusManager.getRecordingBus(childTaskId!);
+    const childBus = eventBusManager.getRecordingBus(childTaskId);
     expect(childBus).toBeDefined();
 
     // Then: Parent task should be on parent bus
@@ -366,14 +367,12 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(referenceUpdates.length).toBe(2);
 
     // Extract child task IDs
-    const childTaskIds = referenceUpdates.flatMap(
-      (u) => u.status?.message?.referenceTaskIds || []
-    );
+    const childTaskIds = referenceUpdates.flatMap((u) => u.status?.message?.referenceTaskIds || []);
     expect(childTaskIds.length).toBe(2);
 
     // Get child bus recordings
-    const childBus1 = eventBusManager.getRecordingBus(childTaskIds[0]!);
-    const childBus2 = eventBusManager.getRecordingBus(childTaskIds[1]!);
+    const childBus1 = eventBusManager.getRecordingBus(childTaskIds[0]);
+    const childBus2 = eventBusManager.getRecordingBus(childTaskIds[1]);
     expect(childBus1).toBeDefined();
     expect(childBus2).toBeDefined();
 
@@ -383,9 +382,11 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(parentTask).toBeDefined();
 
     // Each child task should be on its own bus
-    const childTask1 = childBus1!.findEventsByKind('task')
+    const childTask1 = childBus1!
+      .findEventsByKind('task')
       .find((t) => 'id' in t && t.id === childTaskIds[0]);
-    const childTask2 = childBus2!.findEventsByKind('task')
+    const childTask2 = childBus2!
+      .findEventsByKind('task')
       .find((t) => 'id' in t && t.id === childTaskIds[1]);
     expect(childTask1).toBeDefined();
     expect(childTask2).toBeDefined();
@@ -464,7 +465,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(childTaskId).toBeDefined();
 
     // Get the child bus recording
-    const childBus = eventBusManager.getRecordingBus(childTaskId!);
+    const childBus = eventBusManager.getRecordingBus(childTaskId);
     expect(childBus).toBeDefined();
 
     // And: Child task should enter "failed" state on child bus
@@ -588,7 +589,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(childTaskId).toBeDefined();
 
     // Get the child bus recording
-    const childBus = eventBusManager.getRecordingBus(childTaskId!);
+    const childBus = eventBusManager.getRecordingBus(childTaskId);
     expect(childBus).toBeDefined();
 
     // And: Child workflow should be paused on child bus

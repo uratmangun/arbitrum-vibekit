@@ -7,7 +7,6 @@ import type { AgentCard } from '@a2a-js/sdk';
 
 import type { LoadedAgentBase } from '../loaders/agent-loader.js';
 import type { LoadedSkill } from '../loaders/skill-loader.js';
-import type { MergePolicy } from '../schemas/manifest.schema.js';
 import type {
   AgentCapabilities,
   AgentExtension,
@@ -16,6 +15,7 @@ import type {
   GuardrailValue,
   ToolPolicyList,
 } from '../schemas/agent.schema.js';
+import type { MergePolicy } from '../schemas/manifest.schema.js';
 import { validateAgentCard } from '../validators/a2a-validator.js';
 
 type CapabilityMergeStrategy = 'union' | 'intersect';
@@ -42,6 +42,7 @@ const GUARDRAIL_SEVERITY: Record<string, number> = {
 
 function deepClone<T>(value: T): T {
   if (Array.isArray(value)) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return value.map((item) => deepClone(item)) as unknown as T;
   }
 
@@ -363,7 +364,7 @@ function mergeGuardrailValue(
       existing.every((value) => typeof value === 'string') &&
       incoming.every((value) => typeof value === 'string')
     ) {
-      return mergeGuardrailArrays(existing as string[], incoming as string[], strategy);
+      return mergeGuardrailArrays(existing, incoming, strategy);
     }
     if (deepEqual(existing, incoming)) {
       return deepClone(existing);

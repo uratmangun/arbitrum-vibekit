@@ -7,8 +7,8 @@
  * Usage: tsx tests/utils/discover-requests.ts
  */
 
-import { setupServer } from 'msw/node';
 import { http, passthrough } from 'msw';
+import { setupServer } from 'msw/node';
 
 // Track all requests
 const capturedRequests: Array<{

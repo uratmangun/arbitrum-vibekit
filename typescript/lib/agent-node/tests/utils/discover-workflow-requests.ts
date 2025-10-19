@@ -9,14 +9,16 @@
  */
 
 import type { Server } from 'http';
+
 import { A2AClient } from '@a2a-js/sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 
-import { createTestA2AServer, cleanupTestServer } from './test-server.js';
 import type { AgentConfigHandle } from '../../src/config/runtime/init.js';
-import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 import { WorkflowRuntime } from '../../src/workflows/runtime.js';
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
+
+import { createTestA2AServer, cleanupTestServer } from './test-server.js';
 
 // Set up request logging
 let requestCount = 0;

@@ -8,7 +8,9 @@
  */
 
 import process from 'node:process';
+
 import { Logger } from '../utils/logger.js';
+
 import {
   initCommand,
   printConfigCommand,

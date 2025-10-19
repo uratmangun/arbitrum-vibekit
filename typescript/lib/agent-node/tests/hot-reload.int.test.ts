@@ -5,9 +5,11 @@
 
 import { writeFileSync, rmSync, existsSync, readFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+
 import { describe, it, expect, afterEach } from 'vitest';
 
 import { ConfigWorkspaceWatcher, type FileChange } from '../src/config/runtime/watcher.js';
+
 import { createTestConfigWorkspace } from './utils/test-config-workspace.js';
 
 describe('Hot Reload Integration Tests', () => {

@@ -17,14 +17,14 @@ import {
   type ExecutionEventBusManager,
   ExecutionEventQueue,
   ResultManager,
-  type TaskStore
+  type TaskStore,
 } from '@a2a-js/sdk/server';
 import { v7 as uuidv7 } from 'uuid';
 
+import { canonicalizeName } from '../../config/validators/tool-validator.js';
 import { Logger } from '../../utils/logger.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
 import type { ActiveTask, TaskState, WorkflowEvent } from '../types.js';
-import { canonicalizeName } from '../../config/validators/tool-validator.js';
 
 /**
  * Type guards
@@ -247,7 +247,9 @@ export class WorkflowHandler {
       this.logger.debug('Extracted plugin ID', { rawPluginId, pluginId });
 
       // Get plugin metadata
-      const registeredPlugins = this.workflowRuntime.listPlugins ? this.workflowRuntime.listPlugins() : [];
+      const registeredPlugins = this.workflowRuntime.listPlugins
+        ? this.workflowRuntime.listPlugins()
+        : [];
       this.logger.debug('Registered plugins in runtime', { registeredPlugins });
 
       const plugin = this.workflowRuntime.getPlugin(pluginId);
@@ -256,7 +258,7 @@ export class WorkflowHandler {
           pluginId,
           rawPluginId,
           registeredPlugins,
-          hasGetPlugin: typeof this.workflowRuntime.getPlugin === 'function'
+          hasGetPlugin: typeof this.workflowRuntime.getPlugin === 'function',
         });
         throw new Error(`Plugin ${pluginId} not found`);
       }
@@ -280,7 +282,8 @@ export class WorkflowHandler {
       let firstEventProcessed: Promise<void> = Promise.resolve();
       let firstEventResolved = false;
       let hasStatusEvent = false;
-      const pendingChildEvents: Array<Message | TaskStatusUpdateEvent | TaskArtifactUpdateEvent> = [];
+      const pendingChildEvents: Array<Message | TaskStatusUpdateEvent | TaskArtifactUpdateEvent> =
+        [];
 
       this.logger.debug('Checking persistence requirements', {
         hasTaskStore: !!this.taskStore,
@@ -316,21 +319,24 @@ export class WorkflowHandler {
 
               // Signal that first event has been processed and stored
               if (isFirstEvent) {
-                this.logger.debug('First event processed for child task', { taskId: execution.id, eventKind: event.kind });
+                this.logger.debug('First event processed for child task', {
+                  taskId: execution.id,
+                  eventKind: event.kind,
+                });
                 resolveFirstEvent?.();
-                 firstEventResolved = true;
-                 if (pendingChildEvents.length > 0) {
-                   this.logger.debug('Flushing buffered child events', {
-                     taskId: execution.id,
-                     count: pendingChildEvents.length,
-                   });
-                   while (pendingChildEvents.length > 0) {
-                     const bufferedEvent = pendingChildEvents.shift();
-                     if (bufferedEvent) {
-                       childEventBus.publish(bufferedEvent);
-                     }
-                   }
-                 }
+                firstEventResolved = true;
+                if (pendingChildEvents.length > 0) {
+                  this.logger.debug('Flushing buffered child events', {
+                    taskId: execution.id,
+                    count: pendingChildEvents.length,
+                  });
+                  while (pendingChildEvents.length > 0) {
+                    const bufferedEvent = pendingChildEvents.shift();
+                    if (bufferedEvent) {
+                      childEventBus.publish(bufferedEvent);
+                    }
+                  }
+                }
                 isFirstEvent = false;
               }
             }
@@ -465,7 +471,9 @@ export class WorkflowHandler {
 
       // Wait for the Task event to be fully processed and stored
       await firstEventProcessed;
-      this.logger.debug('Task event processed and stored, continuing with workflow', { taskId: execution.id });
+      this.logger.debug('Task event processed and stored, continuing with workflow', {
+        taskId: execution.id,
+      });
 
       // Verify task is actually in the store
       if (this.taskStore) {
@@ -473,7 +481,7 @@ export class WorkflowHandler {
         this.logger.debug('Verified task in store', {
           taskId: execution.id,
           taskFound: !!storedTask,
-          taskState: storedTask?.status?.state
+          taskState: storedTask?.status?.state,
         });
       }
 
@@ -614,14 +622,16 @@ export class WorkflowHandler {
         } finally {
           // Allow time for final events to be processed by the persistence loop
           // This ensures final status updates are stored before cleanup
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
 
           // Call finished on child bus to complete the child stream
           childEventBus.finished();
 
           // Clean up persistence loop after workflow completes
           if (persistenceQueue) {
-            this.logger.debug('Stopping persistence queue for child task', { taskId: execution.id });
+            this.logger.debug('Stopping persistence queue for child task', {
+              taskId: execution.id,
+            });
             persistenceQueue.stop();
           }
 
@@ -632,7 +642,9 @@ export class WorkflowHandler {
 
           if (this.eventBusManager) {
             this.eventBusManager.cleanupByTaskId(execution.id);
-            this.logger.debug('Cleaned up persistence loop for child task', { taskId: execution.id });
+            this.logger.debug('Cleaned up persistence loop for child task', {
+              taskId: execution.id,
+            });
             if (this.contextTaskMap.get(contextId) === execution.id) {
               this.contextTaskMap.delete(contextId);
             }

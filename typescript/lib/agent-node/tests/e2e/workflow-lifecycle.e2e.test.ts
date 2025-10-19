@@ -13,10 +13,12 @@
  */
 
 import type { Server } from 'http';
-import { A2AClient } from '@a2a-js/sdk/client';
+
 import type { TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import { A2AClient } from '@a2a-js/sdk/client';
 import { v4 as uuidv4 } from 'uuid';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { z } from 'zod';
 
 import { createA2AServer } from '../../src/a2a/server.js';
 import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
@@ -34,7 +36,6 @@ import {
   PerformanceArtifactSchema,
   TransactionExecutedArtifactSchema,
 } from '../utils/lifecycle-test-helpers.js';
-import type { z } from 'zod';
 
 /**
  * E2E test suite for workflow lifecycle with A2A streaming
@@ -182,14 +183,14 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
           console.log('[E2E] Workflow Task ID from referenceTaskIds:', workflowTaskId);
 
           // Subscribe to workflow task stream with race condition handling
-          (async () => {
+          void (async () => {
             try {
               // Subscribe to workflow stream first to avoid missing pause events
               console.log('[E2E] Subscribing to workflow event stream...');
-          const workflowStream = client.resubscribeTask({ id: workflowTaskId });
+              const workflowStream = client.resubscribeTask({ id: workflowTaskId });
 
               // Kick off a backfill for current task state and artifacts
-              (async () => {
+              void (async () => {
                 try {
                   // Small delay to ensure workflow task is registered on server
                   await new Promise((resolve) => setTimeout(resolve, 100));
