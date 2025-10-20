@@ -4,6 +4,7 @@
 
 import type {
   Artifact,
+  DataPart,
   Message,
   Task,
   TaskArtifactUpdateEvent,
@@ -20,6 +21,7 @@ import {
   type TaskStore,
 } from '@a2a-js/sdk/server';
 import { v7 as uuidv7 } from 'uuid';
+import z from 'zod';
 
 import { canonicalizeName } from '../../config/validators/tool-validator.js';
 import { Logger } from '../../utils/logger.js';
@@ -38,6 +40,48 @@ function hasEventEmitter(
     'on' in obj &&
     typeof (obj as { on: unknown }).on === 'function'
   );
+}
+
+/**
+ * Extract error details for A2A protocol status updates
+ * Returns both human-readable text and machine-readable structured data
+ */
+function extractErrorDetails(error: unknown): {
+  text: string;
+  data: {
+    errorType: string;
+    errorCode?: string;
+    stack?: string;
+    context?: Record<string, unknown>;
+  };
+} {
+  const includeStack = (process.env['LOG_LEVEL'] || 'info').toUpperCase() === 'DEBUG';
+
+  if (error instanceof Error) {
+    return {
+      text: error.message || 'Workflow execution failed',
+      data: {
+        errorType: error.name || 'Error',
+        errorCode: (error as { code?: string }).code,
+        ...(includeStack && error.stack ? { stack: error.stack } : {}),
+        ...(typeof error === 'object' && 'context' in error && typeof error.context === 'object'
+          ? { context: error.context as Record<string, unknown> }
+          : {}),
+      },
+    };
+  }
+
+  // Handle non-Error objects
+  const errorString = String(error);
+  return {
+    text: errorString || 'Unknown workflow error',
+    data: {
+      errorType: 'Unknown',
+      context: {
+        rawError: typeof error === 'object' && error !== null ? { ...error } : errorString,
+      },
+    },
+  };
 }
 
 /**
@@ -128,7 +172,12 @@ export class WorkflowHandler {
 
       // Use execution.resume() instead of calling generator.next() directly
       // This ensures event listeners (set up in dispatchWorkflow) are triggered
+      this.logger.debug('[RESUME] About to call execution.resume()', { taskId, input });
       const resumeResult = await execution.resume(input);
+      this.logger.debug('[RESUME] execution.resume() returned', {
+        taskId,
+        valid: resumeResult.valid,
+      });
 
       let responseMetadata: Record<string, unknown> | undefined;
       if (resumeResult && typeof resumeResult === 'object' && 'metadata' in resumeResult) {
@@ -232,6 +281,7 @@ export class WorkflowHandler {
   ): Promise<{
     taskId: string;
     metadata: { workflowName: string; description: string; pluginId: string };
+    additionalParts?: Part[];
   }> {
     this.logger.debug('dispatchWorkflow called', { workflowName, params, contextId });
     if (!this.workflowRuntime) {
@@ -370,13 +420,27 @@ export class WorkflowHandler {
       if (hasEventEmitter(execution)) {
         this.logger.debug('Setting up event handlers for workflow', { taskId: execution.id });
 
-        execution.on('artifact', (artifact: unknown) => {
+        execution.on('artifact', (data: unknown) => {
+          const { artifact, append, lastChunk, metadata } = data as {
+            artifact: Artifact;
+            append?: boolean;
+            lastChunk?: boolean;
+            metadata?: Record<string, unknown>;
+          };
+          this.logger.debug('[EVENT] Workflow emitted artifact', {
+            taskId: execution.id,
+            artifactId: artifact.artifactId,
+            append,
+            lastChunk,
+          });
           const artifactUpdate: TaskArtifactUpdateEvent = {
             kind: 'artifact-update',
             taskId: execution.id,
             contextId,
-            artifact: artifact as Artifact,
-            lastChunk: false,
+            artifact,
+            append,
+            lastChunk: lastChunk ?? false,
+            metadata,
           };
 
           publishChildEvent(artifactUpdate);
@@ -400,17 +464,25 @@ export class WorkflowHandler {
         });
 
         execution.on('pause', (pauseInfo: unknown) => {
-          this.logger.debug('Workflow pausing', { taskId: execution.id, pauseInfo });
+          this.logger.debug('[EVENT] Workflow emitting pause event', {
+            taskId: execution.id,
+            pauseInfo,
+          });
           const workflowPauseInfo = pauseInfo as WorkflowEvent;
           const parts: Part[] = [];
-          if (workflowPauseInfo?.message) {
-            parts.push({ kind: 'text', text: workflowPauseInfo.message } as TextPart);
-          }
-          if (workflowPauseInfo?.inputSchema && typeof workflowPauseInfo.inputSchema === 'object') {
+          if (
+            workflowPauseInfo?.message &&
+            workflowPauseInfo?.inputSchema &&
+            typeof workflowPauseInfo.inputSchema === 'object'
+          ) {
+            const jsonSchema = z.toJSONSchema(
+              workflowPauseInfo.inputSchema as z.ZodObject<Record<string, z.ZodTypeAny>>,
+              { target: 'draft-7' },
+            );
             parts.push({
-              kind: 'data',
-              data: { inputSchema: workflowPauseInfo.inputSchema },
-              metadata: { mimeType: 'application/json' },
+              kind: 'text',
+              text: workflowPauseInfo.message,
+              metadata: { schema: jsonSchema, mimeType: 'application/json' },
             });
           }
 
@@ -438,18 +510,63 @@ export class WorkflowHandler {
           publishChildEvent(statusUpdate);
         });
 
-        execution.on('error', (_err: unknown) => {
+        execution.on('error', (err: unknown) => {
+          const errorDetails = extractErrorDetails(err);
+
           const failedUpdate: TaskStatusUpdateEvent = {
             kind: 'status-update',
             taskId: execution.id,
             contextId,
-            status: { state: 'failed' },
+            status: {
+              state: 'failed',
+              message: {
+                kind: 'message',
+                messageId: uuidv7(),
+                contextId,
+                role: 'agent',
+                parts: [
+                  { kind: 'text', text: errorDetails.text } as TextPart,
+                  { kind: 'data', data: errorDetails.data } as DataPart,
+                ],
+              },
+            },
             final: true,
           };
 
           hasStatusEvent = true;
 
           publishChildEvent(failedUpdate);
+        });
+
+        execution.on('reject', (rejectInfo: unknown) => {
+          this.logger.debug('Workflow rejected', { taskId: execution.id, rejectInfo });
+          const workflowRejectInfo = rejectInfo as { reason: string };
+
+          const rejectedUpdate: TaskStatusUpdateEvent = {
+            kind: 'status-update',
+            taskId: execution.id,
+            contextId,
+            status: {
+              state: 'rejected',
+              message: {
+                kind: 'message',
+                messageId: uuidv7(),
+                contextId,
+                role: 'agent',
+                parts: [
+                  {
+                    kind: 'text',
+                    text: workflowRejectInfo.reason,
+                  } as TextPart,
+                ],
+              },
+            },
+            final: true,
+          };
+
+          hasStatusEvent = true;
+
+          publishChildEvent(rejectedUpdate);
         });
       }
 
@@ -580,12 +697,26 @@ export class WorkflowHandler {
             // Publish completion on child bus
             childEventBus.publish(completedUpdate);
           } else if (execution.state === 'failed') {
+            // Extract error details if available
+            const error = execution.error;
+            const errorDetails = extractErrorDetails(error);
+
             const failedUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
               contextId,
               status: {
                 state: 'failed',
+                message: {
+                  kind: 'message',
+                  messageId: uuidv7(),
+                  contextId,
+                  role: 'agent',
+                  parts: [
+                    { kind: 'text', text: errorDetails.text } as TextPart,
+                    { kind: 'data', data: errorDetails.data } as DataPart,
+                  ],
+                },
               },
               final: true,
             };
@@ -603,6 +734,20 @@ export class WorkflowHandler {
             };
             // Publish cancellation on child bus
             childEventBus.publish(canceledUpdate);
+          } else if (execution.state === 'rejected') {
+            // Note: reject event handler should have already published this,
+            // but include fallback for completeness
+            const rejectedUpdate: TaskStatusUpdateEvent = {
+              kind: 'status-update',
+              taskId: execution.id,
+              contextId,
+              status: {
+                state: 'rejected',
+              },
+              final: true,
+            };
+            // Publish rejection on child bus
+            childEventBus.publish(rejectedUpdate);
           }
         } catch (error: unknown) {
           const errorMessage: Message = {
@@ -656,6 +801,20 @@ export class WorkflowHandler {
       void monitorExecution();
       await Promise.resolve();
 
+      // Try to get dispatch response from first yield
+      const timeout = plugin.dispatchResponseTimeout ?? 500;
+      this.logger.debug('Waiting for first yield', { taskId: execution.id, timeout });
+      const firstYield = await this.workflowRuntime.waitForFirstYield(execution.id, timeout);
+
+      let additionalParts: Part[] | undefined;
+      if (firstYield && firstYield.type === 'dispatch-response') {
+        this.logger.debug('Got dispatch-response from workflow', {
+          taskId: execution.id,
+          partsCount: firstYield.parts.length,
+        });
+        additionalParts = firstYield.parts as Part[];
+      }
+
       // Return task ID and workflow metadata
       return {
         taskId: execution.id,
@@ -664,6 +823,7 @@ export class WorkflowHandler {
           description: plugin.description || `Dispatch ${plugin.name} workflow`,
           pluginId: plugin.id,
         },
+        additionalParts,
       };
     } catch (error: unknown) {
       this.logger.error('Error in dispatchWorkflow', error);
