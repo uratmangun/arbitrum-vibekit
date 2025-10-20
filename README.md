@@ -260,4 +260,4 @@ Cursor rules files are located in the [`.cursor/rules`](https://github.com/Ember
 
 ## 💰 Contributions & Bounties
 
-We welcome contributions from the community! If you'd like to help improve Vibekit or expand its capabilities, please check out our [contribution guidelines](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/CONTRIBUTIONS.md). Certain contributions might qualify for the [Trailblazer Fund 2.0](https://www.emberai.xyz/blog/introducing-arbitrum-vibekit-and-the-trailblazer-fund-2-0) initiative launched by Arbitrum. Checkout our [bounty board](https://github.com/orgs/EmberAGI/projects/13) to get started!
+We welcome contributions from the community! If you'd like to help improve Vibekit or expand its capabilities, please check out our [contribution guidelines](https://github.com/EmberAGI/arbitrum-vibekit/blob/main/CONTRIBUTIONS.md). Certain contributions might qualify for the [Trailblazer Fund 2.0](https://www.emberai.xyz/blog/introducing-arbitrum-vibekit-and-the-trailblazer-fund-2-0) initiative launched by Arbitrum. Checkout our [contribution center](https://github.com/orgs/EmberAGI/projects/13) to get started!
