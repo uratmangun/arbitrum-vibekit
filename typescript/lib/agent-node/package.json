@@ -32,6 +32,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@metamask/delegation-toolkit": "^0.13.0",
     "@types/cors": "^2.8.19",
     "@types/eventsource": "^3.0.0",
     "@types/express": "^5.0.3",
@@ -52,6 +53,7 @@
     "eventsource": "^4.0.0",
     "fast-check": "^4.3.0",
     "msw": "^2.11.2",
+    "permissionless": "^0.2.57",
     "prettier": "catalog:",
     "rimraf": "^6.0.1",
     "supertest": "^7.1.4",
@@ -77,6 +79,7 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "test:record-mocks": "tsx --env-file=.env tests/utils/record-mocks.ts",
+    "test:upgrade-wallet": "tsx --env-file=.env.test scripts/upgrade-test-wallet.ts",
     "test:ci": "pnpm test:unit && pnpm test:int",
     "test:ci:main": "pnpm test:unit && pnpm test:int && pnpm test:e2e",
     "precommit": "pnpm lint && pnpm typecheck && pnpm test",
