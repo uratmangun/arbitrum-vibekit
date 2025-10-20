@@ -15,24 +15,28 @@ Welcome to Vibekit's community MCP tools directory! Model Context Protocol (MCP)
 ### Ember MCP Server
 
 **Remote Server**: ` https://api.emberai.xyz/mcp`
+**Client agents**: All Vibekit agents and templates (core integration)
 
 The official Ember MCP server providing access to Ember's core AI capabilities and DeFi tools. This remote server offers standardized interfaces for agent-to-agent communication and advanced DeFi operations.
 
 ### Allora MCP Server
 
 **Directory**: [`allora-mcp-server/`](./allora-mcp-server/)
+**Client agents**: [`allora-price-prediction-agent`](../../community/allora-price-prediction-agent/)
 
 Provides access to Allora Network's machine learning predictions and inference data. Enables agents to fetch prediction market data and topic information for AI-powered decision making.
 
 ### CoinGecko MCP Server
 
 **Directory**: [`coingecko-mcp-server/`](./coingecko-mcp-server/)
+**Client agents**: Available to all agents through the web client
 
 Cryptocurrency price data and interactive chart generation using CoinGecko API. Supports 11+ major tokens with multi-timeframe historical data and rate limit handling.
 
 ### DeFiSafety MCP Server
 
 **Directory**: [`defisafety-implementation/`](./defisafety-implementation/)
+**Client agents**: [`defisafety-agent`](../../community/defisafety-agent/)
 
 Documentation scraping and evaluation tool using RAG (Retrieval Augmented Generation) with DeFiSafety criteria scoring. Enables agents to assess protocol documentation against security and transparency standards.
 
