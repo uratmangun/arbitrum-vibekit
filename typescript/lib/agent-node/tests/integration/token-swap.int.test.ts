@@ -40,18 +40,25 @@ describe('A2A Token Swap Streaming (MSW)', () => {
 
   it('should return streaming artifacts for token swap request using recorded mocks', async () => {
     // Given: seed a context with an initial message to ensure provider mock routes to streaming-with-context
-    const contextId = 'ctx-int-swap';
-    await client.sendMessage({
+    // Server creates contextId on first message
+    const response = await client.sendMessage({
       message: {
         kind: 'message',
         messageId: uuidv4(),
-        contextId,
+        // No contextId - server creates it
         role: 'user',
         parts: [{ kind: 'text', text: 'Hello' }],
       },
     });
 
-    // And a streaming swap request (same prompt as E2E)
+    // Extract contextId from response
+    let contextId: string | undefined;
+    if ('result' in response && 'contextId' in response.result) {
+      contextId = response.result.contextId as string;
+    }
+    expect(contextId).toBeDefined();
+
+    // And a streaming swap request using server-provided contextId
     const stream = client.sendMessageStream({
       message: {
         kind: 'message',

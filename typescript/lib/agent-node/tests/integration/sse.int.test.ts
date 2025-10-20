@@ -73,7 +73,7 @@ describe('A2A SSE Streaming', () => {
             message: {
               role: 'user',
               parts: [{ kind: 'text', text: 'Test streaming message' }],
-              contextId: 'ctx-test-001',
+              // No contextId - server creates it
               messageId: 'msg-test-001',
             } as Message,
           },
@@ -153,7 +153,7 @@ describe('A2A SSE Streaming', () => {
           message: {
             role: 'user',
             parts: [{ kind: 'text', text: 'Test heartbeat' }],
-            contextId: 'ctx-heartbeat',
+            // No contextId - server creates it
             messageId: 'msg-heartbeat-001',
           } as Message,
         },
@@ -197,7 +197,7 @@ describe('A2A SSE Streaming', () => {
         message: {
           kind: 'message',
           messageId: 'msg-delta-001',
-          contextId: 'ctx-message-delta',
+          // No contextId - server creates it
           role: 'user',
           parts: [{ kind: 'text', text: 'What is 2+2?' }],
         },
@@ -223,7 +223,7 @@ describe('A2A SSE Streaming', () => {
           message: {
             kind: 'message',
             messageId: 'msg-completed-001',
-            contextId: 'ctx-message-completed',
+            // No contextId - server creates it
             role: 'user',
             parts: [{ kind: 'text', text: 'Hello' }],
           },
@@ -248,7 +248,7 @@ describe('A2A SSE Streaming', () => {
         message: {
           kind: 'message',
           messageId: 'msg-processing-001',
-          contextId: 'ctx-message-processing',
+          // No contextId - server creates it
           role: 'user',
           parts: [{ kind: 'text', text: 'Process this message' }],
         },

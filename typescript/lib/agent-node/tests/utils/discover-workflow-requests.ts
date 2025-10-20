@@ -177,15 +177,14 @@ async function main() {
     console.log('Server started successfully');
     console.log('Sending message to trigger workflow dispatch...\n');
 
-    // Send message to trigger workflow dispatch
-    const contextId = `ctx-${Date.now()}`;
+    // Send message to trigger workflow dispatch (server creates contextId)
     const messageId = uuidv4();
 
     const streamGenerator = client.sendMessageStream({
       message: {
         kind: 'message',
         messageId,
-        contextId,
+        // No contextId - server creates it
         role: 'user',
         parts: [
           {
@@ -198,10 +197,17 @@ async function main() {
 
     console.log('Processing stream events...\n');
 
+    let contextId: string | undefined;
     let eventCount = 0;
     for await (const event of streamGenerator) {
       eventCount++;
       console.log(`Event ${eventCount}: ${event.kind}`);
+
+      // Extract contextId from server
+      if (event.kind === 'task' && event.contextId) {
+        contextId = event.contextId;
+        console.log(`Server-provided contextId: ${contextId}`);
+      }
 
       if (event.kind === 'task') {
         console.log('  Task ID:', event.id);

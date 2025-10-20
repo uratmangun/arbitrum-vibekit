@@ -129,22 +129,22 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
 
   it('should complete full workflow lifecycle with pause/resume, delegation signing, and artifact streaming', async () => {
     // Given: A workflow dispatch request targeting the lifecycle mock plugin
-    const contextId = `ctx-lifecycle-${Date.now()}`;
     const messageId = uuidv4();
 
     // Track received events
     const statusUpdates: TaskStatusUpdateEvent[] = [];
     const artifactUpdates: TaskArtifactUpdateEvent[] = [];
+    let contextId: string | undefined;
     let taskId: string | undefined;
     let workflowTaskId: string | undefined;
     let workflowContextId: string | undefined;
 
-    // When: Start the workflow via message/stream
+    // When: Start the workflow via message/stream (server will create contextId)
     const streamGenerator = client.sendMessageStream({
       message: {
         kind: 'message',
         messageId,
-        contextId,
+        // No contextId - server creates it
         role: 'user',
         parts: [
           {
@@ -168,11 +168,14 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
       console.log('[E2E] Received event:', event.kind);
 
       if (event.kind === 'task') {
-        // Then: Should receive task event with task id
+        // Then: Should receive task event with task id and extract contextId from server
         taskId = event.id;
+        contextId = event.contextId;
         expect(taskId).toBeDefined();
+        expect(contextId).toBeDefined();
         expect(event.status.state).toBe('submitted');
         console.log('[E2E] Task created:', taskId);
+        console.log('[E2E] Server-provided contextId:', contextId);
       } else if (event.kind === 'status-update') {
         statusUpdates.push(event);
         console.log('[E2E] Status update:', event.status.state, event.final ? '(final)' : '');
@@ -255,7 +258,6 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                             },
                           ],
                         },
-                        taskId: workflowTaskId,
                       });
                       if (!('result' in resumeResponse)) {
                         throw new Error('Resume response for pause 1 returned error');
@@ -309,7 +311,6 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                             },
                           ],
                         },
-                        taskId: workflowTaskId,
                       });
                       if (!('result' in resumeResponse)) {
                         throw new Error('Resume response for pause 1 returned error');
@@ -369,7 +370,6 @@ describe('DeFi Strategy Workflow Lifecycle (E2E)', () => {
                                 },
                               ],
                             },
-                            taskId: workflowTaskId,
                           });
                           if (!('result' in resumeResponse)) {
                             throw new Error('Resume response for pause 2 returned error');

@@ -239,15 +239,14 @@ describe('A2A Client Protocol Integration', () => {
     console.log('Available workflow tools:', availableTools);
     expect(availableTools).toContain(toolName);
 
-    const contextId = `ctx-${Date.now()}`;
     const messageId = uuidv4();
 
-    // When: Send message to trigger workflow dispatch
+    // When: Send message to trigger workflow dispatch (server creates contextId)
     // The AI service will use MSW mocks to dispatch the workflow
     const message = {
       kind: 'message' as const,
       messageId,
-      contextId,
+      // No contextId - server creates it
       role: 'user' as const,
       parts: [
         {
@@ -259,6 +258,7 @@ describe('A2A Client Protocol Integration', () => {
 
     const streamGenerator = client.sendMessageStream({ message });
 
+    let contextId: string | undefined;
     let parentTaskId: string | undefined;
     let workflowTaskId: string | undefined;
     const parentStatusUpdates: TaskStatusUpdateEvent[] = [];
@@ -268,6 +268,7 @@ describe('A2A Client Protocol Integration', () => {
       for await (const event of streamGenerator) {
         if (event.kind === 'task') {
           parentTaskId = event.id;
+          contextId = event.contextId;
         } else if (event.kind === 'status-update') {
           parentStatusUpdates.push(event);
 
@@ -395,14 +396,13 @@ describe('A2A Client Protocol Integration', () => {
   it('should handle race condition when workflow pauses before subscription', async () => {
     // NOTE: Using defi_strategy_lifecycle_mock which doesn't pause immediately
     // This test verifies the getTask/resubscribe pattern works even with timing variations
-    const contextId = `ctx-race-${Date.now()}`;
 
-    // When: Dispatch workflow (AI service will use MSW mocks)
+    // When: Dispatch workflow (AI service will use MSW mocks, server creates contextId)
     const streamGenerator = client.sendMessageStream({
       message: {
         kind: 'message',
         messageId: uuidv4(),
-        contextId,
+        // No contextId - server creates it
         role: 'user',
         parts: [
           {
@@ -413,10 +413,14 @@ describe('A2A Client Protocol Integration', () => {
       },
     });
 
+    let contextId: string | undefined;
     let workflowTaskId: string | undefined;
 
     const parentStreamPromise = (async () => {
       for await (const event of streamGenerator) {
+        if (event.kind === 'task' && event.contextId) {
+          contextId = event.contextId;
+        }
         if (event.kind === 'status-update' && event.status.message?.referenceTaskIds?.length) {
           workflowTaskId = event.status.message.referenceTaskIds[0];
         }
@@ -511,14 +515,13 @@ describe('A2A Client Protocol Integration', () => {
     // SKIPPED: Requires proper multi-workflow dispatch mock
     // The streaming-multi-tool-dispatch.json mock needs to be recorded with
     // both workflows registered as tools in the same request
-    const contextId = `ctx-filter-${Date.now()}`;
 
-    // When: Dispatch both workflows in single message
+    // When: Dispatch both workflows in single message (server creates contextId)
     const streamGenerator = client.sendMessageStream({
       message: {
         kind: 'message',
         messageId: uuidv4(),
-        contextId,
+        // No contextId - server creates it
         role: 'user',
         parts: [
           {
@@ -590,14 +593,12 @@ describe('A2A Client Protocol Integration', () => {
     // 2. Run `pnpm test:record-mocks` with OpenRouter API key
     // 3. Update the test message to match the recorded mock
 
-    const contextId = `ctx-multi-${Date.now()}`;
-
-    // When: Dispatch workflow
+    // When: Dispatch workflow (server creates contextId)
     const streamGenerator = client.sendMessageStream({
       message: {
         kind: 'message',
         messageId: uuidv4(),
-        contextId,
+        // No contextId - server creates it
         role: 'user',
         parts: [
           {
@@ -608,9 +609,13 @@ describe('A2A Client Protocol Integration', () => {
       },
     });
 
+    let contextId: string | undefined;
     let workflowTaskId: string | undefined;
 
     for await (const event of streamGenerator) {
+      if (event.kind === 'task' && event.contextId) {
+        contextId = event.contextId;
+      }
       if (event.kind === 'status-update' && event.status.message?.referenceTaskIds) {
         workflowTaskId = event.status.message.referenceTaskIds[0];
         break;
@@ -636,6 +641,7 @@ describe('A2A Client Protocol Integration', () => {
               kind: 'message',
               messageId: uuidv4(),
               contextId,
+              taskId: workflowTaskId!,
               role: 'user',
               parts: [
                 {
@@ -645,7 +651,6 @@ describe('A2A Client Protocol Integration', () => {
                 },
               ],
             },
-            taskId: workflowTaskId!,
           });
         } else if (event.status.state === 'completed' && event.final) {
           break;
@@ -660,5 +665,37 @@ describe('A2A Client Protocol Integration', () => {
     expect(artifacts).toContain('artifact-1.json');
     expect(artifacts).toContain('artifact-2.json');
     expect(artifacts).toContain('artifact-3.json');
+  });
+
+  it('should accept message with any contextId (sessions created on-demand)', async () => {
+    // Given: A client sends a message with a contextId that doesn't exist on the server yet
+    const newContextId = 'ctx-new-conversation-12345';
+
+    // When: Client sends message with new contextId
+    // Then: Server should accept it and create a session on-demand
+    //
+    // A2A SDK behavior:
+    // - contextIds are opaque identifiers managed by the server
+    // - Sessions are created on-demand for any contextId (client-provided or server-generated)
+    // - This allows both new conversations and conversation resumption
+    const response = await client.sendMessage({
+      message: {
+        kind: 'message',
+        messageId: uuidv4(),
+        contextId: newContextId,
+        role: 'user',
+        parts: [{ kind: 'text', text: 'Start new conversation with custom contextId' }],
+      },
+    });
+
+    // Verify response structure - should succeed (not fail)
+    expect('result' in response).toBe(true);
+    if ('result' in response) {
+      const task = response.result as Task;
+      expect(task.kind).toBe('task');
+      expect(task.contextId).toBe(newContextId);
+      // Task should either be working or completed (not failed)
+      expect(['working', 'submitted', 'completed']).toContain(task.status.state);
+    }
   });
 });

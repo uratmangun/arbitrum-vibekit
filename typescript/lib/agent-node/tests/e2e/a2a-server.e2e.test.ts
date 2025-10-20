@@ -113,12 +113,12 @@ describe('A2A Server Live Tests', () => {
         throw new Error(`Test setup failed: client=${!!client}, baseUrl=${baseUrl}`);
       }
 
-      // Given a simple query to the A2A server using the client
+      // Given a simple query to the A2A server using the client (server creates contextId)
       const response = await client.sendMessage({
         message: {
           kind: 'message',
           messageId: uuidv4(),
-          contextId: 'ctx-live-simple',
+          // No contextId - server creates it
           role: 'user',
           parts: [{ kind: 'text', text: 'What is 2+2?' }],
         },
@@ -157,12 +157,12 @@ describe('A2A Server Live Tests', () => {
     }, 10000); // 10s timeout: simple AI query should respond quickly
 
     it('should handle streaming requests with LLM', async () => {
-      // Given a streaming request using the client
+      // Given a streaming request using the client (server creates contextId)
       const streamGenerator = client.sendMessageStream({
         message: {
           kind: 'message',
           messageId: uuidv4(),
-          contextId: 'ctx-live-stream',
+          // No contextId - server creates it
           role: 'user',
           parts: [{ kind: 'text', text: 'Count from 1 to 3' }],
         },
@@ -194,12 +194,12 @@ describe('A2A Server Live Tests', () => {
     }, 20000); // 20s timeout: allows time for streaming response chunks
 
     it('should verify LLM configuration is properly loaded', async () => {
-      // Given a query that would require LLM to answer properly using the client
+      // Given a query that would require LLM to answer properly using the client (server creates contextId)
       const response = await client.sendMessage({
         message: {
           kind: 'message',
           messageId: uuidv4(),
-          contextId: 'ctx-live-config',
+          // No contextId - server creates it
           role: 'user',
           parts: [{ kind: 'text', text: 'Hello, are you working?' }],
         },
