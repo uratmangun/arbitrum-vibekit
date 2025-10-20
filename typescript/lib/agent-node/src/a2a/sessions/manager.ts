@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 
+import { A2AError } from '@a2a-js/sdk/server';
 import type { ModelMessage } from 'ai';
 import { v7 as uuidv7 } from 'uuid';
 
@@ -11,6 +12,28 @@ export class SessionManager extends EventEmitter {
 
   constructor() {
     super();
+  }
+
+  /**
+   * Creates a new session with the specified contextId (no validation)
+   * Used when the SDK has already generated/assigned a contextId
+   * or when creating sessions on-demand for any contextId
+   */
+  createSessionWithId(contextId: string): Session {
+    const session: Session = {
+      contextId,
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      state: {
+        tasks: [],
+        metadata: {},
+        conversationHistory: [],
+      },
+    };
+
+    this.sessions.set(contextId, session);
+    this.emit('sessionCreated', { contextId, session });
+    return session;
   }
 
   /**
@@ -29,36 +52,16 @@ export class SessionManager extends EventEmitter {
         return existing;
       } else {
         // Reject non-existent contextId per better API design
-        const error = new Error('Session not found') as Error & {
-          code: number;
-          data: { contextId: string; hint: string };
-        };
-        error.code = -32602;
-        error.data = {
+        throw A2AError.invalidRequest('Session not found', {
           contextId,
           hint: 'Omit contextId to create new session, or provide valid existing contextId to reattach',
-        };
-        throw error;
+        });
       }
     }
 
     // For new sessions, use server-generated ID per A2A spec
     const id = this.generateContextId();
-
-    const session: Session = {
-      contextId: id,
-      createdAt: new Date(),
-      lastActivity: new Date(),
-      state: {
-        tasks: [],
-        metadata: {},
-        conversationHistory: [],
-      },
-    };
-
-    this.sessions.set(id, session);
-    this.emit('sessionCreated', { contextId: id, session });
-    return session;
+    return this.createSessionWithId(id);
   }
 
   /**
@@ -282,21 +285,16 @@ export class SessionManager extends EventEmitter {
         return existing;
       } else {
         // Reject non-existent contextId per better API design
-        const error = new Error('Session not found') as Error & {
-          code: number;
-          data: { contextId: string; hint: string };
-        };
-        error.code = -32602;
-        error.data = {
+        throw A2AError.invalidRequest('Session not found', {
           contextId,
           hint: 'Omit contextId to create new session, or provide valid existing contextId to reattach',
-        };
-        throw error;
+        });
       }
     }
 
     // Create new session with server-generated ID
-    return this.createSession();
+    const id = this.generateContextId();
+    return this.createSessionWithId(id);
   }
 
   private generateContextId(): string {

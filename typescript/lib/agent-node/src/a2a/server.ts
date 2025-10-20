@@ -366,15 +366,21 @@ export function registerAdditionalRoutes(app: Express, a2aPath: string): void {
 
   // Artifact download route for A2A resource URI compatibility
   const artifactRoute = buildArtifactRoute(a2aPath);
-  app.get(artifactRoute, (req: Request, res: Response) => {
+  app.get(artifactRoute, async (req: Request, res: Response) => {
     try {
-      const runtime = (app as ExpressWithRuntime).workflowRuntime;
-      if (!runtime?.getArtifact) {
-        res.status(404).json({ error: 'Artifacts not available' });
+      const taskStore = (app as ExpressWithRuntime).taskStore;
+      if (!taskStore) {
+        res.status(404).json({ error: 'Task store not available' });
         return;
       }
       const { taskId, artifactId } = req.params;
-      const artifact = runtime.getArtifact(taskId ?? '', artifactId ?? '');
+      // Query TaskStore for the task and find the artifact
+      const task = await taskStore.load(taskId ?? '');
+      if (!task?.artifacts) {
+        res.status(404).json({ error: 'Task or artifacts not found' });
+        return;
+      }
+      const artifact = task.artifacts.find((a) => a.artifactId === artifactId);
       if (!isArtifactRecord(artifact)) {
         res.status(404).json({ error: 'Artifact not found' });
         return;

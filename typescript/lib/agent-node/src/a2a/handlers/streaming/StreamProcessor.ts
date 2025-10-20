@@ -2,7 +2,7 @@
  * Core stream processing for AI responses
  */
 
-import type { TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import type { Part, TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@a2a-js/sdk';
 import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool, TextStreamPart, AssistantModelMessage } from 'ai';
 import { v7 as uuidv7 } from 'uuid';
@@ -25,6 +25,7 @@ export interface StreamProcessorOptions {
   ) => Promise<{
     taskId: string;
     metadata: { workflowName: string; description: string; pluginId: string };
+    additionalParts?: Part[];
   }>;
 }
 
@@ -177,6 +178,7 @@ export class StreamProcessor {
     ) => Promise<{
       taskId: string;
       metadata: { workflowName: string; description: string; pluginId: string };
+      additionalParts?: Part[];
     }>,
   ): Promise<void> {
     const toolCalls = this.toolCallCollector.getToolCalls();
@@ -194,6 +196,22 @@ export class StreamProcessor {
           eventBus,
         );
 
+        // Build parts array with text, and add workflow-provided parts if present
+        const parts: Part[] = [
+          {
+            kind: 'text',
+            text: `Dispatching workflow: ${result.metadata.workflowName} (${result.metadata.description})`,
+          },
+        ];
+
+        // Append additional parts from workflow dispatch-response
+        if (result.additionalParts && result.additionalParts.length > 0) {
+          this.logger.debug('Merging workflow dispatch-response parts', {
+            partsCount: result.additionalParts.length,
+          });
+          parts.push(...result.additionalParts);
+        }
+
         // Emit status update with referenceTaskIds
         const statusUpdate: TaskStatusUpdateEvent = {
           kind: 'status-update',
@@ -207,12 +225,7 @@ export class StreamProcessor {
               contextId,
               role: 'agent',
               referenceTaskIds: [result.taskId],
-              parts: [
-                {
-                  kind: 'text',
-                  text: `Dispatching workflow: ${result.metadata.workflowName} (${result.metadata.description})`,
-                },
-              ],
+              parts,
               metadata: {
                 referencedWorkflow: result.metadata,
               },
@@ -223,6 +236,7 @@ export class StreamProcessor {
         this.logger.debug('Emitting workflow reference', {
           parentTaskId: taskId,
           childTaskId: result.taskId,
+          partsCount: parts.length,
         });
         eventBus.publish(statusUpdate);
       }

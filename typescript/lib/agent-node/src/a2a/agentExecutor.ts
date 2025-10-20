@@ -35,6 +35,7 @@ class A2AAgentExecutor implements AgentExecutor {
   private messageHandler: MessageHandler;
   private workflowHandler: WorkflowHandler;
   private aiHandler: AIHandler;
+  private sessionManager: SessionManager;
 
   constructor(
     workflowRuntime: WorkflowRuntime | undefined,
@@ -43,6 +44,9 @@ class A2AAgentExecutor implements AgentExecutor {
     eventBusManager: ExecutionEventBusManager,
     taskStore: TaskStore,
   ) {
+    // Store session manager for contextId validation
+    this.sessionManager = sessionManager;
+
     // Initialize handlers
     this.workflowHandler = new WorkflowHandler(workflowRuntime, eventBusManager, taskStore);
     this.aiHandler = new AIHandler(ai, this.workflowHandler, sessionManager);
@@ -51,6 +55,13 @@ class A2AAgentExecutor implements AgentExecutor {
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const { userMessage, taskId, contextId } = requestContext;
+
+    // Ensure session exists for this contextId
+    // Sessions are created on-demand for any contextId (client-provided or server-generated)
+    // This is the A2A spec behavior - contextIds are opaque identifiers managed by the server
+    if (!this.sessionManager.getSession(contextId)) {
+      this.sessionManager.createSessionWithId(contextId);
+    }
 
     // Extract message content and data
     const { content: messageContent, data: messageData } =
