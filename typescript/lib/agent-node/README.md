@@ -24,6 +24,7 @@ Agent Node provides a production-ready framework for building AI agents with:
 - [Architecture](#architecture)
 - [Configuration](#configuration)
 - [Core Concepts](#core-concepts)
+- [Creating Workflows](#creating-workflows)
 - [API Reference](#api-reference)
 - [Development](#development)
 - [Testing](#testing)
@@ -508,6 +509,74 @@ MCP (Model Context Protocol) provides dynamic tools:
 - **Tool Scoping**: Each skill specifies allowed tools
 - **HTTP & Stdio**: Support for both transport types
 - **Namespacing**: Tool names prefixed with server namespace
+
+## Creating Workflows
+
+For a comprehensive guide on building workflows, see **[Workflow Creation Guide](docs/WORKFLOW-CREATION-GUIDE.md)**.
+
+**Quick overview:**
+
+Workflows are multi-step operations defined as async generator functions:
+
+```typescript
+const plugin: WorkflowPlugin = {
+  id: 'my-workflow',
+  name: 'My Workflow',
+  description: 'Description of workflow',
+  version: '1.0.0',
+  inputSchema: z.object({
+    /* params */
+  }),
+
+  async *execute(context: WorkflowContext) {
+    // Yield status updates
+    yield {
+      type: 'status',
+      status: {
+        state: 'working',
+        message: {
+          /* ... */
+        },
+      },
+    };
+
+    // Emit artifacts
+    yield {
+      type: 'artifact',
+      artifact: {
+        /* ... */
+      },
+    };
+
+    // Pause for input
+    const userInput = yield {
+      type: 'pause',
+      status: {
+        state: 'input-required',
+        message: {
+          /* ... */
+        },
+      },
+      inputSchema: z.object({
+        /* ... */
+      }),
+    };
+
+    // Return result
+    return { success: true };
+  },
+};
+```
+
+**Key concepts:**
+
+- **Generator-based** - Use `yield` for state updates, `return` for final result
+- **Pause/Resume** - Request user input or authorization at any point
+- **Artifacts** - Emit structured data throughout execution
+- **State Machine** - Enforced transitions: `working` → `input-required` → `completed`
+- **Type Safety** - Zod schemas validate inputs automatically
+
+See the [Workflow Creation Guide](docs/WORKFLOW-CREATION-GUIDE.md) for complete documentation, patterns, and examples.
 
 ## API Reference
 
