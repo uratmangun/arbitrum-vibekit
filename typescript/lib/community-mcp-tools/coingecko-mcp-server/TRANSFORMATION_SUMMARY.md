@@ -87,7 +87,7 @@ graph LR
 
 ```yaml
 coingecko-mcp-server:
-  build: ./lib/mcp-tools/coingecko-mcp-server
+  build: ./lib/community-mcp-tools/coingecko-mcp-server
   ports: ['3011:3011']
 ```
 
@@ -113,7 +113,7 @@ coingecko-mcp-server:
 **User**: _"Generate a BTC price chart for 7 days"_
 **Result**: Interactive SVG chart with 169 data points, hover tooltips, and gradient styling
 
-**User**: _"What cryptocurrency tokens are supported?"_  
+**User**: _"What cryptocurrency tokens are supported?"_
 **Result**: List of 11 supported tokens with symbols and names
 
 ---

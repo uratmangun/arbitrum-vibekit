@@ -30,7 +30,7 @@ services:
   coingecko-mcp-server:
     build:
       context: ./
-      dockerfile: lib/mcp-tools/coingecko-mcp-server/Dockerfile
+      dockerfile: lib/community-mcp-tools/coingecko-mcp-server/Dockerfile
     container_name: vibekit-coingecko-mcp-server
     env_file:
       - path: .env

@@ -13,7 +13,7 @@ describe('evaluateProtocol Tool', () => {
 
     mockContext = {
       mcpClients: {
-        '/app/lib/mcp-tools/defisafety-implementation/dist/index.js': mockMcpClient,
+        '/app/lib/community-mcp-tools/defisafety-implementation/dist/index.js': mockMcpClient,
       },
     } as any;
   });
@@ -91,7 +91,7 @@ describe('evaluateProtocol Tool', () => {
 
   it('should handle non-JSON response gracefully', async () => {
     const textResponse = 'Protocol evaluation completed successfully with some detailed analysis';
-    
+
     mockMcpClient.callTool.mockResolvedValue({
       content: [{ text: textResponse }],
     });
@@ -111,7 +111,7 @@ describe('evaluateProtocol Tool', () => {
 
   it('should validate input parameters', () => {
     const schema = evaluateProtocolTool.parameters;
-    
+
     // Valid input
     const validInput = {
       projectName: 'Aave',
@@ -130,7 +130,7 @@ describe('evaluateProtocol Tool', () => {
 
     // Invalid maxPages
     const invalidPages = {
-      projectName: 'Aave', 
+      projectName: 'Aave',
       baseUrl: 'https://docs.aave.com',
       maxPages: 0,
     };
