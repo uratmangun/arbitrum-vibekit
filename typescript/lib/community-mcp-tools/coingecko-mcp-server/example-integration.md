@@ -7,7 +7,7 @@ This document shows how to integrate the CoinGecko MCP server with the existing 
 First, build the CoinGecko MCP server:
 
 ```bash
-cd arbitrum-vibekit/typescript/lib/mcp-tools/coingecko-mcp-server
+cd arbitrum-vibekit/typescript/lib/community-mcp-tools/coingecko-mcp-server
 pnpm install
 pnpm build
 ```
@@ -38,8 +38,8 @@ const mcpServers = [
   {
     name: 'coingecko',
     url: 'http://localhost:3011/sse',
-    tools: ['generate_chart', 'get_supported_tokens']
-  }
+    tools: ['generate_chart', 'get_supported_tokens'],
+  },
 ];
 ```
 
@@ -52,9 +52,7 @@ For direct integration, you can modify the web client to use the stdio transport
 import { spawn } from 'child_process';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const coingeckoProcess = spawn('node', [
-  'path/to/coingecko-mcp-server/dist/index.js'
-]);
+const coingeckoProcess = spawn('node', ['path/to/coingecko-mcp-server/dist/index.js']);
 
 const transport = new StdioClientTransport(coingeckoProcess);
 await mcpClient.connect(transport);
@@ -73,8 +71,8 @@ const mcpServers = [
   {
     name: 'coingecko',
     url: 'http://localhost:3011/sse',
-    description: 'Cryptocurrency price data from CoinGecko'
-  }
+    description: 'Cryptocurrency price data from CoinGecko',
+  },
 ];
 ```
 
@@ -185,4 +183,4 @@ The integration handles various error scenarios:
 - Input validation prevents injection attacks
 - Rate limiting prevents abuse
 
-This integration provides a seamless way to use the CoinGecko MCP server with your existing web client while maintaining the same user experience. 
+This integration provides a seamless way to use the CoinGecko MCP server with your existing web client while maintaining the same user experience.

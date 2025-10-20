@@ -46,7 +46,7 @@ arbitrum-vibekit/
 │   │   ├── agent-node/             # Agent Node framework (v3.0+) - Config-driven A2A-compliant agents
 │   │   ├── ember-api/              # Ember AI API client
 │   │   ├── ember-schemas/          # Schema definitions
-│   │   ├── mcp-tools/              # MCP tool server implementations
+│   │   ├── community-mcp-tools/   # Community MCP tool server implementations
 │   │   └── test-utils/             # Testing utilities and helpers
 │   └── onchain-actions-plugins/    # Ember plugin system
 ├── CHANGELOG.md
@@ -66,7 +66,7 @@ arbitrum-vibekit/
 
 - **[`clients/web`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/clients/web)**: Vibekit web frontend, featuring wallet integration, agent chat interface, and real-time MCP communication for DeFi agent interactions.
 
-- **[`mcp-tools`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/lib/mcp-tools)**: MCP tool server implementations including Ember AI, providing standardized external data access through the Model Context Protocol.
+- **[`community-mcp-tools`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/lib/community-mcp-tools)**: Community MCP tool server implementations, providing standardized external data access through the Model Context Protocol.
 
 - **[`onchain-actions-plugins/`](https://github.com/EmberAGI/arbitrum-vibekit/tree/main/typescript/onchain-actions-plugins)**: The Ember Plugin System providing a registry for on-chain action plugins and smart contract integrations with extensible architecture for adding new blockchain protocols.
 
