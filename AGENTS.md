@@ -120,10 +120,28 @@ globs: ['**/*']
 - Avoid trivial comments that merely restate the next line of code
 - Never redefine existing interfaces - always import and reuse
 - Never produce mocks instead of real implementations
-- Don't create value/type aliases for compatibility - update call sites to use true names
-- When refactoring, update import paths rather than maintaining compatibility aliases
-- Never use `.passthrough()` with Zod schemas
 - **NEVER use `any` type** - use proper types, `unknown`, or type assertions with `as`
+- Never use `.passthrough()` with Zod schemas
+
+### Refactoring and Breaking Changes
+
+**CRITICAL: NEVER maintain backwards compatibility. This is an internal codebase, not a public library.**
+
+When refactoring:
+- ✅ Update ALL call sites immediately
+- ✅ Make breaking changes directly
+- ❌ NO compatibility aliases, re-exports, or type aliases (e.g., `type OldName = NewName`)
+- ❌ NO deprecation warnings or transition periods
+- ❌ NO keeping old names/paths alongside new ones
+
+```typescript
+// ❌ WRONG
+export const newName = () => { /* ... */ };
+export const oldName = newName; // NO!
+
+// ✅ CORRECT - rename and update all call sites
+export const newName = () => { /* ... */ };
+```
 
 ### Schema Validation (Zod)
 
