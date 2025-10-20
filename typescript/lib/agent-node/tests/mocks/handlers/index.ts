@@ -1,4 +1,5 @@
 import { hyperbolicHandlers } from './hyperbolic.js';
+import { onchainActionsHandlers } from './onchain-actions.js';
 import { openaiHandlers } from './openai.js';
 import { openrouterHandlers } from './openrouter.js';
 import { viemHandlers } from './viem.js';
@@ -12,4 +13,5 @@ export const handlers = [
   ...xaiHandlers,
   ...hyperbolicHandlers,
   ...viemHandlers,
+  ...onchainActionsHandlers,
 ];

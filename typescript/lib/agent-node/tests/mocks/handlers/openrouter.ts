@@ -47,6 +47,9 @@ function computeMockKey(body: unknown): string {
     (content.includes('execute') || content.includes('dispatch') || content.includes('start')) &&
     (content.includes('workflow') || content.includes('defi-strategy'))
   ) {
+    if (content.includes('pause-only')) {
+      return 'streaming-pause-only-dispatch';
+    }
     // Check for specific workflow names to route to correct mocks
     if (content.includes('filter_test_1') && content.includes('filter_test_2')) {
       return 'streaming-multi-tool-dispatch';

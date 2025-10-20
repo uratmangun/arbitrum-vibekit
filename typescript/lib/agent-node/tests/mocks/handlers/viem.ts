@@ -4,6 +4,8 @@ import { createResponseFromMock } from '../utils/error-simulation.js';
 
 // Match both with and without trailing slash
 const ETH_RPC_URL = 'https://eth.merkle.io';
+const ARBITRUM_RPC_URL = 'https://arb-mainnet.g.alchemy.com/v2/PppihPeNg7SHljhEKcarydM45ytHOAhe';
+const PIMLICO_URL = 'https://api.pimlico.io/v2/42161/rpc';
 
 type JsonRpcRequest = {
   id: number | string | null;
@@ -75,7 +77,14 @@ const rpcHandler = async ({ request }: { request: Request }) => {
 };
 
 export const viemHandlers = [
-  // Match with and without trailing slash
+  // Ethereum mainnet RPC
   http.post(ETH_RPC_URL, rpcHandler),
   http.post(`${ETH_RPC_URL}/`, rpcHandler),
+
+  // Arbitrum RPC (for workflow operations)
+  http.post(ARBITRUM_RPC_URL, rpcHandler),
+  http.post(`${ARBITRUM_RPC_URL}/`, rpcHandler),
+
+  // Pimlico bundler/paymaster (catch-all for query params)
+  http.post(`${PIMLICO_URL}*`, rpcHandler),
 ];
