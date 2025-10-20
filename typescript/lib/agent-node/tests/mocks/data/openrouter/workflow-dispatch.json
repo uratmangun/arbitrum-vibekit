@@ -18,15 +18,15 @@
         },
         {
           "role": "user",
-          "content": "Please execute the defi-strategy-lifecycle-mock workflow"
+          "content": "Execute USDai strategy workflow"
         }
       ],
       "tools": [
         {
           "type": "function",
           "function": {
-            "name": "dispatch_workflow_defi_strategy_lifecycle_mock",
-            "description": "Dispatch the defi-strategy-lifecycle-mock workflow",
+            "name": "dispatch_workflow_usdai_points_trading_strateg",
+            "description": "Dispatch the usdai-points-trading-strateg workflow",
             "parameters": {
               "type": "object",
               "properties": {
@@ -59,6 +59,6 @@
       "cf-ray": "9903210c7d53da48-EWR",
       "content-encoding": "gzip"
     },
-    "rawBody": "H4sIAAAAAAAAA+JSgAEuAAAAAP//4kIwAQAAAP//QmICAAAA//9CYgIAAAD//0JiAgAAAP//QmICAAAA//98kUtv1DAUhf/LWXsgnc4j9Y5NhyIhoOoGocpy7ZvMZRzb2E6HaZT/jlKYBxJiZ537OMffHcAWEi352dV6Va2vb6plPbt70C+1WczfV7W9JXqoFx9uIRBTeGZLCRKfIvl3dxDogiUHiRDJa37bxjJbhFnHniEQnr6TKZAwW13emNBFR4WDh4BJpAtZyLOtgNkGNpQhvw1woY0pPGVI3zsn0LDnvFWJdA4eEiUEp4x2LkPA68LPpP7bw97ST8hKoKOcdUuQA1JwBAmdM+eifZmSBV/IT6khkKjps3bHEL83s2+PwoXDFPrs8Yp1KqgvXH/cxHQ/f+k+z+9XG3ab6vB1/wMC5RAn96b35g+W01MO8LqbqpZz1MVs1T6kXePCXllqWOWSdKH2oBw3ZA7GkeqC2UFAp7bvyJcMiWHEOD6O46NAPuRC3cSopRQTv36xiWq5qnSzouXyBgL9EUxMoYtFlbAjnyHr6wnM8X4n+Wo9ISjanZWqEn8PK0tF8wRogNFmS/bUXAno3nI4C+M/bC4XnA5wMTKOvwAAAP//AwDFPBN7CAMAAA=="
+    "rawBody": "H4sIAFk39GgAA31RTW/UMBC98zN83oV0ux9pbly6FAkBVS8IIWtqT5Khjm3sSZdtlP/OpLAfSFUlS7bfzLz3/DwosqpSDfr5xWZdbC6vilU5v7mDp9IsFx+K0l4j3pXLj9dqpmIKj2QxycDniP79jWBdsOgECAIAvWsiz5dh3pEnKYb7n2hYqqYFfmtCFx0yBS8lkxAYRfskK2AbyGBW1fdBudCI3r1cfO/cTNVCmVstY1kIKsUhOG3AuSxsHpgeUb/aQ97ib1UV4hlzhgZVNagUnOwKcqbM4HlyFjyjn1zLJWHdZ3AHE3+ZyTcH4ExhMn3SeI51KuivVH7axnS7eOq+LG7XW3LbYv9t90vYeR8n9br35l8sx6N489BNVUs5AptW70J6qF3Y6T5bIB0Dec6aE1gxpLMcGBvhgNT0nbxALKlhVOP4Q9ZM5X1m7KaMGkwx0fMT66hX6wLqNa5WVzLbH4KR7LvImsMDeiEqL6dgDv93hC82UwQM7oQUxez/YW2RgaaABgnEtGiPzdIKvaVwAsYXZM4Jjh9wNjKOb/4A+/dkm8cCAAA="
   }
 }
