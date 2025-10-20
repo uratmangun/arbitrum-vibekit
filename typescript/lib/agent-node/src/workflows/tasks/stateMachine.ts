@@ -2,14 +2,14 @@ import type { TaskState } from '@a2a-js/sdk';
 
 export const validTransitions: Record<TaskState, readonly TaskState[]> = {
   submitted: ['working', 'failed', 'canceled', 'rejected'],
-  working: ['input-required', 'auth-required', 'completed', 'failed', 'canceled'],
-  'input-required': ['working', 'canceled'],
-  'auth-required': ['working', 'canceled'],
+  working: ['input-required', 'auth-required', 'completed', 'failed', 'canceled', 'rejected'],
+  'input-required': ['working', 'canceled', 'rejected'], // Can reject instead of resuming
+  'auth-required': ['working', 'canceled', 'rejected'], // Can reject instead of resuming
   completed: [],
   failed: [],
   canceled: [],
-  rejected: [],
-  unknown: [],
+  rejected: [], // Terminal state
+  unknown: [], // Never transition to this
 } as const;
 
 export function canTransition(from: TaskState, to: TaskState): boolean {
