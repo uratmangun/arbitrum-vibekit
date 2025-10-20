@@ -25,8 +25,8 @@ card:
     streaming: true
     pushNotifications: false
   provider:
-    name: 'My Organization'
-    url: 'https://example.com'
+    name: 'Ember AI'
+    url: 'https://emberai.xyz/'
   defaultInputModes: ['text/plain', 'application/json']
   defaultOutputModes: ['application/json', 'text/plain']
 
@@ -70,7 +70,7 @@ skill:
 mcp:
   servers:
     - name: fetch
-      allowedTools: [fetch__fetch_json, fetch__fetch_txt, fetch__fetch_markdown]
+      allowedTools: [fetch_json, fetch_txt, fetch_markdown]
 
 # Workflow integration
 workflows:
@@ -120,7 +120,7 @@ skill:
 mcp:
   servers:
     - name: ember_onchain_actions
-
+      allowedTools: [createSwap, possibleSwaps]
 # Optional: Uncomment to override model for this skill
 # model:
 #   provider: openrouter
@@ -150,8 +150,9 @@ Be precise, security-conscious, and user-friendly in all blockchain interactions
 `;
 
 const SAMPLE_WORKFLOW_TS = `import type { Artifact, Message } from '@a2a-js/sdk';
-import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 import { z } from 'zod';
+
+import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 
 const plugin: WorkflowPlugin = {
   id: 'example-workflow',
@@ -361,7 +362,10 @@ const SAMPLE_MCP_JSON = `{
     },
     "ember_onchain_actions": {
       "type": "http",
-      "url": "https://api.emberai.xyz/mcp"
+      "url": "https://api.emberai.xyz/mcp",
+      "headers": {
+        "X-Ember-Api-Version": "current"
+      }
     }
   }
 }
