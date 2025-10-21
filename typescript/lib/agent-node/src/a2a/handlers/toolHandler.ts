@@ -2,10 +2,13 @@
  * Tool handling for A2A Agent Executor
  */
 
+import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool } from 'ai';
 
 import type { AIService } from '../../ai/service.js';
 import { Logger } from '../../utils/logger.js';
+
+import type { WorkflowHandler } from './workflowHandler.js';
 
 /**
  * Handles tool-related operations for the agent executor
@@ -13,7 +16,10 @@ import { Logger } from '../../utils/logger.js';
 export class ToolHandler {
   private logger: Logger;
 
-  constructor(private ai: AIService) {
+  constructor(
+    private ai: AIService,
+    private workflowHandler?: WorkflowHandler,
+  ) {
     this.logger = Logger.getInstance('ToolHandler');
   }
 
@@ -35,38 +41,40 @@ export class ToolHandler {
   }
 
   /**
-   * Executes a tool call through the AI service
-   */
-  async executeToolCall(toolName: string, args: unknown): Promise<unknown> {
-    // Tools execute themselves via their embedded execute functions
-    const tools = this.getAvailableToolsAsMap();
-    const tool = tools[toolName];
-    if (tool?.execute) {
-      return await tool.execute(args, { toolCallId: toolName, messages: [] });
-    }
-    return null;
-  }
-
-  /**
    * Creates a tools bundle for the AI SDK
    */
-  createToolsBundle():
-    | {
-        tools: Record<string, Tool>;
-        onToolCall?: (name: string, args: unknown) => Promise<unknown>;
+  createToolsBundle(
+    contextId: string,
+    eventBus: ExecutionEventBus,
+  ): {
+    tools: Record<string, Tool>;
+  } {
+    const baseTools =
+      this.ai?.getToolsAsRecord?.() ?? this.getAvailableToolsAsMap();
+
+    const toolsWithExecutors: Record<string, Tool> = {};
+
+    for (const [toolName, toolDefinition] of Object.entries(baseTools)) {
+      const tool = toolDefinition as Tool;
+      if (
+        this.workflowHandler &&
+        !tool.execute &&
+        toolName.startsWith('dispatch_workflow_')
+      ) {
+        toolsWithExecutors[toolName] = {
+          ...tool,
+          execute: async (args: unknown) => {
+            this.logger.debug('Executing workflow dispatch inline', { toolName, contextId });
+            return this.workflowHandler!.dispatchWorkflow(toolName, args, contextId, eventBus);
+          },
+        };
+      } else {
+        toolsWithExecutors[toolName] = tool;
       }
-    | undefined {
-    // Get tools as a Record from AIService
-    const toolsRecord = this.ai?.getToolsAsRecord?.();
-    if (toolsRecord) {
-      return { tools: toolsRecord };
     }
 
-    // Fallback to available tools map
-    const availableTools = this.getAvailableToolsAsMap();
     return {
-      tools: availableTools,
-      onToolCall: (name: string, args: unknown) => this.executeToolCall(name, args),
+      tools: toolsWithExecutors,
     };
   }
 }

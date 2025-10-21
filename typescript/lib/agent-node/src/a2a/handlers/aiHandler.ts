@@ -24,10 +24,10 @@ export class AIHandler {
 
   constructor(
     private ai: AIService,
-    private workflowHandler: WorkflowHandler,
+    workflowHandler: WorkflowHandler,
     private sessionManager: SessionManager,
   ) {
-    this.toolHandler = new ToolHandler(ai);
+    this.toolHandler = new ToolHandler(ai, workflowHandler);
     this.logger = Logger.getInstance('AIHandler');
     this.streamProcessor = new StreamProcessor();
   }
@@ -65,9 +65,8 @@ export class AIHandler {
       });
 
       // Get available tools
-      const bundle = this.toolHandler.createToolsBundle();
-      const availableTools = bundle?.tools ?? this.toolHandler.getAvailableToolsAsMap();
-      const toolsForSDK = availableTools;
+      const bundle = this.toolHandler.createToolsBundle(contextId, eventBus);
+      const toolsForSDK = bundle.tools;
       this.logger.debug('Streaming tools available', { tools: Object.keys(toolsForSDK) });
 
       // Create task and start streaming
@@ -112,8 +111,6 @@ export class AIHandler {
           taskId,
           contextId,
           eventBus,
-          onWorkflowDispatch: async (name, args, ctxId, bus) =>
-            this.workflowHandler.dispatchWorkflow(name, args, ctxId, bus),
         },
       );
 
