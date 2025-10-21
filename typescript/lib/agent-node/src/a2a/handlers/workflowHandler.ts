@@ -279,9 +279,9 @@ export class WorkflowHandler {
     contextId: string,
     eventBus: ExecutionEventBus,
   ): Promise<{
+    result: Part[];
     taskId: string;
     metadata: { workflowName: string; description: string; pluginId: string };
-    additionalParts?: Part[];
   }> {
     this.logger.debug('dispatchWorkflow called', { workflowName, params, contextId });
     if (!this.workflowRuntime) {
@@ -806,24 +806,24 @@ export class WorkflowHandler {
       this.logger.debug('Waiting for first yield', { taskId: execution.id, timeout });
       const firstYield = await this.workflowRuntime.waitForFirstYield(execution.id, timeout);
 
-      let additionalParts: Part[] | undefined;
+      let result: Part[] = [];
       if (firstYield && firstYield.type === 'dispatch-response') {
         this.logger.debug('Got dispatch-response from workflow', {
           taskId: execution.id,
           partsCount: firstYield.parts.length,
         });
-        additionalParts = firstYield.parts as Part[];
+        result = firstYield.parts as Part[];
       }
 
-      // Return task ID and workflow metadata
+      // Return task ID, workflow metadata, and result parts for SDK
       return {
+        result,
         taskId: execution.id,
         metadata: {
           workflowName: plugin.name,
           description: plugin.description || `Dispatch ${plugin.name} workflow`,
           pluginId: plugin.id,
         },
-        additionalParts,
       };
     } catch (error: unknown) {
       this.logger.error('Error in dispatchWorkflow', error);
