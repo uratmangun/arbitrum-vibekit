@@ -116,6 +116,9 @@ async function main(): Promise<void> {
       console.log(
         `[Parent] ${event.kind} ${event.kind === 'status-update' ? event.status.state : ''}`,
       );
+      if (event.kind === 'artifact-update' && event.artifact.name !== 'reasoning') {
+        console.dir(event, { depth: null });
+      }
 
       if (event.kind === 'task') {
         contextId = event.contextId;
