@@ -172,11 +172,11 @@ describe('AgentExecutor', () => {
       version: '1.0.0',
       execute: async function* () {
         await Promise.resolve(); // Ensure async context
-        yield { type: 'status', status: { state: 'working' } };
+        yield { type: 'status-update', message: 'Working' };
       },
     });
     llm.availableTools.set('dispatch_workflow_complex_flow', { description: 'Test tool' });
-    llm.processHandler = async function* () {
+    llm.processHandler = async function* (_context, options) {
       await Promise.resolve(); // Ensure async context
       // Emit tool call event for streaming
       yield {
@@ -184,10 +184,16 @@ describe('AgentExecutor', () => {
         toolName: 'dispatch_workflow_complex_flow',
         input: { leverage: 3 },
       };
+
+      const tool = options?.tools?.['dispatch_workflow_complex_flow'];
+      const toolResult = tool?.execute
+        ? await tool.execute({ leverage: 3 })
+        : { result: { success: true } };
+
       // Emit tool result
       yield {
         type: 'tool-result',
-        result: { success: true },
+        result: toolResult,
       };
       // Emit text response
       yield {

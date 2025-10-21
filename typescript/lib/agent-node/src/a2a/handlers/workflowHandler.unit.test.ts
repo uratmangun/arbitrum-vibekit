@@ -65,7 +65,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     eventBus = createEventBus();
   });
 
-  it('returns task ID and metadata when workflow is successfully dispatched', async () => {
+  it('returns task ID, metadata, and result parts when workflow is successfully dispatched', async () => {
     // Given: A workflow runtime with a registered plugin
     const mockExecution = {
       id: 'task-wf-123',
@@ -86,11 +86,21 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
       description: 'Execute token swaps on DEXs',
       version: '1.0.0',
       execute: vi.fn(),
+      dispatchResponseTimeout: 500,
     };
+
+    const dispatchResponseParts = [
+      { kind: 'text', text: 'Swap initiated' },
+      { kind: 'data', data: { swapId: '12345' } },
+    ];
 
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue({
+        type: 'dispatch-response',
+        parts: dispatchResponseParts,
+      }),
       cancelExecution: vi.fn(),
     };
 
@@ -105,8 +115,9 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
       eventBus as unknown as ExecutionEventBus,
     );
 
-    // Then: Should return task ID and metadata
+    // Then: Should return task ID, metadata, and result parts
     expect(result).toEqual({
+      result: dispatchResponseParts,
       taskId: 'task-wf-123',
       metadata: {
         workflowName: 'Token Swap',
@@ -123,6 +134,60 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
       fromToken: 'ETH',
       toToken: 'USDC',
       contextId: 'ctx-test',
+    });
+
+    // And: Should have waited for first yield
+    expect(mockRuntime.waitForFirstYield).toHaveBeenCalledWith('task-wf-123', 500);
+  });
+
+  it('returns empty result array when workflow has no dispatch-response', async () => {
+    // Given: A workflow that yields no dispatch-response
+    const mockExecution = {
+      id: 'task-wf-456',
+      pluginId: 'background_task',
+      state: 'working',
+      metadata: {},
+      waitForCompletion: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn().mockReturnThis(),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      resume: vi.fn(),
+    };
+
+    const mockPlugin = {
+      id: 'background_task',
+      name: 'Background Task',
+      description: 'Run background tasks',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null), // No first yield
+      cancelExecution: vi.fn(),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+
+    // When: A workflow is dispatched
+    const result = await handler.dispatchWorkflow(
+      'dispatch_workflow_background_task',
+      {},
+      'ctx-test',
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Then: Should return empty result array
+    expect(result.result).toEqual([]);
+    expect(result.taskId).toBe('task-wf-456');
+    expect(result.metadata).toEqual({
+      workflowName: 'Background Task',
+      description: 'Run background tasks',
+      pluginId: 'background_task',
     });
   });
 
@@ -151,6 +216,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
       cancelExecution: vi.fn(),
     };
 
@@ -234,6 +300,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
       cancelExecution: vi.fn(),
     };
 
@@ -292,8 +359,22 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
         if (event === 'artifact') {
           // Simulate artifact emission
           setTimeout(() => {
-            handler({ name: 'data.json', mimeType: 'application/json', data: { value: 42 } });
-            handler({ name: 'report.txt', mimeType: 'text/plain', data: 'Report content' });
+            handler({
+              artifact: {
+                artifactId: 'artifact-data',
+                name: 'data.json',
+                mimeType: 'application/json',
+                data: { value: 42 },
+              },
+            });
+            handler({
+              artifact: {
+                artifactId: 'artifact-report',
+                name: 'report.txt',
+                mimeType: 'text/plain',
+                data: 'Report content',
+              },
+            });
           }, 10);
         }
         return mockExecution;
@@ -315,6 +396,7 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
       cancelExecution: vi.fn(),
     };
 
@@ -382,6 +464,7 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
       cancelExecution: vi.fn(),
     };
 
@@ -426,9 +509,12 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
         if (mockExecution._artifactHandler) {
           setTimeout(() => {
             mockExecution._artifactHandler({
-              name: 'post-resume.json',
-              mimeType: 'application/json',
-              data: { resumed: true, input },
+              artifact: {
+                artifactId: 'artifact-post-resume',
+                name: 'post-resume.json',
+                mimeType: 'application/json',
+                data: { resumed: true, input },
+              },
             });
           }, 10);
         }
@@ -449,7 +535,7 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
 
     const mockGenerator = {
       next: vi.fn().mockResolvedValue({
-        value: { type: 'status', status: { state: 'working' } },
+        value: { type: 'status-update', message: 'Working' },
         done: false,
       }),
     };
@@ -457,6 +543,7 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
       cancelExecution: vi.fn(),
       getExecution: vi.fn().mockReturnValue(mockExecution),
       getTaskState: vi.fn().mockReturnValue({

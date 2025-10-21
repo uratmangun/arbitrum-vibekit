@@ -10,11 +10,10 @@ export class MockSessionManager implements Partial<SessionManager> {
   private sessions = new Map<string, Session>();
   private histories = new Map<string, ModelMessage[]>();
 
-  getOrCreateSession(contextId?: string): Session {
-    const id = contextId || `ctx-${Date.now()}`;
-    if (!this.sessions.has(id)) {
+  createSessionWithId(contextId: string): Session {
+    if (!this.sessions.has(contextId)) {
       const session: Session = {
-        contextId: id,
+        contextId,
         createdAt: new Date(),
         lastActivity: new Date(),
         state: {
@@ -23,10 +22,15 @@ export class MockSessionManager implements Partial<SessionManager> {
           conversationHistory: [],
         },
       };
-      this.sessions.set(id, session);
-      this.histories.set(id, []);
+      this.sessions.set(contextId, session);
+      this.histories.set(contextId, []);
     }
-    return this.sessions.get(id)!;
+    return this.sessions.get(contextId)!;
+  }
+
+  getOrCreateSession(contextId?: string): Session {
+    const id = contextId || `ctx-${Date.now()}`;
+    return this.createSessionWithId(id);
   }
 
   getSession(contextId: string): Session | null {

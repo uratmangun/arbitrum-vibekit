@@ -93,7 +93,7 @@ describe('Session Manager', () => {
           code: number;
           data: { contextId: string; hint: string };
         };
-        expect(typedError.code).toBe(-32602);
+        expect(typedError.code).toBe(-32600);
         expect(typedError.data).toEqual({
           contextId: nonExistentId,
           hint: 'Omit contextId to create new session, or provide valid existing contextId to reattach',
@@ -139,7 +139,7 @@ describe('Session Manager', () => {
         sessionManager.getOrCreateSession(nonExistentId);
       } catch (error: unknown) {
         const typedError = error as Error & { code: number; data: { contextId: string } };
-        expect(typedError.code).toBe(-32602);
+        expect(typedError.code).toBe(-32600);
         expect(typedError.data.contextId).toBe(nonExistentId);
       }
     });

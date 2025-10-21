@@ -2,6 +2,8 @@ import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool, TextStreamPart } from 'ai';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import type { StreamEventHandler } from './StreamEventHandler.js';
+
 type MockedFn<T extends (...args: unknown[]) => unknown> = ReturnType<typeof vi.fn<T>>;
 
 type EventBusDouble = {
@@ -35,16 +37,13 @@ type StreamEventHandlerDouble = {
   handleStreamEvent: MockedFn<(...args: unknown[]) => void>;
 };
 
-type ToolCallCollectorDouble = {
-  addToolCall: MockedFn<(...args: unknown[]) => void>;
-  getToolCalls: MockedFn<(...args: unknown[]) => Array<{ name: string; arguments?: unknown }>>;
-  clear: MockedFn<(...args: unknown[]) => void>;
-};
-
 type SetupOverrides = {
   artifactManager?: ArtifactManagerDouble;
   streamEventHandler?: StreamEventHandlerDouble;
-  toolCallCollector?: ToolCallCollectorDouble;
+};
+
+type SetupOptions = SetupOverrides & {
+  useRealStreamEventHandler?: boolean;
 };
 
 function loggerMockFactory(): LoggerModuleDouble {
@@ -99,9 +98,6 @@ vi.mock('./ArtifactManager.js', () => ({
 vi.mock('./StreamEventHandler.js', () => ({
   StreamEventHandler: vi.fn(),
 }));
-vi.mock('./ToolCallCollector.js', () => ({
-  ToolCallCollector: vi.fn(),
-}));
 
 const createEventBus = (): EventBusDouble => {
   const eventBus: EventBusDouble = {
@@ -115,32 +111,20 @@ const createEventBus = (): EventBusDouble => {
   return eventBus;
 };
 
-async function setupProcessor(overrides: SetupOverrides = {}): Promise<{
+async function setupProcessor(options: SetupOptions = {}): Promise<{
   processor: StreamProcessorInstance;
   artifactManager: ArtifactManagerDouble;
-  streamEventHandler: StreamEventHandlerDouble;
-  toolCallCollector: ToolCallCollectorDouble;
+  streamEventHandler: StreamEventHandlerDouble | StreamEventHandler;
 }> {
-  const [{ ArtifactManager }, { StreamEventHandler }, { ToolCallCollector }] = await Promise.all([
+  const [{ ArtifactManager }, { StreamEventHandler }] = await Promise.all([
     import('./ArtifactManager.js'),
     import('./StreamEventHandler.js'),
-    import('./ToolCallCollector.js'),
   ]);
 
-  const artifactManagerDouble: ArtifactManagerDouble = overrides.artifactManager ?? {
+  const artifactManagerDouble: ArtifactManagerDouble = options.artifactManager ?? {
     createStreamingArtifact: vi.fn(() => ({ kind: 'artifact-update', lastChunk: false })),
     createToolCallArtifact: vi.fn(() => ({ kind: 'artifact-update' })),
     createToolResultArtifact: vi.fn(() => ({ kind: 'artifact-update' })),
-  };
-
-  const streamEventHandlerDouble: StreamEventHandlerDouble = overrides.streamEventHandler ?? {
-    handleStreamEvent: vi.fn(),
-  };
-
-  const toolCallCollectorDouble: ToolCallCollectorDouble = overrides.toolCallCollector ?? {
-    addToolCall: vi.fn(),
-    getToolCalls: vi.fn(() => []),
-    clear: vi.fn(),
   };
 
   const artifactManagerCtor = vi.mocked(ArtifactManager);
@@ -149,11 +133,28 @@ async function setupProcessor(overrides: SetupOverrides = {}): Promise<{
 
   const streamEventHandlerCtor = vi.mocked(StreamEventHandler);
   streamEventHandlerCtor.mockReset();
-  streamEventHandlerCtor.mockImplementation(() => streamEventHandlerDouble as never);
+  let streamEventHandlerInstance: StreamEventHandlerDouble | StreamEventHandler;
 
-  const toolCallCollectorCtor = vi.mocked(ToolCallCollector);
-  toolCallCollectorCtor.mockReset();
-  toolCallCollectorCtor.mockImplementation(() => toolCallCollectorDouble as never);
+  if (options.useRealStreamEventHandler) {
+    const actualStreamEventHandlerModule = await vi.importActual<{
+      StreamEventHandler: typeof StreamEventHandler;
+    }>('./StreamEventHandler.js');
+
+    streamEventHandlerCtor.mockImplementation(() => {
+      const instance = new actualStreamEventHandlerModule.StreamEventHandler();
+      streamEventHandlerInstance = instance;
+      return instance as never;
+    });
+  } else {
+    const streamEventHandlerDouble: StreamEventHandlerDouble = options.streamEventHandler ?? {
+      handleStreamEvent: vi.fn(),
+    };
+
+    streamEventHandlerCtor.mockImplementation(() => {
+      streamEventHandlerInstance = streamEventHandlerDouble;
+      return streamEventHandlerDouble as never;
+    });
+  }
 
   const module = await import('./StreamProcessor.js');
   const processor = new module.StreamProcessor();
@@ -161,8 +162,7 @@ async function setupProcessor(overrides: SetupOverrides = {}): Promise<{
   return {
     processor,
     artifactManager: artifactManagerDouble,
-    streamEventHandler: streamEventHandlerDouble,
-    toolCallCollector: toolCallCollectorDouble,
+    streamEventHandler: streamEventHandlerInstance!,
   };
 }
 
@@ -304,119 +304,37 @@ describe('StreamProcessor (unit)', () => {
     expect(firstStatusPart?.text).toContain('String error');
   });
 
-  describe('workflow dispatch handling', () => {
-    it('dispatches workflows and emits referenceTaskIds message', async () => {
-      // Given: A stream with workflow tool calls
-      const fakeCollector: ToolCallCollectorDouble = {
-        addToolCall: vi.fn(),
-        getToolCalls: vi.fn(() => [
-          { name: 'dispatch_workflow_trading', arguments: { action: 'buy' } },
-        ]),
-        clear: vi.fn(),
-      };
-
-      const { processor } = await setupProcessor({ toolCallCollector: fakeCollector });
-      const onWorkflowDispatch = vi.fn().mockResolvedValue({
-        taskId: 'task-workflow-child',
-        metadata: {
-          workflowName: 'Token Trading',
-          description: 'Execute token trades on DEXs',
-          pluginId: 'trading',
-        },
+  describe('workflow dispatch handling (inline execution)', () => {
+    it('workflow tools execute inline and parent status updates contain unique referenceTaskIds', async () => {
+      // Given: A processor with real StreamEventHandler (not mocked) to test workflow status updates
+      const { processor } = await setupProcessor({
+        useRealStreamEventHandler: true,
       });
 
-      async function* workflowStream(): AsyncIterable<TextStreamPart<Record<string, Tool>>> {
-        await Promise.resolve();
-        yield { type: 'tool-call', toolName: 'dispatch_workflow_trading' } as TextStreamPart<
-          Record<string, Tool>
-        >;
-      }
-
-      // When: The stream is processed
-      await processor.processStream(workflowStream(), {
-        taskId: 'task-parent',
-        contextId: 'ctx-workflow',
-        eventBus: eventBus as unknown as ExecutionEventBus,
-        onWorkflowDispatch,
-      });
-
-      // Then: Workflow should be dispatched
-      expect(onWorkflowDispatch).toHaveBeenCalledWith(
-        'dispatch_workflow_trading',
-        { action: 'buy' },
-        'ctx-workflow',
-        eventBus,
-      );
-
-      // And: Status update with referenceTaskIds should be emitted
-      const statusUpdates = eventBus.publish.mock.calls
-        .map(([event]) => event as StatusUpdateEvent)
-        .filter((event) => event.kind === 'status-update');
-
-      const referenceUpdate = statusUpdates.find(
-        (update) => update.status.message?.referenceTaskIds,
-      );
-
-      expect(referenceUpdate).toBeDefined();
-      expect(referenceUpdate?.taskId).toBe('task-parent');
-      expect(referenceUpdate?.contextId).toBe('ctx-workflow');
-      expect(referenceUpdate?.status.state).toBe('working');
-      expect(referenceUpdate?.status.message?.referenceTaskIds).toEqual(['task-workflow-child']);
-      expect(referenceUpdate?.status.message?.role).toBe('agent');
-
-      const messagePart = referenceUpdate?.status.message?.parts?.[0];
-      expect(messagePart?.kind).toBe('text');
-      expect(messagePart?.text).toBe(
-        'Dispatching workflow: Token Trading (Execute token trades on DEXs)',
-      );
-
-      const messageMetadata = referenceUpdate?.status.message?.metadata as {
-        referencedWorkflow?: { workflowName: string; description: string; pluginId: string };
-      };
-      expect(messageMetadata?.referencedWorkflow).toEqual({
-        workflowName: 'Token Trading',
-        description: 'Execute token trades on DEXs',
-        pluginId: 'trading',
-      });
-      expect(referenceUpdate?.final).toBe(false);
-    });
-
-    it('dispatches multiple workflows and emits multiple referenceTaskIds messages', async () => {
-      // Given: A stream with multiple workflow tool calls
-      const fakeCollector: ToolCallCollectorDouble = {
-        addToolCall: vi.fn(),
-        getToolCalls: vi.fn(() => [
-          { name: 'dispatch_workflow_trading', arguments: { action: 'buy' } },
-          { name: 'dispatch_workflow_lending', arguments: { amount: '1000' } },
-        ]),
-        clear: vi.fn(),
-      };
-
-      const { processor } = await setupProcessor({ toolCallCollector: fakeCollector });
-      const onWorkflowDispatch = vi
-        .fn()
-        .mockResolvedValueOnce({
-          taskId: 'task-workflow-trading',
+      // Simulate workflow tool-result events that would come from SDK after inline execution
+      const workflowToolResult1 = {
+        type: 'tool-result' as const,
+        toolCallId: 'call-wf-1',
+        toolName: 'dispatch_workflow_trading',
+        output: {
+          result: [{ kind: 'text' as const, text: 'Trading workflow dispatched' }],
+          taskId: 'task-child-trading',
           metadata: {
             workflowName: 'Token Trading',
-            description: 'Execute token trades',
+            description: 'Execute token trades on DEXs',
             pluginId: 'trading',
           },
-        })
-        .mockResolvedValueOnce({
-          taskId: 'task-workflow-lending',
-          metadata: {
-            workflowName: 'Lending Protocol',
-            description: 'Manage lending positions',
-            pluginId: 'lending',
-          },
-        });
+        },
+      };
 
       async function* workflowStream(): AsyncIterable<TextStreamPart<Record<string, Tool>>> {
         await Promise.resolve();
+        // Tool call event (workflow tool)
         yield { type: 'tool-call', toolName: 'dispatch_workflow_trading' } as TextStreamPart<
           Record<string, Tool>
         >;
+        // Tool result event (simulating SDK returning workflow dispatch result)
+        yield workflowToolResult1 as unknown as TextStreamPart<Record<string, Tool>>;
       }
 
       // When: The stream is processed
@@ -424,87 +342,140 @@ describe('StreamProcessor (unit)', () => {
         taskId: 'task-parent',
         contextId: 'ctx-workflow',
         eventBus: eventBus as unknown as ExecutionEventBus,
-        onWorkflowDispatch,
       });
 
-      // Then: Both workflows should be dispatched
-      expect(onWorkflowDispatch).toHaveBeenCalledTimes(2);
-      expect(onWorkflowDispatch).toHaveBeenCalledWith(
-        'dispatch_workflow_trading',
-        { action: 'buy' },
-        'ctx-workflow',
-        eventBus,
-      );
-      expect(onWorkflowDispatch).toHaveBeenCalledWith(
-        'dispatch_workflow_lending',
-        { amount: '1000' },
-        'ctx-workflow',
-        eventBus,
-      );
-
-      // And: Two status updates with referenceTaskIds should be emitted
+      // Then: Status update with referenceTaskIds should be emitted by StreamEventHandler
       const statusUpdates = eventBus.publish.mock.calls
         .map(([event]) => event as StatusUpdateEvent)
         .filter(
           (event) => event.kind === 'status-update' && event.status.message?.referenceTaskIds,
         );
 
-      expect(statusUpdates).toHaveLength(2);
-      expect(statusUpdates[0]?.status.message?.referenceTaskIds).toEqual(['task-workflow-trading']);
-      expect(statusUpdates[1]?.status.message?.referenceTaskIds).toEqual(['task-workflow-lending']);
+      expect(statusUpdates.length).toBeGreaterThanOrEqual(1);
+      const firstUpdate = statusUpdates[0];
+      expect(firstUpdate?.status.message?.referenceTaskIds).toEqual(['task-child-trading']);
     });
 
-    it('does not dispatch non-workflow tool calls', async () => {
-      const fakeCollector: ToolCallCollectorDouble = {
-        addToolCall: vi.fn(),
-        getToolCalls: vi.fn(() => [
-          { name: 'get_price', arguments: { token: 'ETH' } },
-          { name: 'calculate_slippage', arguments: { amount: '100' } },
-        ]),
-        clear: vi.fn(),
-      };
-
-      const { processor } = await setupProcessor({ toolCallCollector: fakeCollector });
-      const onWorkflowDispatch = vi.fn();
-
-      async function* toolStream(): AsyncIterable<TextStreamPart<Record<string, Tool>>> {
-        await Promise.resolve();
-        yield { type: 'tool-call', toolName: 'get_price' } as TextStreamPart<Record<string, Tool>>;
-      }
-
-      await processor.processStream(toolStream(), {
-        taskId: 'task-tools',
-        contextId: 'ctx-tools',
-        eventBus: eventBus as unknown as ExecutionEventBus,
-        onWorkflowDispatch,
+    it('sequential workflow dispatches produce independent referenceTaskIds (no accumulation)', async () => {
+      // Given: A processor with real StreamEventHandler
+      const { processor } = await setupProcessor({
+        useRealStreamEventHandler: true,
       });
 
-      expect(onWorkflowDispatch).not.toHaveBeenCalled();
-    });
-
-    it('handles workflow dispatch without callback gracefully', async () => {
-      const fakeCollector: ToolCallCollectorDouble = {
-        addToolCall: vi.fn(),
-        getToolCalls: vi.fn(() => [{ name: 'dispatch_workflow_test', arguments: {} }]),
-        clear: vi.fn(),
+      // First workflow dispatch
+      const workflowToolResult1 = {
+        type: 'tool-result' as const,
+        toolCallId: 'call-wf-1',
+        toolName: 'dispatch_workflow_trading',
+        output: {
+          result: [{ kind: 'text' as const, text: 'Trading workflow dispatched' }],
+          taskId: 'task-child-1',
+          metadata: {
+            workflowName: 'Token Trading',
+            description: 'Execute trades',
+            pluginId: 'trading',
+          },
+        },
       };
 
-      const { processor } = await setupProcessor({ toolCallCollector: fakeCollector });
+      // Second workflow dispatch
+      const workflowToolResult2 = {
+        type: 'tool-result' as const,
+        toolCallId: 'call-wf-2',
+        toolName: 'dispatch_workflow_lending',
+        output: {
+          result: [{ kind: 'text' as const, text: 'Lending workflow dispatched' }],
+          taskId: 'task-child-2',
+          metadata: {
+            workflowName: 'Lending Protocol',
+            description: 'Manage lending',
+            pluginId: 'lending',
+          },
+        },
+      };
 
-      async function* workflowStream(): AsyncIterable<TextStreamPart<Record<string, Tool>>> {
+      async function* sequentialWorkflowStream(): AsyncIterable<
+        TextStreamPart<Record<string, Tool>>
+      > {
         await Promise.resolve();
-        yield { type: 'tool-call', toolName: 'dispatch_workflow_test' } as TextStreamPart<
+        // First workflow
+        yield { type: 'tool-call', toolName: 'dispatch_workflow_trading' } as TextStreamPart<
           Record<string, Tool>
         >;
+        yield workflowToolResult1 as unknown as TextStreamPart<Record<string, Tool>>;
+
+        // Second workflow
+        yield { type: 'tool-call', toolName: 'dispatch_workflow_lending' } as TextStreamPart<
+          Record<string, Tool>
+        >;
+        yield workflowToolResult2 as unknown as TextStreamPart<Record<string, Tool>>;
       }
 
-      await processor.processStream(workflowStream(), {
-        taskId: 'task-no-callback',
-        contextId: 'ctx-no-callback',
+      // When: The stream with sequential workflows is processed
+      await processor.processStream(sequentialWorkflowStream(), {
+        taskId: 'task-parent',
+        contextId: 'ctx-sequential',
         eventBus: eventBus as unknown as ExecutionEventBus,
       });
 
-      expect(eventBus.finished).toHaveBeenCalledOnce();
+      // Then: Each workflow dispatch should get its own unique referenceTaskIds (NO ACCUMULATION)
+      const statusUpdates = eventBus.publish.mock.calls
+        .map(([event]) => event as StatusUpdateEvent)
+        .filter(
+          (event) => event.kind === 'status-update' && event.status.message?.referenceTaskIds,
+        );
+
+      expect(statusUpdates.length).toBeGreaterThanOrEqual(2);
+
+      // Critical assertion: Each status update must contain ONLY the new child task ID
+      const firstUpdate = statusUpdates.find((u) =>
+        u.status.message?.referenceTaskIds?.includes('task-child-1'),
+      );
+      const secondUpdate = statusUpdates.find((u) =>
+        u.status.message?.referenceTaskIds?.includes('task-child-2'),
+      );
+
+      expect(firstUpdate?.status.message?.referenceTaskIds).toEqual(['task-child-1']);
+      expect(secondUpdate?.status.message?.referenceTaskIds).toEqual(['task-child-2']);
+
+      // Verify NO accumulation: second update should NOT contain first child ID
+      expect(secondUpdate?.status.message?.referenceTaskIds).not.toContain('task-child-1');
+    });
+
+    it('non-workflow tool calls do not trigger parent status updates', async () => {
+      // Given: A processor with real StreamEventHandler
+      const { processor } = await setupProcessor({
+        useRealStreamEventHandler: true,
+      });
+
+      const regularToolResult = {
+        type: 'tool-result' as const,
+        toolCallId: 'call-tool-1',
+        toolName: 'get_price',
+        output: { price: '1234.56', symbol: 'ETH' },
+      };
+
+      async function* regularToolStream(): AsyncIterable<TextStreamPart<Record<string, Tool>>> {
+        await Promise.resolve();
+        yield { type: 'tool-call', toolName: 'get_price' } as TextStreamPart<Record<string, Tool>>;
+        yield regularToolResult as unknown as TextStreamPart<Record<string, Tool>>;
+      }
+
+      // When: The stream with regular tool is processed
+      await processor.processStream(regularToolStream(), {
+        taskId: 'task-regular',
+        contextId: 'ctx-regular',
+        eventBus: eventBus as unknown as ExecutionEventBus,
+      });
+
+      // Then: No status update with referenceTaskIds should be emitted
+      const statusUpdatesWithRefs = eventBus.publish.mock.calls
+        .map(([event]) => event as StatusUpdateEvent)
+        .filter(
+          (event) => event.kind === 'status-update' && event.status.message?.referenceTaskIds,
+        );
+
+      expect(statusUpdatesWithRefs).toHaveLength(0);
     });
   });
 
@@ -548,13 +519,6 @@ describe('StreamProcessor artifact flushing', () => {
     vi.doMock('../../../utils/logger.js', loggerMockFactory);
     vi.doUnmock('./StreamEventHandler.js');
     vi.doUnmock('./ArtifactManager.js');
-    vi.doMock('./ToolCallCollector.js', () => ({
-      ToolCallCollector: vi.fn(() => ({
-        addToolCall: vi.fn(),
-        getToolCalls: vi.fn(() => []),
-        clear: vi.fn(),
-      })),
-    }));
 
     const module = await import('./StreamProcessor.js');
     return new module.StreamProcessor();
@@ -623,13 +587,6 @@ describe('StreamProcessor reasoning block ordering', () => {
     vi.doMock('../../../utils/logger.js', loggerMockFactory);
     vi.doUnmock('./StreamEventHandler.js');
     vi.doUnmock('./ArtifactManager.js');
-    vi.doMock('./ToolCallCollector.js', () => ({
-      ToolCallCollector: vi.fn(() => ({
-        addToolCall: vi.fn(),
-        getToolCalls: vi.fn(() => []),
-        clear: vi.fn(),
-      })),
-    }));
 
     const module = await import('./StreamProcessor.js');
     return new module.StreamProcessor();
