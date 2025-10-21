@@ -36,6 +36,7 @@ export interface AIContext {
 
 export interface AIOptions {
   tools?: Record<string, Tool>;
+  onToolCall?: (name: string, args: unknown) => Promise<unknown>;
 }
 
 export interface AIResponse {
@@ -258,6 +259,7 @@ export class AIService {
 
     // Get tools for this request
     const tools = options?.tools || Object.fromEntries(this.availableTools);
+    const onToolCall = options?.onToolCall;
 
     this.logger.debug('Starting streamText', { maxSteps });
 
@@ -273,6 +275,7 @@ export class AIService {
       topP,
       stopWhen: stepCountIs(maxSteps),
       providerOptions,
+      ...(onToolCall ? { onToolCall } : {}),
     });
 
     // Return full stream to get tool call events including tool calls and results
