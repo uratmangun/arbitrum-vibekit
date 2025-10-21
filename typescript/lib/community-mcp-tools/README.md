@@ -1,6 +1,6 @@
 ## Community MCP Tools
 
-Welcome to Vibekit's community MCP tools directory! Model Context Protocol (MCP) tools are standardized interfaces that allow agents to easily interact with on-chain data, execute DeFi operations, and integrate with external services. This directory contains the MCP building blocks that provide DeFi agents with sophisticated functionality.
+Welcome to Vibekit's MCP tools directory! Model Context Protocol (MCP) tools are standardized interfaces that allow agents to easily interact with on-chain data, execute DeFi operations, and integrate with external services. This directory contains the MCP building blocks that provide DeFi agents with sophisticated functionality.
 
 ## Before You Contribute
 

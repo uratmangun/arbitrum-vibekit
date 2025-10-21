@@ -103,7 +103,7 @@ Before you begin, ensure you have:
 
    Edit `.env` and add your API keys.
 
-## Quick Start
+## Quickstart
 
 Creates a general-purpose AI agent with DeFi capabilities in 4 steps:
 
@@ -252,11 +252,17 @@ This creates a production-ready container with your agent server running on port
 
 ## Creating Custom Workflows
 
-Workflows are multi-step operations that can pause for user input and execute complex tasks. Here's how to create a simple workflow:
+### What are Workflows?
+
+Workflows are powerful multi-step operations that enable your agent to handle complex, long-running tasks that require user interaction, external API calls, or sequential processing. Unlike simple tool calls that execute instantly, workflows can pause execution to wait for user input, show progress updates, and resume from where they left off. This makes them perfect for scenarios like multi-step onboarding processes, complex data analysis pipelines, interactive tutorials, or any task that requires back-and-forth communication with users. Workflows are built using generator functions that can yield status updates and pause for input, making them ideal for creating engaging, interactive agent experiences.
+
+### Workflow Execution
+
+Workflows are automatically triggered when your AI agent decides to use them during conversations. You don't manually call workflows, instead, you ask your agent to do something (like "help me swap tokens" or "guide me through onboarding"), and the agent intelligently chooses to use a workflow tool when appropriate. The workflow then executes in the background, can pause for your input, and returns results to continue the conversation. Here's how to create a simple workflow:
 
 ### 1. Create Your Workflow File
 
-Create a workflow file in `config/workflows/`. There is an example `config/workflows/example-workflow.ts` file provided for reference. The example workflow demonstrates progress updates, user interaction, and multi-step execution:
+Create a workflow file in `config/workflows/`. Note that the `config/` folder and example workflow file are created when you run `pnpm cli init` and they don't exist in the initial repository. There is an example `config/workflows/example-workflow.ts` file provided for reference. The example workflow demonstrates progress updates, user interaction, and multi-step execution:
 
 ```typescript
 import type { WorkflowPlugin, WorkflowContext } from '../../src/workflows/types.js';
