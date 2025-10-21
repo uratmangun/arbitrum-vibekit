@@ -161,24 +161,34 @@ export class StreamEventHandler {
     // Store the artifact ID for later update
     state.toolCallArtifacts.set(toolCallIndex, artifactId);
 
-    // Create and publish initial artifact
-    const artifact = artifactManager.createToolCallArtifact(
-      taskId,
-      contextId,
-      streamEvent.toolName,
-      {},
-    );
+    const isWorkflowDispatch = streamEvent.toolName.startsWith('dispatch_workflow_');
 
-    // Override the artifactId to match what we're tracking
-    artifact.artifact.artifactId = artifactId;
+    if (!isWorkflowDispatch) {
+      // Create and publish initial artifact for non-workflow tools
+      const artifact = artifactManager.createToolCallArtifact(
+        taskId,
+        contextId,
+        streamEvent.toolName,
+        {},
+      );
 
-    this.logger.debug('Publishing tool-call artifact', {
-      artifactId,
-      toolName: streamEvent.toolName,
-      toolCallIndex,
-    });
+      // Override the artifactId to match what we're tracking
+      artifact.artifact.artifactId = artifactId;
 
-    eventBus.publish(artifact);
+      this.logger.debug('Publishing tool-call artifact', {
+        artifactId,
+        toolName: streamEvent.toolName,
+        toolCallIndex,
+      });
+
+      eventBus.publish(artifact);
+    } else {
+      this.logger.debug('Skipping initial tool-call artifact for workflow dispatch', {
+        artifactId,
+        toolName: streamEvent.toolName,
+        toolCallIndex,
+      });
+    }
 
     // Add to state tool calls array
     state.toolCalls.push({
