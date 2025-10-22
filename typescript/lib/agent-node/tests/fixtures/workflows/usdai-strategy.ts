@@ -27,6 +27,10 @@ const PENDLE_SWAP = {
   usdAiPool: '0x8e101c690390de722163d4dc3f76043bebbbcadd',
 } as const;
 
+// Hard-coded limit and delay for streaming iterations to allow workflow completion in tests
+const STREAM_LIMIT = 3;
+const STREAM_DELAY_MS = 1000;
+
 // Agent wallet private key from environment
 const agentPrivateKey = process.env['A2A_TEST_AGENT_NODE_PRIVATE_KEY'];
 if (!agentPrivateKey) {
@@ -448,7 +452,7 @@ const plugin: WorkflowPlugin = {
       },
     };
 
-    while (true) {
+    for (let i = 0; i < STREAM_LIMIT; i++) {
       // Dashboard - Transaction History
       const usdAiApprovedArtifact: Artifact = {
         artifactId: 'transaction-history-display',
@@ -474,8 +478,11 @@ const plugin: WorkflowPlugin = {
       };
       yield { type: 'artifact', artifact: usdAiApprovedArtifact, append: true };
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, STREAM_DELAY_MS));
     }
+
+    // Allow the runtime to mark the task as completed
+    return;
   },
 };
 

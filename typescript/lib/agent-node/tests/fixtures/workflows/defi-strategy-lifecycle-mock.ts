@@ -1,4 +1,4 @@
-import type { Artifact, Message } from '@a2a-js/sdk';
+import type { Artifact } from '@a2a-js/sdk';
 import { z } from 'zod';
 
 import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
@@ -44,20 +44,9 @@ const plugin: WorkflowPlugin = {
     const { intent = 'Execute DeFi strategy', chainId = 42161 } = context.parameters ?? {};
 
     // Initial status: submitted -> working
-    const startMessage: Message = {
-      kind: 'message',
-      messageId: 'status-start',
-      contextId: context.contextId,
-      role: 'agent',
-      parts: [{ kind: 'text', text: 'Starting DeFi strategy workflow...' }],
-    };
-
     yield {
-      type: 'status',
-      status: {
-        state: 'working',
-        message: startMessage,
-      },
+      type: 'status-update',
+      message: 'Starting DeFi strategy workflow...',
     };
 
     // Artifact 0: Workflow started (emitted BEFORE first pause to ensure getTask() has artifacts)
@@ -82,44 +71,17 @@ const plugin: WorkflowPlugin = {
     yield { type: 'artifact', artifact: workflowStartedArtifact };
 
     // Pause 1: Collect wallet address and amount
-    const walletAmountMessage: Message = {
-      kind: 'message',
-      messageId: 'pause-wallet-amount',
-      contextId: context.contextId,
-      role: 'agent',
-      parts: [
-        {
-          kind: 'text',
-          text: 'Please provide your wallet address and the amount for the strategy',
-        },
-      ],
-    };
-
     const walletAmountInput = (yield {
-      type: 'pause',
-      status: {
-        state: 'input-required',
-        message: walletAmountMessage,
-      },
+      type: 'interrupted',
+      reason: 'input-required',
+      message: 'Please provide your wallet address and the amount for the strategy',
       inputSchema: WalletAmountInputSchema,
-      correlationId: 'wallet-amount-input',
     }) as z.infer<typeof WalletAmountInputSchema>;
 
     // Resume with wallet + amount data
-    const continueMessage: Message = {
-      kind: 'message',
-      messageId: 'status-continue',
-      contextId: context.contextId,
-      role: 'agent',
-      parts: [{ kind: 'text', text: 'Processing strategy with provided wallet and amount...' }],
-    };
-
     yield {
-      type: 'status',
-      status: {
-        state: 'working',
-        message: continueMessage,
-      },
+      type: 'status-update',
+      message: 'Processing strategy with provided wallet and amount...',
     };
 
     // Artifact 1: Settings
@@ -178,44 +140,17 @@ const plugin: WorkflowPlugin = {
     yield { type: 'artifact', artifact: delegationsArtifact };
 
     // Pause 2: Collect signed delegations
-    const signDelegationsMessage: Message = {
-      kind: 'message',
-      messageId: 'pause-sign-delegations',
-      contextId: context.contextId,
-      role: 'agent',
-      parts: [
-        {
-          kind: 'text',
-          text: 'Please sign the delegations to authorize the strategy execution',
-        },
-      ],
-    };
-
     const signedDelegationsInput = (yield {
-      type: 'pause',
-      status: {
-        state: 'input-required',
-        message: signDelegationsMessage,
-      },
+      type: 'interrupted',
+      reason: 'input-required',
+      message: 'Please sign the delegations to authorize the strategy execution',
       inputSchema: SignedDelegationsInputSchema,
-      correlationId: 'signed-delegations-input',
     }) as z.infer<typeof SignedDelegationsInputSchema>;
 
     // Resume with signed delegations
-    const executingMessage: Message = {
-      kind: 'message',
-      messageId: 'status-executing',
-      contextId: context.contextId,
-      role: 'agent',
-      parts: [{ kind: 'text', text: 'Executing strategy with signed delegations...' }],
-    };
-
     yield {
-      type: 'status',
-      status: {
-        state: 'working',
-        message: executingMessage,
-      },
+      type: 'status-update',
+      message: 'Executing strategy with signed delegations...',
     };
 
     // Artifact 3: Signed delegations (echo back for verification)
@@ -349,20 +284,9 @@ const plugin: WorkflowPlugin = {
     yield { type: 'artifact', artifact: transactionExecutedArtifact };
 
     // Final status
-    const completeMessage: Message = {
-      kind: 'message',
-      messageId: 'status-complete',
-      contextId: context.contextId,
-      role: 'agent',
-      parts: [{ kind: 'text', text: 'DeFi strategy workflow completed successfully' }],
-    };
-
     yield {
-      type: 'status',
-      status: {
-        state: 'completed',
-        message: completeMessage,
-      },
+      type: 'status-update',
+      message: 'DeFi strategy workflow completed successfully',
     };
 
     // Return structured result
