@@ -55,25 +55,11 @@ export class StreamEventHandler {
         break;
 
       case 'tool-call':
-        this.handleToolCall(
-          streamEvent,
-          taskId,
-          contextId,
-          eventBus,
-          state,
-          artifactManager,
-        );
+        this.handleToolCall(streamEvent, taskId, contextId, eventBus, state, artifactManager);
         break;
 
       case 'tool-result':
-        this.handleToolResult(
-          streamEvent,
-          taskId,
-          contextId,
-          eventBus,
-          state,
-          artifactManager,
-        );
+        this.handleToolResult(streamEvent, taskId, contextId, eventBus, state, artifactManager);
         break;
 
       case 'reasoning-delta':

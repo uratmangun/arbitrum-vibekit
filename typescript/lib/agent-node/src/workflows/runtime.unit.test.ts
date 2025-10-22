@@ -715,7 +715,9 @@ describe('Workflow Runtime', () => {
       });
 
       const artifacts: RuntimeArtifactEvent[] = [];
-      execution.on('artifact', (artifact: unknown) => artifacts.push(artifact as RuntimeArtifactEvent));
+      execution.on('artifact', (artifact: unknown) =>
+        artifacts.push(artifact as RuntimeArtifactEvent),
+      );
 
       await execution.waitForCompletion();
 
@@ -775,7 +777,9 @@ describe('Workflow Runtime', () => {
       });
 
       const artifacts: RuntimeArtifactEvent[] = [];
-      execution.on('artifact', (artifact: unknown) => artifacts.push(artifact as RuntimeArtifactEvent));
+      execution.on('artifact', (artifact: unknown) =>
+        artifacts.push(artifact as RuntimeArtifactEvent),
+      );
 
       // Wait for pause
       await new Promise<void>((resolve) => {
@@ -797,9 +801,7 @@ describe('Workflow Runtime', () => {
       expect(artifacts[1]?.artifact.name).toBe('post-resume.json');
       expect(
         (artifacts[1]?.artifact.data as { stage: string; input: { value: string } })?.stage,
-      ).toBe(
-        'after',
-      );
+      ).toBe('after');
       expect(
         (artifacts[1]?.artifact.data as { stage: string; input: { value: string } })?.input.value,
       ).toBe('test-data');
@@ -881,7 +883,9 @@ describe('Workflow Runtime', () => {
       });
 
       const artifacts: RuntimeArtifactEvent[] = [];
-      execution.on('artifact', (artifact: unknown) => artifacts.push(artifact as RuntimeArtifactEvent));
+      execution.on('artifact', (artifact: unknown) =>
+        artifacts.push(artifact as RuntimeArtifactEvent),
+      );
 
       // First pause
       await new Promise<void>((resolve) => {
@@ -1040,9 +1044,9 @@ describe('Workflow Runtime', () => {
       expect(statusUpdates.length).toBe(6);
       const messages = statusUpdates.map((update) => update.message);
       expect(messages.filter((msg) => msg === 'Working').length).toBe(3);
-      expect(messages.filter((msg) => typeof msg === 'string' && msg.startsWith('Progress')).length).toBe(
-        3,
-      );
+      expect(
+        messages.filter((msg) => typeof msg === 'string' && msg.startsWith('Progress')).length,
+      ).toBe(3);
       expect(execution.state).toBe('completed');
       expect(result.result).toBe('success');
     });

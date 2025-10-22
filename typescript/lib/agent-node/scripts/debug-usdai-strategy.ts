@@ -1,4 +1,3 @@
- 
 import type { Server } from 'http';
 
 import type { Artifact } from '@a2a-js/sdk';

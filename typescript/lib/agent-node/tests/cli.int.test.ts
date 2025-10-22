@@ -148,9 +148,7 @@ describe('CLI Commands Integration Tests', () => {
       expect(skillContent).toContain('mcp:');
       expect(skillContent).toContain('servers:');
       expect(skillContent).toContain('- name: fetch');
-      expect(skillContent).toContain(
-        'allowedTools: [fetch_json, fetch_txt, fetch_markdown]',
-      );
+      expect(skillContent).toContain('allowedTools: [fetch_json, fetch_txt, fetch_markdown]');
 
       // Validate workflow integration (active by default)
       expect(skillContent).toContain('# Workflow integration');

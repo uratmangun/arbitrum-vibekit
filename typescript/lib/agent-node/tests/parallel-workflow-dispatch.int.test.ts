@@ -829,7 +829,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
       'referenceTaskIds' in refUpdate.status.message &&
       Array.isArray(refUpdate.status.message.referenceTaskIds)
     ) {
-      const workflowTaskId = (refUpdate.status.message.referenceTaskIds)[0] as string;
+      const workflowTaskId = refUpdate.status.message.referenceTaskIds[0] as string;
 
       // Get the child bus recording
       const childBus = eventBusManager.getRecordingBus(workflowTaskId);

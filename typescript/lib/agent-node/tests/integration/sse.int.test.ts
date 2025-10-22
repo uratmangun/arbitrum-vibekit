@@ -212,7 +212,8 @@ describe('A2A SSE Streaming', () => {
       // Should receive artifact-based streaming (reasoning + text-response artifacts)
       const serialized = JSON.stringify(received);
       // Check for artifact-update events or contextId presence
-      const hasArtifacts = serialized.includes('artifact-update') || serialized.includes('contextId');
+      const hasArtifacts =
+        serialized.includes('artifact-update') || serialized.includes('contextId');
       expect(hasArtifacts).toBe(true);
     });
 

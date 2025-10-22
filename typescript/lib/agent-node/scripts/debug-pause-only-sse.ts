@@ -45,7 +45,6 @@ function emitEvent(raw: string, requestId: number | string): void {
 
     collectedEvents.push({ result: parsed.result, raw });
 
-     
     console.log('SSE event result', parsed.result.kind, {
       state: parsed.result.status?.state,
       referenceTaskIds: parsed.result.status?.message?.referenceTaskIds,
@@ -212,11 +211,10 @@ async function main(): Promise<void> {
       body: JSON.stringify(rpcRequest),
     });
 
-     
     console.log('HTTP status', response.status, response.statusText);
     await parseSseStream(response, rpcRequest.id);
     const childTaskId = findChildTaskId();
-     
+
     console.log('Child task detected', childTaskId);
 
     if (!childTaskId) {
@@ -236,7 +234,6 @@ async function main(): Promise<void> {
       body: JSON.stringify(resubscribeRequest),
     });
 
-     
     console.log('Resubscribe status', resubscribeResponse.status, resubscribeResponse.statusText);
 
     resumeState.sent = false;
@@ -331,7 +328,6 @@ async function processResubscribeEvent(
       console.warn('Resubscribe SSE id mismatch', { expected: requestId, received: parsed.id });
     }
 
-     
     console.log('Resubscribe event', parsed.result.kind, {
       state: parsed.result.status?.state,
       final: parsed.result.final ?? false,
@@ -378,7 +374,7 @@ async function sendResume(context: ResubscribeContext, taskId: string): Promise<
   });
 
   const body = await response.text();
-   
+
   console.log('Resume response', response.status, response.statusText, body);
 }
 
