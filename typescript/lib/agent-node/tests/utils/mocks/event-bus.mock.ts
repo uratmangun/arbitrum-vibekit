@@ -69,15 +69,16 @@ export class RecordingEventBus implements ExecutionEventBus {
 /**
  * Create a mock event bus with vi.fn() spies
  */
-export function createMockEventBus(): ReturnType<typeof vi.fn> & ExecutionEventBus {
-  return {
+export function createMockEventBus(): ExecutionEventBus {
+  const bus: ExecutionEventBus = {
     publish: vi.fn(),
     finished: vi.fn(),
     on: vi.fn().mockReturnThis(),
     off: vi.fn().mockReturnThis(),
     once: vi.fn().mockReturnThis(),
     removeAllListeners: vi.fn().mockReturnThis(),
-  };
+  } as unknown as ExecutionEventBus;
+  return bus;
 }
 
 /**
@@ -181,6 +182,13 @@ export class RecordingEventBusManager implements ExecutionEventBusManager {
     }
 
     return recordingBus;
+  }
+
+  /**
+   * Retrieve the underlying real bus by taskId to satisfy ExecutionEventBusManager interface
+   */
+  getByTaskId(taskId: string): ExecutionEventBus | undefined {
+    return this.realManager.getByTaskId(taskId);
   }
 
   /**

@@ -18,6 +18,16 @@ export class StubAIService implements Partial<AIService> {
   }
 
   /**
+   * Align with real AIService API used by test server to keep tools in sync
+   */
+  setTools(tools: Map<string, unknown>): void {
+    this.availableTools.clear();
+    for (const [name, def] of tools.entries()) {
+      this.availableTools.set(name, def);
+    }
+  }
+
+  /**
    * Set a handler for streamMessage calls
    */
   setProcessHandler(
@@ -30,10 +40,56 @@ export class StubAIService implements Partial<AIService> {
    * Helper to set a simple generator handler
    */
   setSimpleResponse(events: unknown[]): void {
-    this.processHandler = async function* () {
+    // Synthesize tool-result events for tool-call entries when tests don't provide them
+    this.processHandler = async function* (context: AIContext, options?: AIOptions) {
       await Promise.resolve();
-      for (const event of events) {
+      const evts = Array.isArray(events) ? events : [];
+      const hasExplicitToolResult = evts.some(
+        (e: unknown) =>
+          !!e &&
+          typeof e === 'object' &&
+          'type' in (e as Record<string, unknown>) &&
+          (e as { type?: unknown }).type === 'tool-result',
+      );
+
+      for (const raw of evts) {
+        const event = raw as unknown;
         yield event;
+
+        const isToolCall =
+          !!event &&
+          typeof event === 'object' &&
+          'type' in (event as Record<string, unknown>) &&
+          (event as { type?: unknown }).type === 'tool-call' &&
+          'toolName' in (event as Record<string, unknown>);
+
+        if (!hasExplicitToolResult && isToolCall) {
+          // Attempt to execute the tool via options.tools to mimic AI SDK behavior
+          const toolName = (event as { toolName: unknown }).toolName as string;
+          const args =
+            (event as { args?: unknown; input?: unknown }).args ??
+            (event as { args?: unknown; input?: unknown }).input;
+
+          const toolsRecord = options?.tools as unknown as
+            | Record<string, { execute?: (a: unknown) => Promise<unknown> }>
+            | undefined;
+          let output: unknown = undefined;
+          try {
+            const tool = toolsRecord?.[toolName];
+            if (tool && typeof tool.execute === 'function') {
+              output = await tool.execute(args);
+            }
+          } catch (err) {
+            output = { error: err instanceof Error ? err.message : String(err) };
+          }
+
+          yield {
+            type: 'tool-result',
+            toolCallId: (event as { toolCallId?: unknown }).toolCallId as string | undefined,
+            toolName,
+            output,
+          } as unknown;
+        }
       }
     };
   }
