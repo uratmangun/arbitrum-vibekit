@@ -48,7 +48,12 @@ class A2AAgentExecutor implements AgentExecutor {
     this.sessionManager = sessionManager;
 
     // Initialize handlers
-    this.workflowHandler = new WorkflowHandler(workflowRuntime, eventBusManager, taskStore);
+    this.workflowHandler = new WorkflowHandler(
+      workflowRuntime,
+      sessionManager,
+      eventBusManager,
+      taskStore,
+    );
     this.aiHandler = new AIHandler(ai, this.workflowHandler, sessionManager);
     this.messageHandler = new MessageHandler(this.workflowHandler, this.aiHandler);
   }

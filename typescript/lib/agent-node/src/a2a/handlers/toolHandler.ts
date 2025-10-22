@@ -49,23 +49,18 @@ export class ToolHandler {
   ): {
     tools: Record<string, Tool>;
   } {
-    const baseTools =
-      this.ai?.getToolsAsRecord?.() ?? this.getAvailableToolsAsMap();
+    const baseTools = this.ai?.getToolsAsRecord?.() ?? this.getAvailableToolsAsMap();
 
     const toolsWithExecutors: Record<string, Tool> = {};
 
     for (const [toolName, toolDefinition] of Object.entries(baseTools)) {
       const tool = toolDefinition as Tool;
-      if (
-        this.workflowHandler &&
-        !tool.execute &&
-        toolName.startsWith('dispatch_workflow_')
-      ) {
+      if (this.workflowHandler && !tool.execute && toolName.startsWith('dispatch_workflow_')) {
         toolsWithExecutors[toolName] = {
           ...tool,
           execute: async (args: unknown) => {
             this.logger.debug('Executing workflow dispatch inline', { toolName, contextId });
-            return this.workflowHandler!.dispatchWorkflow(toolName, args, contextId, eventBus);
+            return this.workflowHandler!.dispatchWorkflow(toolName, args, eventBus);
           },
         };
       } else {

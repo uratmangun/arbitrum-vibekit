@@ -26,6 +26,7 @@ import z from 'zod';
 import { canonicalizeName } from '../../config/validators/tool-validator.js';
 import { Logger } from '../../utils/logger.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
+import type { SessionManager } from '../sessions/manager.js';
 import type { ActiveTask, TaskState, WorkflowEvent } from '../types.js';
 
 /**
@@ -94,7 +95,8 @@ export class WorkflowHandler {
   private contextTaskMap = new Map<string, string>();
 
   constructor(
-    private workflowRuntime?: WorkflowRuntime,
+    private workflowRuntime: WorkflowRuntime | undefined,
+    private sessionManager: SessionManager,
     private eventBusManager?: ExecutionEventBusManager,
     private taskStore?: TaskStore,
   ) {
@@ -276,14 +278,13 @@ export class WorkflowHandler {
   async dispatchWorkflow(
     workflowName: string,
     params: unknown,
-    contextId: string,
     eventBus: ExecutionEventBus,
   ): Promise<{
     result: Part[];
     taskId: string;
     metadata: { workflowName: string; description: string; pluginId: string };
   }> {
-    this.logger.debug('dispatchWorkflow called', { workflowName, params, contextId });
+    this.logger.debug('dispatchWorkflow called', { workflowName, params });
     if (!this.workflowRuntime) {
       this.logger.error('Workflow runtime not available');
       throw new Error('Workflow runtime not available');
@@ -313,13 +314,18 @@ export class WorkflowHandler {
         throw new Error(`Plugin ${pluginId} not found`);
       }
 
+      // Create a dedicated workflow session/context independent of parent
+      const session = this.sessionManager.createSession();
+      const workflowContextId = session.contextId;
+      this.logger.debug('Created new context for workflow', { workflowContextId });
+
       // Dispatch workflow - this creates a task via the runtime
       const workflowParams =
         typeof params === 'object' && params !== null ? (params as Record<string, unknown>) : {};
       this.logger.debug('Workflow params', { workflowParams });
       const execution = this.workflowRuntime.dispatch(pluginId, {
         ...workflowParams,
-        contextId,
+        contextId: workflowContextId,
       });
 
       // Create a child-specific event bus for this workflow task
@@ -436,7 +442,7 @@ export class WorkflowHandler {
           const artifactUpdate: TaskArtifactUpdateEvent = {
             kind: 'artifact-update',
             taskId: execution.id,
-            contextId,
+            contextId: workflowContextId,
             artifact,
             append,
             lastChunk: lastChunk ?? false,
@@ -455,8 +461,8 @@ export class WorkflowHandler {
             const statusUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
-              contextId,
-              status: workflowUpdate.status as TaskStatus,
+              contextId: workflowContextId,
+              status: workflowUpdate.status,
               final: false,
             };
 
@@ -467,7 +473,7 @@ export class WorkflowHandler {
             const statusUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
-              contextId,
+              contextId: workflowContextId,
               status: {
                 state: execution.state as TaskStatus['state'],
                 message: workflowUpdate.message,
@@ -507,7 +513,7 @@ export class WorkflowHandler {
           const statusUpdate: TaskStatusUpdateEvent = {
             kind: 'status-update',
             taskId: execution.id,
-            contextId,
+            contextId: workflowContextId,
             status: {
               state:
                 (workflowPauseInfo?.state as TaskStatus['state']) ||
@@ -515,7 +521,7 @@ export class WorkflowHandler {
               message: {
                 kind: 'message',
                 messageId: uuidv7(),
-                contextId,
+                contextId: workflowContextId,
                 role: 'agent',
                 parts,
               },
@@ -534,13 +540,13 @@ export class WorkflowHandler {
           const failedUpdate: TaskStatusUpdateEvent = {
             kind: 'status-update',
             taskId: execution.id,
-            contextId,
+            contextId: workflowContextId,
             status: {
               state: 'failed',
               message: {
                 kind: 'message',
                 messageId: uuidv7(),
-                contextId,
+                contextId: workflowContextId,
                 role: 'agent',
                 parts: [
                   { kind: 'text', text: errorDetails.text } as TextPart,
@@ -563,13 +569,13 @@ export class WorkflowHandler {
           const rejectedUpdate: TaskStatusUpdateEvent = {
             kind: 'status-update',
             taskId: execution.id,
-            contextId,
+            contextId: workflowContextId,
             status: {
               state: 'rejected',
               message: {
                 kind: 'message',
                 messageId: uuidv7(),
-                contextId,
+                contextId: workflowContextId,
                 role: 'agent',
                 parts: [
                   {
@@ -592,7 +598,7 @@ export class WorkflowHandler {
       const task: Task = {
         kind: 'task',
         id: execution.id,
-        contextId,
+        contextId: workflowContextId,
         status: {
           state: 'submitted',
         },
@@ -602,7 +608,9 @@ export class WorkflowHandler {
       this.logger.debug('Created task', { task });
       // Publish task creation on the child bus (queue will buffer it)
       childEventBus.publish(task);
-      this.registerContextTask(contextId, execution.id);
+      this.registerContextTask(workflowContextId, execution.id);
+      // Track task in the new workflow session
+      this.sessionManager?.addTask?.(workflowContextId, execution.id);
 
       // Wait for the Task event to be fully processed and stored
       await firstEventProcessed;
@@ -654,7 +662,10 @@ export class WorkflowHandler {
         }
       });
 
-      this.activeTasks.set(execution.id, { controller: abortController, contextId });
+      this.activeTasks.set(execution.id, {
+        controller: abortController,
+        contextId: workflowContextId,
+      });
 
       if (this.pendingCancels.has(execution.id)) {
         this.pendingCancels.delete(execution.id);
@@ -666,7 +677,7 @@ export class WorkflowHandler {
         const workingUpdate: TaskStatusUpdateEvent = {
           kind: 'status-update',
           taskId: execution.id,
-          contextId,
+          contextId: workflowContextId,
           status: {
             state: 'working',
           },
@@ -688,7 +699,7 @@ export class WorkflowHandler {
             const canceledUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
-              contextId,
+              contextId: workflowContextId,
               status: {
                 state: 'canceled',
               },
@@ -706,7 +717,7 @@ export class WorkflowHandler {
             const completedUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
-              contextId,
+              contextId: workflowContextId,
               status: {
                 state: 'completed',
               },
@@ -722,13 +733,13 @@ export class WorkflowHandler {
             const failedUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
-              contextId,
+              contextId: workflowContextId,
               status: {
                 state: 'failed',
                 message: {
                   kind: 'message',
                   messageId: uuidv7(),
-                  contextId,
+                  contextId: workflowContextId,
                   role: 'agent',
                   parts: [
                     { kind: 'text', text: errorDetails.text } as TextPart,
@@ -744,7 +755,7 @@ export class WorkflowHandler {
             const canceledUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
-              contextId,
+              contextId: workflowContextId,
               status: {
                 state: 'canceled',
               },
@@ -758,7 +769,7 @@ export class WorkflowHandler {
             const rejectedUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
-              contextId,
+              contextId: workflowContextId,
               status: {
                 state: 'rejected',
               },
@@ -771,7 +782,7 @@ export class WorkflowHandler {
           const errorMessage: Message = {
             kind: 'message',
             messageId: uuidv7(),
-            contextId,
+            contextId: workflowContextId,
             role: 'agent',
             parts: [
               {
@@ -808,8 +819,8 @@ export class WorkflowHandler {
             this.logger.debug('Cleaned up persistence loop for child task', {
               taskId: execution.id,
             });
-            if (this.contextTaskMap.get(contextId) === execution.id) {
-              this.contextTaskMap.delete(contextId);
+            if (this.contextTaskMap.get(workflowContextId) === execution.id) {
+              this.contextTaskMap.delete(workflowContextId);
             }
           }
         }
