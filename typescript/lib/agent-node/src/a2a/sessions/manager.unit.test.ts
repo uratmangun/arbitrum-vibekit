@@ -518,4 +518,184 @@ describe('Context Manager', () => {
       });
     });
   });
+
+  describe('task de-duplication', () => {
+    it('should not add duplicate tasks to context', () => {
+      // Given a context with a task
+      const context = contextManager.createContext();
+      contextManager.addTask(context.contextId, 'task-1');
+
+      // When adding the same task again
+      contextManager.addTask(context.contextId, 'task-1');
+
+      // Then task list should contain only one instance
+      const tasks = contextManager.getTasks(context.contextId);
+      expect(tasks).toEqual(['task-1']);
+      expect(tasks.length).toBe(1);
+    });
+
+    it('should allow different tasks to be added', () => {
+      // Given a context
+      const context = contextManager.createContext();
+
+      // When adding multiple different tasks
+      contextManager.addTask(context.contextId, 'task-1');
+      contextManager.addTask(context.contextId, 'task-2');
+      contextManager.addTask(context.contextId, 'task-3');
+
+      // Then all tasks should be present
+      const tasks = contextManager.getTasks(context.contextId);
+      expect(tasks).toEqual(['task-1', 'task-2', 'task-3']);
+    });
+  });
+
+  describe('metadata merge behavior', () => {
+    it('should merge metadata non-destructively', () => {
+      // Given a context with existing metadata
+      const context = contextManager.createContext();
+      contextManager.updateContextState(context.contextId, {
+        metadata: { key1: 'value1', key2: 'value2' },
+      });
+
+      // When updating with partial metadata
+      contextManager.updateContextState(context.contextId, {
+        metadata: { key2: 'updated', key3: 'value3' },
+      });
+
+      // Then metadata should be merged without losing key1
+      const metadata = contextManager.getMetadata(context.contextId);
+      expect(metadata).toEqual({
+        key1: 'value1',
+        key2: 'updated',
+        key3: 'value3',
+      });
+    });
+
+    it('should allow metadata to be extended incrementally', () => {
+      // Given a context
+      const context = contextManager.createContext();
+
+      // When updating metadata in multiple steps
+      contextManager.updateContextState(context.contextId, {
+        metadata: { workflow: 'swap' },
+      });
+      contextManager.updateContextState(context.contextId, {
+        metadata: { chain: 'arbitrum' },
+      });
+      contextManager.updateContextState(context.contextId, {
+        metadata: { protocol: 'uniswap' },
+      });
+
+      // Then all metadata should be present
+      const metadata = contextManager.getMetadata(context.contextId);
+      expect(metadata).toEqual({
+        workflow: 'swap',
+        chain: 'arbitrum',
+        protocol: 'uniswap',
+      });
+    });
+  });
+
+  describe('conversation history replacement', () => {
+    it('should replace entire conversation history when updated', () => {
+      // Given a context with existing conversation history
+      const context = contextManager.createContext();
+      contextManager.addToHistory(context.contextId, {
+        role: 'user',
+        content: 'First message',
+        timestamp: new Date(),
+      });
+      contextManager.addToHistory(context.contextId, {
+        role: 'assistant',
+        content: 'First response',
+        timestamp: new Date(),
+      });
+
+      // When updating conversation history via updateContextState
+      const newHistory = [
+        {
+          role: 'user' as const,
+          content: 'Replaced message',
+        },
+      ];
+
+      contextManager.updateContextState(context.contextId, {
+        conversationHistory: newHistory,
+      });
+
+      // Then history should be completely replaced
+      const history = contextManager.getHistory(context.contextId);
+      expect(history).toEqual(newHistory);
+      expect(history.length).toBe(1);
+    });
+
+    it('should allow clearing conversation history', () => {
+      // Given a context with conversation history
+      const context = contextManager.createContext();
+      contextManager.addToHistory(context.contextId, {
+        role: 'user',
+        content: 'Message',
+        timestamp: new Date(),
+      });
+
+      // When updating with empty history array
+      contextManager.updateContextState(context.contextId, {
+        conversationHistory: [],
+      });
+
+      // Then history should be empty
+      const history = contextManager.getHistory(context.contextId);
+      expect(history).toEqual([]);
+    });
+  });
+
+  describe('persistence date restoration', () => {
+    it('should restore Date objects after loading from persistence', () => {
+      // Given a context with specific timestamps
+      const context = contextManager.createContext();
+      const createdAt = context.createdAt;
+      const lastActivity = context.lastActivity;
+
+      // When saving and loading context
+      contextManager.saveContext(context.contextId);
+      const loaded = contextManager.loadContext(context.contextId);
+
+      // Then Date objects should be restored (not strings)
+      expect(loaded).toBeDefined();
+      expect(loaded?.createdAt).toBeInstanceOf(Date);
+      expect(loaded?.lastActivity).toBeInstanceOf(Date);
+
+      // And timestamps should match original
+      expect(loaded?.createdAt.getTime()).toBe(createdAt.getTime());
+      expect(loaded?.lastActivity.getTime()).toBe(lastActivity.getTime());
+    });
+
+    it('should preserve conversation history structure after persistence roundtrip', () => {
+      // Given a context with conversation history
+      const context = contextManager.createContext();
+      contextManager.addToHistory(context.contextId, {
+        role: 'user',
+        content: 'Test message',
+      });
+      contextManager.addToHistory(context.contextId, {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Test response' }],
+      });
+
+      // When saving and loading
+      contextManager.saveContext(context.contextId);
+      const loaded = contextManager.loadContext(context.contextId);
+
+      // Then conversation history should be preserved exactly
+      expect(loaded?.state.conversationHistory).toHaveLength(2);
+      expect(loaded?.state.conversationHistory[0]).toMatchObject({
+        role: 'user',
+        content: 'Test message',
+      });
+      expect(loaded?.state.conversationHistory[1]).toMatchObject({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Test response' }],
+      });
+    });
+  });
 });
