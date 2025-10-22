@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 
 import { WorkflowHandler } from '../../src/a2a/handlers/workflowHandler.js';
+import { SessionManager } from '../../src/a2a/sessions/manager.js';
 import { WorkflowRuntime } from '../../src/workflows/runtime.js';
 import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../../src/workflows/types.js';
 
@@ -89,7 +90,7 @@ describe('WorkflowHandler dispatch + resubscribe (pause-only)', () => {
     const taskStore = new InMemoryTaskStore();
     const busManager = new DefaultExecutionEventBusManager();
 
-    const handler = new WorkflowHandler(runtime, busManager, taskStore);
+    const handler = new WorkflowHandler(runtime, new SessionManager(), busManager, taskStore);
 
     const contextId = `ctx-${Date.now()}`;
     const parentBus = busManager.createOrGetByTaskId(uuidv7());
@@ -97,7 +98,6 @@ describe('WorkflowHandler dispatch + resubscribe (pause-only)', () => {
     const { taskId } = await handler.dispatchWorkflow(
       'dispatch_workflow_pause_only',
       {},
-      contextId,
       parentBus,
     );
 

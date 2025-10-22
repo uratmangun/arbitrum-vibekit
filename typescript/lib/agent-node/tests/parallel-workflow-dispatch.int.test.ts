@@ -341,7 +341,9 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const childTasks = getTasks(childBus);
     const childTask = childTasks.find((t) => t.id === childTaskId);
     expect(childTask).toBeDefined();
-    expect(childTask?.contextId).toBe('ctx-parallel');
+    // Child task should have its own workflow context (not equal to parent)
+    expect(typeof childTask?.contextId).toBe('string');
+    expect(childTask?.contextId).not.toBe('ctx-parallel');
 
     // And: Parent task should complete on parent bus
     const parentComplete = parentStatusUpdates.find((u) => {
@@ -454,9 +456,11 @@ describe('Parallel Workflow Dispatch Integration', () => {
     );
     expect(parentCompletion).toBeDefined();
 
-    // And: Both child tasks should be created with correct context
-    expect(childTask1?.contextId).toBe('ctx-multi');
-    expect(childTask2?.contextId).toBe('ctx-multi');
+    // And: Both child tasks should have their own workflow contexts (not equal to parent)
+    expect(typeof childTask1?.contextId).toBe('string');
+    expect(typeof childTask2?.contextId).toBe('string');
+    expect(childTask1?.contextId).not.toBe('ctx-multi');
+    expect(childTask2?.contextId).not.toBe('ctx-multi');
   });
 
   it('handles workflow errors without affecting parent task', async () => {
@@ -527,11 +531,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
       while (Date.now() - start < 3000 && !childFailure) {
         const childStatusUpdates = getStatusUpdates(childBus);
         childFailure = childStatusUpdates.find(
-          (u) =>
-            'taskId' in u &&
-            u.taskId === childTaskId &&
-            u.contextId === 'ctx-error' &&
-            u.status.state === 'failed',
+          (u) => 'taskId' in u && u.taskId === childTaskId && u.status.state === 'failed',
         ) as typeof childFailure;
         if (!childFailure) await new Promise((resolve) => setTimeout(resolve, 50));
       }
@@ -967,7 +967,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     getArtifactUpdates(childBus).forEach((a) => {
       expect(a.kind).toBe('artifact-update');
       expect(a.taskId).toBe(workflowTaskId);
-      expect(a.contextId).toBe('ctx-isolation');
+      expect(typeof a.contextId).toBe('string');
       expect(a.artifact).toBeDefined();
     });
 
