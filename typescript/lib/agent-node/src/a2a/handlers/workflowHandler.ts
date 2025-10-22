@@ -26,7 +26,7 @@ import z from 'zod';
 import { canonicalizeName } from '../../config/validators/tool-validator.js';
 import { Logger } from '../../utils/logger.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
-import type { SessionManager } from '../sessions/manager.js';
+import type { ContextManager } from '../sessions/manager.js';
 import type { ActiveTask, TaskState, WorkflowEvent } from '../types.js';
 
 /**
@@ -96,7 +96,7 @@ export class WorkflowHandler {
 
   constructor(
     private workflowRuntime: WorkflowRuntime | undefined,
-    private sessionManager: SessionManager,
+    private contextManager: ContextManager,
     private eventBusManager?: ExecutionEventBusManager,
     private taskStore?: TaskStore,
   ) {
@@ -314,9 +314,9 @@ export class WorkflowHandler {
         throw new Error(`Plugin ${pluginId} not found`);
       }
 
-      // Create a dedicated workflow session/context independent of parent
-      const session = this.sessionManager.createSession();
-      const workflowContextId = session.contextId;
+      // Create a dedicated workflow context independent of parent
+      const context = this.contextManager.createContext();
+      const workflowContextId = context.contextId;
       this.logger.debug('Created new context for workflow', { workflowContextId });
 
       // Dispatch workflow - this creates a task via the runtime
@@ -610,7 +610,7 @@ export class WorkflowHandler {
       childEventBus.publish(task);
       this.registerContextTask(workflowContextId, execution.id);
       // Track task in the new workflow session
-      this.sessionManager?.addTask?.(workflowContextId, execution.id);
+      this.contextManager?.addTask?.(workflowContextId, execution.id);
 
       // Wait for the Task event to be fully processed and stored
       await firstEventProcessed;

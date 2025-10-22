@@ -24,7 +24,7 @@ import { Logger } from '../utils/logger.js';
 import { WorkflowRuntime } from '../workflows/runtime.js';
 
 import { createAgentExecutor } from './agentExecutor.js';
-import { SessionManager } from './sessions/manager.js';
+import { ContextManager } from './sessions/manager.js';
 
 interface ServerConfig {
   serviceConfig: ServiceConfig;
@@ -159,11 +159,11 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
     );
   }
 
-  const sessionManager = new SessionManager();
+  const contextManager = new ContextManager();
   const agentExecutor = createAgentExecutor(
     workflowRuntime,
     aiService,
-    sessionManager,
+    contextManager,
     eventBusManager,
     taskStore,
   );

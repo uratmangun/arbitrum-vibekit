@@ -54,7 +54,7 @@ export class ToolHandler {
     const toolsWithExecutors: Record<string, Tool> = {};
 
     for (const [toolName, toolDefinition] of Object.entries(baseTools)) {
-      const tool = toolDefinition as Tool;
+      const tool = toolDefinition;
       if (this.workflowHandler && !tool.execute && toolName.startsWith('dispatch_workflow_')) {
         toolsWithExecutors[toolName] = {
           ...tool,

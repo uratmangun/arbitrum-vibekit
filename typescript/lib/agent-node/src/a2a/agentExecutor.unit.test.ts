@@ -9,19 +9,19 @@ import {
   createWorkflowExecutionStub,
 } from '../../tests/utils/factories/index.js';
 import { StubAIService } from '../../tests/utils/mocks/ai-service.mock.js';
+import { MockContextManager } from '../../tests/utils/mocks/context-manager.mock.js';
 import { RecordingEventBus } from '../../tests/utils/mocks/event-bus.mock.js';
-import { MockSessionManager } from '../../tests/utils/mocks/session-manager.mock.js';
 import { StubWorkflowRuntime } from '../../tests/utils/mocks/workflow-runtime.mock.js';
 import type { AIService } from '../ai/service.js';
 
 import { createAgentExecutor } from './agentExecutor.js';
-import type { SessionManager } from './sessions/manager.js';
+import type { ContextManager } from './sessions/manager.js';
 
 describe('AgentExecutor', () => {
   let eventBus: RecordingEventBus;
   let workflowRuntime: StubWorkflowRuntime;
   let llm: StubAIService;
-  let sessionManager: MockSessionManager;
+  let contextManager: MockContextManager;
   let eventBusManager: DefaultExecutionEventBusManager;
   let taskStore: InMemoryTaskStore;
 
@@ -29,7 +29,7 @@ describe('AgentExecutor', () => {
     eventBus = new RecordingEventBus();
     workflowRuntime = new StubWorkflowRuntime();
     llm = new StubAIService();
-    sessionManager = new MockSessionManager();
+    contextManager = new MockContextManager();
     eventBusManager = new DefaultExecutionEventBusManager();
     taskStore = new InMemoryTaskStore();
   });
@@ -54,7 +54,7 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -90,7 +90,7 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -135,7 +135,7 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -205,7 +205,7 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -269,7 +269,7 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );

@@ -8,7 +8,7 @@ import type { Tool, TextStreamPart } from 'ai';
 
 import type { AIService } from '../../ai/service.js';
 import { Logger } from '../../utils/logger.js';
-import type { SessionManager } from '../sessions/manager.js';
+import type { ContextManager } from '../sessions/manager.js';
 
 import { StreamProcessor } from './streaming/StreamProcessor.js';
 import { ToolHandler } from './toolHandler.js';
@@ -25,7 +25,7 @@ export class AIHandler {
   constructor(
     private ai: AIService,
     workflowHandler: WorkflowHandler,
-    private sessionManager: SessionManager,
+    private contextManager: ContextManager,
   ) {
     this.toolHandler = new ToolHandler(ai, workflowHandler);
     this.logger = Logger.getInstance('AIHandler');
@@ -55,9 +55,9 @@ export class AIHandler {
     }
 
     try {
-      // Fetch conversation history if session exists (avoid throwing on unknown contextId)
-      const existingSession = this.sessionManager.getSession(contextId);
-      const history = existingSession ? this.sessionManager.getHistory(contextId) : [];
+      // Fetch conversation history if context exists (avoid throwing on unknown contextId)
+      const existingContext = this.contextManager.getContext(contextId);
+      const history = existingContext ? this.contextManager.getHistory(contextId) : [];
 
       this.logger.debug('Retrieved conversation history', {
         contextId,
@@ -117,17 +117,17 @@ export class AIHandler {
       // Store the user and assistant messages after streaming completes (if session exists)
       streamPromise
         .then((assistantMessage) => {
-          if (this.sessionManager.getSession(contextId)) {
+          if (this.contextManager.getContext(contextId)) {
             // Add the user message for this turn
-            this.sessionManager.addToHistory(contextId, {
+            this.contextManager.addToHistory(contextId, {
               role: 'user',
               content: messageContent,
             });
 
             // Add assistant response if available
             if (assistantMessage) {
-              this.sessionManager.addToHistory(contextId, assistantMessage);
-              this.logger.debug('Stored assistant message in session history', {
+              this.contextManager.addToHistory(contextId, assistantMessage);
+              this.logger.debug('Stored assistant message in context history', {
                 contextId,
                 hasReasoning: assistantMessage.content.length > 1,
               });

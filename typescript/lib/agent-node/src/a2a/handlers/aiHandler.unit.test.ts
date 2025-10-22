@@ -9,10 +9,10 @@
 import type { TextStreamPart, Tool } from 'ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MockContextManager } from '../../../tests/utils/mocks/context-manager.mock.js';
 import { RecordingEventBus } from '../../../tests/utils/mocks/event-bus.mock.js';
-import { MockSessionManager } from '../../../tests/utils/mocks/session-manager.mock.js';
 import type { AIService } from '../../ai/service.js';
-import type { SessionManager } from '../sessions/manager.js';
+import type { ContextManager } from '../sessions/manager.js';
 
 import { AIHandler } from './aiHandler.js';
 import type { WorkflowHandler } from './workflowHandler.js';
@@ -39,7 +39,7 @@ type WorkflowHandlerDouble = {
 describe('AIHandler - streaming fix', () => {
   let aiHandler: AIHandler;
   let mockAIService: AIServiceDouble;
-  let mockSessionManager: MockSessionManager;
+  let mockContextManager: MockContextManager;
   let mockWorkflowHandler: WorkflowHandlerDouble;
   let eventBus: RecordingEventBus;
 
@@ -56,8 +56,8 @@ describe('AIHandler - streaming fix', () => {
     };
 
     // Create mock session manager and reset it
-    mockSessionManager = new MockSessionManager();
-    mockSessionManager.reset();
+    mockContextManager = new MockContextManager();
+    mockContextManager.reset();
 
     // Create mock workflow handler
     mockWorkflowHandler = {
@@ -71,7 +71,7 @@ describe('AIHandler - streaming fix', () => {
     aiHandler = new AIHandler(
       mockAIService as unknown as AIService,
       mockWorkflowHandler as unknown as WorkflowHandler,
-      mockSessionManager as unknown as SessionManager,
+      mockContextManager as unknown as ContextManager,
     );
   });
 
@@ -108,13 +108,13 @@ describe('AIHandler - streaming fix', () => {
       const message = 'Follow-up question';
 
       // Create fresh session with history
-      const freshSessionManager = new MockSessionManager();
-      freshSessionManager.getOrCreateSession(contextId);
-      freshSessionManager.addToHistory(contextId, {
+      const freshContextManager = new MockContextManager();
+      freshContextManager.getOrCreateContext(contextId);
+      freshContextManager.addToHistory(contextId, {
         role: 'user',
         content: 'Previous user message',
       });
-      freshSessionManager.addToHistory(contextId, {
+      freshContextManager.addToHistory(contextId, {
         role: 'assistant',
         content: 'Previous assistant response',
       });
@@ -123,7 +123,7 @@ describe('AIHandler - streaming fix', () => {
       const isolatedHandler = new AIHandler(
         mockAIService as unknown as AIService,
         mockWorkflowHandler as unknown as WorkflowHandler,
-        freshSessionManager as unknown as SessionManager,
+        freshContextManager as unknown as ContextManager,
       );
 
       // When: handleStreamingAIProcessing is called
@@ -192,7 +192,7 @@ describe('AIHandler - streaming fix', () => {
       const message = 'User question';
 
       // Create session
-      mockSessionManager.getOrCreateSession(contextId);
+      mockContextManager.getOrCreateContext(contextId);
 
       // Mock stream that completes successfully
       mockAIService.streamMessage = vi.fn(async function* () {
@@ -209,7 +209,7 @@ describe('AIHandler - streaming fix', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Then: Session history contains new user message + assistant response
-      const history = mockSessionManager.getHistory(contextId);
+      const history = mockContextManager.getHistory(contextId);
       expect(history.length).toBeGreaterThanOrEqual(2);
 
       // User message was added
@@ -240,7 +240,7 @@ describe('AIHandler - streaming fix', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Then: No history exists for this context
-      const history = mockSessionManager.getHistory(contextId);
+      const history = mockContextManager.getHistory(contextId);
       expect(history).toHaveLength(0);
     });
 
@@ -251,8 +251,8 @@ describe('AIHandler - streaming fix', () => {
       const message = 'This will fail';
 
       // Create fresh session manager for this test
-      const freshSessionManager = new MockSessionManager();
-      freshSessionManager.getOrCreateSession(contextId);
+      const freshContextManager = new MockContextManager();
+      freshContextManager.getOrCreateContext(contextId);
 
       // Mock stream that fails
       const failingAIService = {
@@ -267,7 +267,7 @@ describe('AIHandler - streaming fix', () => {
       const isolatedHandler = new AIHandler(
         failingAIService as unknown as AIService,
         mockWorkflowHandler as unknown as WorkflowHandler,
-        freshSessionManager as unknown as SessionManager,
+        freshContextManager as unknown as ContextManager,
       );
 
       // When: Stream fails
@@ -277,7 +277,7 @@ describe('AIHandler - streaming fix', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Then: Session history retains only the original user message and no assistant content
-      const history = freshSessionManager.getHistory(contextId);
+      const history = freshContextManager.getHistory(contextId);
       expect(history).toHaveLength(1);
       expect(history[0]).toEqual(expect.objectContaining({ role: 'user', content: message }));
     });
@@ -291,8 +291,8 @@ describe('AIHandler - streaming fix', () => {
       const message = 'Unique message';
 
       // Create fresh session manager with empty history
-      const freshSessionManager = new MockSessionManager();
-      freshSessionManager.getOrCreateSession(contextId);
+      const freshContextManager = new MockContextManager();
+      freshContextManager.getOrCreateContext(contextId);
 
       // Create fresh AI service mock
       const freshAIService = {
@@ -306,7 +306,7 @@ describe('AIHandler - streaming fix', () => {
       const isolatedHandler = new AIHandler(
         freshAIService as unknown as AIService,
         mockWorkflowHandler as unknown as WorkflowHandler,
-        freshSessionManager as unknown as SessionManager,
+        freshContextManager as unknown as ContextManager,
       );
 
       // When: handleStreamingAIProcessing is called

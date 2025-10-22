@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RecordingEventBus } from '../../../tests/utils/mocks/event-bus.mock.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
-import { SessionManager } from '../sessions/manager.js';
+import { ContextManager } from '../sessions/manager.js';
 
 type MockedFn<T extends (...args: unknown[]) => unknown> = ReturnType<typeof vi.fn<T>>;
 
@@ -106,7 +106,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: A workflow is dispatched
     const result = await handler.dispatchWorkflow(
@@ -172,7 +172,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: A workflow is dispatched
     const result = await handler.dispatchWorkflow(
@@ -221,7 +221,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: Workflow is dispatched
     const result = await handler.dispatchWorkflow(
@@ -237,7 +237,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
   it('throws error when workflow runtime is not available', async () => {
     // Given: A handler without workflow runtime
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(undefined, new SessionManager());
+    const handler = new WorkflowHandler(undefined, new ContextManager());
 
     // When/Then: Dispatching should throw
     await expect(
@@ -256,7 +256,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When/Then: Dispatching should throw
     await expect(
@@ -302,7 +302,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: A workflow is dispatched
     await handler.dispatchWorkflow(
@@ -397,7 +397,7 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: Workflow executes and emits artifacts
     await handler.dispatchWorkflow(
@@ -465,7 +465,7 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: Workflow is dispatched and pauses
     await handler.dispatchWorkflow(
@@ -549,7 +549,7 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: Workflow is dispatched
     await handler.dispatchWorkflow(
