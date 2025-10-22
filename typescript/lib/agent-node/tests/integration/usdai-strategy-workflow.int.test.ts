@@ -10,8 +10,8 @@ import {
   getDeleGatorEnvironment,
   signDelegation as signDelegationWithPrivateKey,
 } from '@metamask/delegation-toolkit';
-import type { Hex } from 'viem';
 import { v4 as uuidv4 } from 'uuid';
+import type { Hex } from 'viem';
 import type { privateKeyToAccount } from 'viem/accounts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 

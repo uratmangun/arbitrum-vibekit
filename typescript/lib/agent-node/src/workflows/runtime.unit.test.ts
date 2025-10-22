@@ -1053,7 +1053,7 @@ describe('Workflow Runtime', () => {
         id: 'pause_status_test',
         name: 'Pause Status Test',
         version: '1.0.0',
-        *execute(context: WorkflowContext) {
+        *execute(_context: WorkflowContext) {
           // Non-pausing status
           yield { type: 'status-update', message: 'Working' };
 

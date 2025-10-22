@@ -323,7 +323,7 @@ describe('A2A Client Protocol Integration', () => {
     // Then: Use getTask to fetch current workflow state
     const task = await waitForTaskState(
       client,
-      workflowTaskId!,
+      workflowTaskId,
       (t) => t?.status?.state === 'input-required',
     );
 
@@ -332,7 +332,7 @@ describe('A2A Client Protocol Integration', () => {
     expect(['input-required', 'working']).toContain(task?.status?.state);
 
     if (task?.status?.state !== 'input-required') {
-      const runtimeState = workflowRuntime.getTaskState(workflowTaskId!);
+      const runtimeState = workflowRuntime.getTaskState(workflowTaskId);
       expect(runtimeState?.state).toBe('input-required');
     }
 
@@ -345,7 +345,7 @@ describe('A2A Client Protocol Integration', () => {
 
     // Then: Subscribe to workflow stream for future events
     const workflowEvents: Array<TaskStatusUpdateEvent | TaskArtifactUpdateEvent> = [];
-    const workflowStream = client.resubscribeTask({ id: workflowTaskId! });
+    const workflowStream = client.resubscribeTask({ id: workflowTaskId });
 
     // Set up async collection of workflow events
     const collectEventsPromise = (async () => {
@@ -375,7 +375,7 @@ describe('A2A Client Protocol Integration', () => {
         kind: 'message',
         messageId: uuidv4(),
         contextId: workflowContextId,
-        taskId: workflowTaskId!,
+        taskId: workflowTaskId,
         role: 'user',
         parts: [
           {
@@ -408,7 +408,7 @@ describe('A2A Client Protocol Integration', () => {
 
     const finalTask = await waitForTaskState(
       client,
-      workflowTaskId!,
+      workflowTaskId,
       (t) => t?.status?.state === 'completed' || t?.status?.state === 'working',
     );
     expect(finalTask).toBeDefined();
@@ -416,7 +416,7 @@ describe('A2A Client Protocol Integration', () => {
     expect(streamedPostResume || finalArtifactIds.includes('post-resume-0.json')).toBe(true);
     expect(streamedCompletion || finalTask?.status?.state === 'completed').toBe(true);
 
-    const finalRuntimeState = workflowRuntime.getTaskState(workflowTaskId!);
+    const finalRuntimeState = workflowRuntime.getTaskState(workflowTaskId);
     expect(finalRuntimeState?.state).toBe('completed');
   });
 
@@ -475,13 +475,13 @@ describe('A2A Client Protocol Integration', () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Then: getTask should return current state (may be working or paused)
-    const initialTask = await waitForTaskState(client, workflowTaskId!, (t) => !!t?.status?.state);
+    const initialTask = await waitForTaskState(client, workflowTaskId, (t) => !!t?.status?.state);
     if (initialTask) {
       expect(initialTask.status?.state).toMatch(/^(working|input-required)$/);
     }
 
     // Subscribe to verify completion - subscribe before resuming to avoid missing events
-    const workflowStream = client.resubscribeTask({ id: workflowTaskId! });
+    const workflowStream = client.resubscribeTask({ id: workflowTaskId });
     const workflowEvents: Array<TaskStatusUpdateEvent | TaskArtifactUpdateEvent> = [];
 
     const streamPromise = (async () => {
@@ -508,7 +508,7 @@ describe('A2A Client Protocol Integration', () => {
         kind: 'message',
         messageId: uuidv4(),
         contextId: workflowContextId,
-        taskId: workflowTaskId!,
+        taskId: workflowTaskId,
         role: 'user',
         parts: [
           {
@@ -536,7 +536,7 @@ describe('A2A Client Protocol Integration', () => {
 
     const finalTask = await waitForTaskState(
       client,
-      workflowTaskId!,
+      workflowTaskId,
       (task) => task?.status?.state === 'completed' || task?.status?.state === 'working',
     );
     expect(finalTask).toBeDefined();
@@ -545,7 +545,7 @@ describe('A2A Client Protocol Integration', () => {
 
     expect(completionFromStream || finalTask?.status?.state === 'completed').toBe(true);
 
-    const finalRuntimeState = workflowRuntime.getTaskState(workflowTaskId!);
+    const finalRuntimeState = workflowRuntime.getTaskState(workflowTaskId);
     expect(finalRuntimeState?.state).toBe('completed');
   });
 

@@ -14,16 +14,16 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 
 import { createAgentExecutor } from '../src/a2a/agentExecutor.js';
-import type { SessionManager } from '../src/a2a/sessions/manager.js';
+import type { ContextManager } from '../src/a2a/sessions/manager.js';
 import type { AIService } from '../src/ai/service.js';
 import { WorkflowRuntime } from '../src/workflows/runtime.js';
 import type { WorkflowPlugin, WorkflowContext, WorkflowState } from '../src/workflows/types.js';
 
 import { createSimpleRequestContext } from './utils/factories/index.js';
+import { waitForReferenceTaskId, pollUntilContextHasTask } from './utils/lifecycle.js';
 import { StubAIService } from './utils/mocks/ai-service.mock.js';
+import { MockContextManager } from './utils/mocks/context-manager.mock.js';
 import { RecordingEventBusManager } from './utils/mocks/event-bus.mock.js';
-import { MockSessionManager } from './utils/mocks/session-manager.mock.js';
-import { waitForReferenceTaskId, pollUntilSessionHasTask } from './utils/lifecycle.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -156,14 +156,14 @@ function createTestWorkflowPlugin(
 describe('Parallel Workflow Dispatch Integration', () => {
   let workflowRuntime: WorkflowRuntime;
   let aiService: StubAIService;
-  let sessionManager: MockSessionManager;
+  let contextManager: MockContextManager;
   let eventBusManager: RecordingEventBusManager;
   let taskStore: InMemoryTaskStore;
 
   beforeEach(() => {
     workflowRuntime = new WorkflowRuntime();
     aiService = new StubAIService();
-    sessionManager = new MockSessionManager();
+    contextManager = new MockContextManager();
     eventBusManager = new RecordingEventBusManager();
     taskStore = new InMemoryTaskStore();
   });
@@ -192,7 +192,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -292,7 +292,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -388,7 +388,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -489,7 +489,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -519,7 +519,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(childTaskId).toBeDefined();
 
     // Get the child bus recording
-    const childBus = eventBusManager.getRecordingBus(childTaskId!);
+    const childBus = eventBusManager.getRecordingBus(childTaskId);
     expect(childBus).toBeDefined();
 
     // And: Child task should enter "failed" state on child bus (poll for propagation)
@@ -537,7 +537,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
       }
     }
     if (!childFailure) {
-      const state = workflowRuntime.getTaskState(childTaskId!);
+      const state = workflowRuntime.getTaskState(childTaskId);
       // The runtime may surface failure as 'rejected' for explicit reject yields
       expect(['failed', 'rejected']).toContain(state?.state);
     } else {
@@ -617,7 +617,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -775,7 +775,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -829,7 +829,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
       'referenceTaskIds' in refUpdate.status.message &&
       Array.isArray(refUpdate.status.message.referenceTaskIds)
     ) {
-      const workflowTaskId = (refUpdate.status.message.referenceTaskIds as string[])[0] as string;
+      const workflowTaskId = (refUpdate.status.message.referenceTaskIds)[0] as string;
 
       // Get the child bus recording
       const childBus = eventBusManager.getRecordingBus(workflowTaskId);
@@ -843,10 +843,10 @@ describe('Parallel Workflow Dispatch Integration', () => {
       // Resume the workflow using the proper method (after ensuring paused state is persisted)
       await waitForRuntimeState(
         workflowRuntime,
-        workflowTaskId as string,
+        workflowTaskId,
         (s) => s?.state === 'input-required',
       );
-      await workflowRuntime.resumeWorkflow(workflowTaskId as string, {});
+      await workflowRuntime.resumeWorkflow(workflowTaskId, {});
 
       // Then: More artifacts should be emitted after resume on child bus (poll for propagation)
       let artifactsAfterCount = artifactsBeforeCount;
@@ -883,7 +883,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -997,7 +997,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -1029,19 +1029,19 @@ describe('Parallel Workflow Dispatch Integration', () => {
     expect(taskState).toBeDefined();
     expect(['working', 'completed', 'input-required']).toContain(taskState?.state);
 
-    // And: Session manager should have the task in its session (wait for propagation)
+    // And: Context manager should have the task in its context (wait for propagation)
     let sessionIncluded = false;
     try {
-      await pollUntilSessionHasTask(sessionManager, 'ctx-retrieve', workflowTaskId, 5000);
+      await pollUntilContextHasTask(contextManager, 'ctx-retrieve', workflowTaskId, 5000);
       sessionIncluded = true;
     } catch {
-      // note suspected source-code issue: session propagation lag/missing for child tasks
+      // note suspected source-code issue: context propagation lag/missing for child tasks
     }
 
-    const session = sessionManager.getSession('ctx-retrieve');
-    expect(session).toBeDefined();
+    const context = contextManager.getContext('ctx-retrieve');
+    expect(context).toBeDefined();
     if (sessionIncluded) {
-      expect(session!.state.tasks).toContain(workflowTaskId);
+      expect(context!.state.tasks).toContain(workflowTaskId);
     }
   });
 
@@ -1066,7 +1066,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -1184,7 +1184,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -1229,7 +1229,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     // Then: getTaskState should return paused state (handles race condition)
     const taskState = await waitForRuntimeState(
       workflowRuntime,
-      workflowTaskId!,
+      workflowTaskId,
       (s) => s?.state === 'input-required',
     );
     expect(taskState).toBeDefined();
@@ -1386,7 +1386,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
@@ -1497,7 +1497,7 @@ describe('Parallel Workflow Dispatch Integration', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       aiService as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
       eventBusManager,
       taskStore,
     );
