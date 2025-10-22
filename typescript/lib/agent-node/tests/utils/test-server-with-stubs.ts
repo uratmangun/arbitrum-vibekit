@@ -11,7 +11,7 @@ import express from 'express';
 import { z } from 'zod';
 
 import { createAgentExecutor } from '../../src/a2a/agentExecutor.js';
-import { SessionManager } from '../../src/a2a/sessions/manager.js';
+import { ContextManager } from '../../src/a2a/sessions/manager.js';
 import { workflowToCoreTools } from '../../src/ai/adapters.js';
 import { AIService } from '../../src/ai/service.js';
 import { initFromConfigWorkspace, type AgentConfigHandle } from '../../src/config/runtime/init.js';
@@ -178,11 +178,11 @@ export async function createTestA2AServerWithStubs(overrides?: {
   }) as typeof workflowRuntime.unregister;
 
   // Create session manager and agent executor
-  const sessionManager = new SessionManager();
+  const contextManager = new ContextManager();
   const agentExecutor = createAgentExecutor(
     workflowRuntime,
     aiService,
-    sessionManager,
+    contextManager,
     eventBusManager,
     taskStore,
   );

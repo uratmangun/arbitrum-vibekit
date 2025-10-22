@@ -33,21 +33,21 @@ export function filterArtifactUpdates<T extends { kind?: string }>(events: reado
   return events.filter((e) => (e as { kind?: string } | undefined)?.kind === 'artifact-update');
 }
 
-export async function pollUntilSessionHasTask(
-  sessionManager: { getSession: (id: string) => { state?: { tasks?: string[] } } | null },
-  sessionId: string,
+export async function pollUntilContextHasTask(
+  contextManager: { getContext: (id: string) => { state?: { tasks?: string[] } } | null },
+  contextId: string,
   taskId: string,
   timeoutMs: number = 2000,
   pollMs: number = 50,
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const s = sessionManager.getSession(sessionId);
-    const tasks = s?.state?.tasks ?? [];
+    const c = contextManager.getContext(contextId);
+    const tasks = c?.state?.tasks ?? [];
     if (Array.isArray(tasks) && tasks.includes(taskId)) return;
     await sleep(pollMs);
   }
-  throw new Error(`Timed out waiting for session ${sessionId} to include task ${taskId}`);
+  throw new Error(`Timed out waiting for context ${contextId} to include task ${taskId}`);
 }
 
 export async function backfillTaskStateIfNeeded<T>(fetcher: () => Promise<T>): Promise<T> {
