@@ -54,3 +54,29 @@ export async function backfillTaskStateIfNeeded<T>(fetcher: () => Promise<T>): P
   // Single call to the provided fetcher (e.g., client.getTask) to backfill current state
   return fetcher();
 }
+
+/**
+ * Wait for a workflow task to reach one of the expected states by polling status updates
+ * This is behavior-focused - checks observable events instead of internal runtime state
+ */
+export async function waitForWorkflowState(
+  getStatusUpdates: () => readonly MaybeStatusUpdate[],
+  taskId: string,
+  expectedStates: readonly string[],
+  timeoutMs: number = 2000,
+  pollMs: number = 50,
+): Promise<MaybeStatusUpdate> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const updates = getStatusUpdates();
+    for (const update of updates) {
+      if (update.status?.state && expectedStates.includes(update.status.state)) {
+        return update;
+      }
+    }
+    await sleep(pollMs);
+  }
+  throw new Error(
+    `Timed out waiting for task ${taskId} to reach one of states: ${expectedStates.join(', ')}`,
+  );
+}
