@@ -7,6 +7,16 @@
 import ora, { type Ora } from 'ora';
 import pc from 'picocolors';
 
+type CliColor = 'cyan' | 'magenta' | 'yellow' | 'blue' | 'green';
+
+const COLOR_FUNCTIONS: Record<CliColor, (value: string) => string> = {
+  blue: pc.blue,
+  cyan: pc.cyan,
+  green: pc.green,
+  magenta: pc.magenta,
+  yellow: pc.yellow,
+};
+
 /**
  * CliOutput provides clean, styled terminal output for user-facing CLI messages.
  * Uses cyan/magenta color scheme with picocolors and ora spinners.
@@ -20,7 +30,7 @@ export class CliOutput {
    * @param message - Message to print (supports markdown syntax)
    * @param color - Optional color ('cyan', 'magenta', 'yellow', 'blue', 'green')
    */
-  print(message: string, color?: 'cyan' | 'magenta' | 'yellow' | 'blue' | 'green'): void {
+  print(message: string, color?: CliColor): void {
     // Detect terminal color capability
     const supportsTruecolor = /truecolor|24bit/i.test(process.env['COLORTERM'] ?? '');
     const supports256 = /256color/i.test(process.env['TERM'] ?? '') || supportsTruecolor;
@@ -43,9 +53,12 @@ export class CliOutput {
     const hasInlineCode = /`[^`]+`/.test(message);
     const hasBlockCode = /```[\s\S]*?```/.test(message);
 
-    const applyBold = (text: string) => text.replace(/(\*\*|__)(.+?)\1/g, (_, __, t) => pc.bold(t));
+    const applyBold = (text: string): string =>
+      text.replace(/(\*\*|__)(.+?)\1/g, (_match, _delimiter, captured: string) =>
+        pc.bold(captured),
+      );
 
-    const colorizeText = (text: string) => (color ? pc[color](text) : text);
+    const colorizeText = (text: string) => (color ? COLOR_FUNCTIONS[color](text) : text);
 
     if (hasInlineCode || hasBlockCode) {
       // Render triple backtick blocks first
@@ -116,7 +129,7 @@ export class CliOutput {
     // No code present: simple bold + optional overall color
     const plainFormatted = applyBold(message);
     if (color) {
-      console.log(pc[color](plainFormatted));
+      console.log(COLOR_FUNCTIONS[color](plainFormatted));
     } else {
       console.log(plainFormatted);
     }

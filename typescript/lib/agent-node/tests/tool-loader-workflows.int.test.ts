@@ -5,12 +5,14 @@
 
 import { writeFileSync, rmSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+
 import { describe, it, expect, afterEach } from 'vitest';
 
-import { loadTools } from '../src/config/runtime/tool-loader.js';
-import { WorkflowPluginLoader } from '../src/config/runtime/workflow-loader.js';
 import type { EffectiveWorkflow } from '../src/config/composers/effective-set-composer.js';
 import type { MCPServerInstance } from '../src/config/runtime/mcp-instantiator.js';
+import { loadTools } from '../src/config/runtime/tool-loader.js';
+import { WorkflowPluginLoader } from '../src/config/runtime/workflow-loader.js';
+
 import { createTestConfigWorkspace } from './utils/test-config-workspace.js';
 
 describe('Tool Loader - Workflow Integration', () => {
@@ -298,7 +300,12 @@ export default {
       // Then: tool should have execute function defined
       const tool = result.tools.get('dispatch_workflow_schema_workflow');
       expect(tool).toBeDefined();
-      expect(tool?.execute).toBeDefined();
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
+      expect((tool as Record<string, unknown>).description).toBe(
+        'Dispatch Schema Workflow workflow',
+      );
+      const inputSchema = (tool as Record<string, unknown>).inputSchema;
+      expect(inputSchema).toBeDefined();
     });
 
     it('should use default schema when workflow has no inputSchema', async () => {
@@ -345,7 +352,18 @@ export default {
       // Then: tool should have execute function (default empty schema)
       const tool = result.tools.get('dispatch_workflow_no_schema_workflow');
       expect(tool).toBeDefined();
-      expect(tool?.execute).toBeDefined();
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
+      const defaultSchema = (tool as Record<string, unknown>).inputSchema;
+      expect(defaultSchema).toBeDefined();
+      if (
+        defaultSchema &&
+        typeof (defaultSchema as { safeParse?: unknown }).safeParse === 'function'
+      ) {
+        const result = (
+          defaultSchema as { safeParse: (value: unknown) => { success: boolean } }
+        ).safeParse({ unexpected: 'value' });
+        expect(result.success).toBe(true);
+      }
     });
 
     it('should use default description when workflow has no description', async () => {
@@ -449,10 +467,9 @@ export default {
       const result = await loadTools(mcpInstances, workflowPlugins);
       const tool = result.tools.get('dispatch_workflow_context_workflow');
 
-      // When: calling tool execute without contextId
-      // Then: should throw error requiring contextId
-      await expect(tool?.execute({})).rejects.toThrow(/contextId parameter/);
-      await expect(tool?.execute({ message: 'test' })).rejects.toThrow(/contextId parameter/);
+      // Then: workflow tools are schema-only; execution is handled by the workflow runtime
+      expect(tool).toBeDefined();
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
     });
   });
 

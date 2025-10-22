@@ -2,30 +2,19 @@
  * Core stream processing for AI responses
  */
 
-import type { TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import type { TaskArtifactUpdateEvent } from '@a2a-js/sdk';
 import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool, TextStreamPart, AssistantModelMessage } from 'ai';
-import { v7 as uuidv7 } from 'uuid';
 
 import { Logger } from '../../../utils/logger.js';
 
 import { ArtifactManager } from './ArtifactManager.js';
 import { StreamEventHandler } from './StreamEventHandler.js';
-import { ToolCallCollector } from './ToolCallCollector.js';
 
 export interface StreamProcessorOptions {
   taskId: string;
   contextId: string;
   eventBus: ExecutionEventBus;
-  onWorkflowDispatch?: (
-    toolName: string,
-    args: unknown,
-    contextId: string,
-    eventBus: ExecutionEventBus,
-  ) => Promise<{
-    taskId: string;
-    metadata: { workflowName: string; description: string; pluginId: string };
-  }>;
 }
 
 /**
@@ -35,13 +24,11 @@ export class StreamProcessor {
   private logger: Logger;
   private artifactManager: ArtifactManager;
   private eventHandler: StreamEventHandler;
-  private toolCallCollector: ToolCallCollector;
 
   constructor() {
     this.logger = Logger.getInstance('StreamProcessor');
     this.artifactManager = new ArtifactManager();
     this.eventHandler = new StreamEventHandler();
-    this.toolCallCollector = new ToolCallCollector();
   }
 
   /**
@@ -51,7 +38,7 @@ export class StreamProcessor {
     streamIter: AsyncIterable<TextStreamPart<Record<string, Tool>>>,
     options: StreamProcessorOptions,
   ): Promise<AssistantModelMessage | null> {
-    const { taskId, contextId, eventBus, onWorkflowDispatch } = options;
+    const { taskId, contextId, eventBus } = options;
 
     try {
       // Initialize processing state
@@ -64,6 +51,7 @@ export class StreamProcessor {
         deltaCounters: { 'tool-input-delta': 0 } as Record<string, number>,
         accumulatedText: '',
         accumulatedReasoning: '',
+        toolCalls: [],
       };
 
       // Process the stream
@@ -75,20 +63,16 @@ export class StreamProcessor {
           eventBus,
           state,
           this.artifactManager,
-          this.toolCallCollector,
         );
       }
 
       this.logger.info('AI stream ended', {
         textChunks: state.textChunkIndex,
-        collectedToolCalls: this.toolCallCollector.getToolCalls().length,
+        toolCalls: state.toolCalls.length,
       });
 
       // Flush any remaining buffered artifacts
       this.flushBufferedArtifacts(state, eventBus);
-
-      // Handle collected tool calls
-      await this.handleToolCalls(taskId, contextId, eventBus, onWorkflowDispatch);
 
       // Publish completion status
       this.publishCompletionStatus(taskId, contextId, eventBus);
@@ -162,66 +146,6 @@ export class StreamProcessor {
       );
       state.bufferedReasoningArtifact.lastChunk = true;
       eventBus.publish(state.bufferedReasoningArtifact);
-    }
-  }
-
-  private async handleToolCalls(
-    taskId: string,
-    contextId: string,
-    eventBus: ExecutionEventBus,
-    onWorkflowDispatch?: (
-      toolName: string,
-      args: unknown,
-      contextId: string,
-      eventBus: ExecutionEventBus,
-    ) => Promise<{
-      taskId: string;
-      metadata: { workflowName: string; description: string; pluginId: string };
-    }>,
-  ): Promise<void> {
-    const toolCalls = this.toolCallCollector.getToolCalls();
-    if (toolCalls.length === 0) {
-      return;
-    }
-
-    for (const toolCall of toolCalls) {
-      if (toolCall.name.startsWith('dispatch_workflow_') && onWorkflowDispatch) {
-        this.logger.info('Dispatching workflow from stream', { name: toolCall.name });
-        const result = await onWorkflowDispatch(
-          toolCall.name,
-          toolCall.arguments,
-          contextId,
-          eventBus,
-        );
-
-        // Emit status update with referenceTaskIds
-        const statusUpdate: TaskStatusUpdateEvent = {
-          kind: 'status-update',
-          taskId,
-          contextId,
-          status: {
-            state: 'working',
-            message: {
-              kind: 'message',
-              messageId: uuidv7(),
-              contextId,
-              role: 'agent',
-              referenceTaskIds: [result.taskId],
-              parts: [
-                {
-                  kind: 'text',
-                  text: `Dispatching workflow: ${result.metadata.workflowName} (${result.metadata.description})`,
-                },
-              ],
-              metadata: {
-                referencedWorkflow: result.metadata,
-              },
-            },
-          },
-          final: false,
-        };
-        eventBus.publish(statusUpdate);
-      }
     }
   }
 

@@ -7,12 +7,12 @@ import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { Tool, TextStreamPart } from 'ai';
 
 import type { AIService } from '../../ai/service.js';
-import type { SessionManager } from '../sessions/manager.js';
 import { Logger } from '../../utils/logger.js';
+import type { ContextManager } from '../sessions/manager.js';
 
 import { StreamProcessor } from './streaming/StreamProcessor.js';
 import { ToolHandler } from './toolHandler.js';
-import { WorkflowHandler } from './workflowHandler.js';
+import type { WorkflowHandler } from './workflowHandler.js';
 
 /**
  * Handles AI-related operations for the agent executor
@@ -24,10 +24,10 @@ export class AIHandler {
 
   constructor(
     private ai: AIService,
-    private workflowHandler: WorkflowHandler,
-    private sessionManager: SessionManager,
+    workflowHandler: WorkflowHandler,
+    private contextManager: ContextManager,
   ) {
-    this.toolHandler = new ToolHandler(ai);
+    this.toolHandler = new ToolHandler(ai, workflowHandler);
     this.logger = Logger.getInstance('AIHandler');
     this.streamProcessor = new StreamProcessor();
   }
@@ -55,9 +55,9 @@ export class AIHandler {
     }
 
     try {
-      // Fetch conversation history if session exists (avoid throwing on unknown contextId)
-      const existingSession = this.sessionManager.getSession(contextId);
-      const history = existingSession ? this.sessionManager.getHistory(contextId) : [];
+      // Fetch conversation history if context exists (avoid throwing on unknown contextId)
+      const existingContext = this.contextManager.getContext(contextId);
+      const history = existingContext ? this.contextManager.getHistory(contextId) : [];
 
       this.logger.debug('Retrieved conversation history', {
         contextId,
@@ -65,9 +65,8 @@ export class AIHandler {
       });
 
       // Get available tools
-      const bundle = this.toolHandler.createToolsBundle();
-      const availableTools = bundle?.tools ?? this.toolHandler.getAvailableToolsAsMap();
-      const toolsForSDK = availableTools;
+      const bundle = this.toolHandler.createToolsBundle(contextId, eventBus);
+      const toolsForSDK = bundle.tools;
       this.logger.debug('Streaming tools available', { tools: Object.keys(toolsForSDK) });
 
       // Create task and start streaming
@@ -112,25 +111,23 @@ export class AIHandler {
           taskId,
           contextId,
           eventBus,
-          onWorkflowDispatch: async (name, args, ctxId, bus) =>
-            this.workflowHandler.dispatchWorkflow(name, args, ctxId, bus),
         },
       );
 
       // Store the user and assistant messages after streaming completes (if session exists)
       streamPromise
         .then((assistantMessage) => {
-          if (this.sessionManager.getSession(contextId)) {
+          if (this.contextManager.getContext(contextId)) {
             // Add the user message for this turn
-            this.sessionManager.addToHistory(contextId, {
+            this.contextManager.addToHistory(contextId, {
               role: 'user',
               content: messageContent,
             });
 
             // Add assistant response if available
             if (assistantMessage) {
-              this.sessionManager.addToHistory(contextId, assistantMessage);
-              this.logger.debug('Stored assistant message in session history', {
+              this.contextManager.addToHistory(contextId, assistantMessage);
+              this.logger.debug('Stored assistant message in context history', {
                 contextId,
                 hasReasoning: assistantMessage.content.length > 1,
               });

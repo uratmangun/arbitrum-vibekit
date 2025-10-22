@@ -74,6 +74,7 @@ describe('StreamEventHandler', () => {
       deltaCounters: { 'tool-input-delta': 0 },
       accumulatedText: '',
       accumulatedReasoning: '',
+      toolCalls: [],
     };
   });
 
@@ -304,11 +305,11 @@ describe('StreamEventHandler', () => {
         {},
       );
       expect(mockEventBus.publish).toHaveBeenCalled();
-      expect(mockToolCallCollector.addToolCall).toHaveBeenCalledWith({
-        name: 'calculate_price',
-        arguments: { amount: 100, currency: 'USD' },
-      });
       expect(mockState.toolCallArtifacts.size).toBe(1);
+      expect(mockState.toolCalls[0]).toEqual({
+        name: 'calculate_price',
+        artifactId: expect.any(String),
+      });
     });
 
     it('handles tool-call without input property', () => {
@@ -331,9 +332,9 @@ describe('StreamEventHandler', () => {
       );
 
       // Then tool call should be added with undefined arguments
-      expect(mockToolCallCollector.addToolCall).toHaveBeenCalledWith({
+      expect(mockState.toolCalls[0]).toEqual({
         name: 'get_time',
-        arguments: undefined,
+        artifactId: expect.any(String),
       });
     });
 
@@ -365,11 +366,10 @@ describe('StreamEventHandler', () => {
   describe('tool-result event handling', () => {
     it('updates last tool call with result and publishes artifact', () => {
       // Given a tool-result event and a previous tool call
-      mockToolCallCollector.getToolCalls.mockReturnValue([
-        { name: 'tool_a', arguments: {}, result: undefined },
-        { name: 'tool_b', arguments: {}, result: undefined },
-      ]);
-
+      mockState.toolCalls = [
+        { name: 'tool_a', artifactId: 'artifact-tool-a' },
+        { name: 'tool_b', artifactId: 'artifact-tool-b' },
+      ];
       mockState.toolCallArtifacts.set(1, 'artifact-tool-b');
 
       const toolResultEvent: TextStreamPart<Record<string, Tool>> = {
@@ -404,7 +404,7 @@ describe('StreamEventHandler', () => {
 
     it('handles null output in tool-result', () => {
       // Given a tool-result with null output
-      mockToolCallCollector.getToolCalls.mockReturnValue([{ name: 'tool_null', arguments: {} }]);
+      mockState.toolCalls = [{ name: 'tool_null', artifactId: 'artifact-null' }];
       mockState.toolCallArtifacts.set(0, 'artifact-null');
 
       const nullResultEvent: TextStreamPart<Record<string, Tool>> = {
@@ -438,7 +438,7 @@ describe('StreamEventHandler', () => {
 
     it('handles tool-result without corresponding tool call gracefully', () => {
       // Given no previous tool calls
-      mockToolCallCollector.getToolCalls.mockReturnValue([]);
+      mockState.toolCalls = [];
 
       const orphanResultEvent: TextStreamPart<Record<string, Tool>> = {
         type: 'tool-result',
@@ -696,6 +696,370 @@ describe('StreamEventHandler', () => {
 
       // Then nothing should be published (only logging occurs)
       expect(mockEventBus.publish).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('workflow tool-call tracking (per-stream)', () => {
+    beforeEach(() => {
+      // Initialize per-stream tool-call tracking array
+      mockState.toolCalls = [];
+    });
+
+    it('tracks workflow tool calls in per-stream state without emitting initial artifact', () => {
+      // Given: A workflow tool call event
+      const workflowToolCallEvent = {
+        type: 'tool-call' as const,
+        toolCallId: 'call-wf-1',
+        toolName: 'dispatch_workflow_token_swap',
+        input: { fromToken: 'ETH', toToken: 'USDC' },
+      };
+
+      // When: Handling the workflow tool-call event
+      void handler.handleStreamEvent(
+        workflowToolCallEvent,
+        'task-parent',
+        'ctx-1',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: Tool call should be tracked in per-stream state
+      expect(mockState.toolCalls.length).toBe(1);
+      expect(mockState.toolCalls[0]?.name).toBe('dispatch_workflow_token_swap');
+      expect(mockState.toolCalls[0]?.artifactId).toMatch(
+        /^tool-call-dispatch_workflow_token_swap-/,
+      );
+
+      // And: Should NOT publish initial tool-call artifact for workflow tools
+      expect(mockEventBus.publish).not.toHaveBeenCalled();
+
+      // And: Should still track in toolCallArtifacts map
+      expect(mockState.toolCallArtifacts.size).toBe(1);
+    });
+
+    it('tracks non-workflow tool calls and emits initial artifact', () => {
+      // Given: A regular (non-workflow) tool call event
+      const regularToolCallEvent = {
+        type: 'tool-call' as const,
+        toolCallId: 'call-price-1',
+        toolName: 'get_token_price',
+        input: { token: 'ETH' },
+      };
+
+      // When: Handling the regular tool-call event
+      void handler.handleStreamEvent(
+        regularToolCallEvent,
+        'task-regular',
+        'ctx-2',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: Tool call should be tracked in per-stream state
+      expect(mockState.toolCalls.length).toBe(1);
+      expect(mockState.toolCalls[0]?.name).toBe('get_token_price');
+
+      // And: SHOULD publish initial tool-call artifact for non-workflow tools
+      expect(mockArtifactManager.createToolCallArtifact).toHaveBeenCalledWith(
+        'task-regular',
+        'ctx-2',
+        'get_token_price',
+        {},
+      );
+      expect(mockEventBus.publish).toHaveBeenCalled();
+    });
+
+    it('publishes parent status update with referenceTaskIds for workflow tool-result', () => {
+      // Given: A workflow tool call has been tracked
+      const workflowArtifactId = 'tool-call-dispatch_workflow_lending-abc123';
+      mockState.toolCalls = [
+        {
+          name: 'dispatch_workflow_lending',
+          artifactId: workflowArtifactId,
+        },
+      ];
+      mockState.toolCallArtifacts.set(0, workflowArtifactId);
+
+      // Given: A workflow tool-result event with dispatch response
+      const workflowToolResultEvent = {
+        type: 'tool-result' as const,
+        output: {
+          result: [
+            { kind: 'text', text: 'Workflow execution started' },
+            { kind: 'data', data: { status: 'running' } },
+          ],
+          taskId: 'task-child-wf-123',
+          metadata: {
+            workflowName: 'Lending Protocol',
+            description: 'Manage lending positions',
+            pluginId: 'lending',
+          },
+        },
+      };
+
+      // When: Handling the workflow tool-result event
+      void handler.handleStreamEvent(
+        workflowToolResultEvent,
+        'task-parent',
+        'ctx-workflow',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: Should publish tool-result artifact
+      expect(mockArtifactManager.createToolResultArtifact).toHaveBeenCalledWith(
+        'task-parent',
+        'ctx-workflow',
+        workflowArtifactId,
+        'dispatch_workflow_lending',
+        workflowToolResultEvent.output,
+      );
+
+      // And: Should publish parent status update with referenceTaskIds
+      const statusUpdateCalls = mockEventBus.publish.mock.calls.filter(
+        ([event]) => typeof event === 'object' && event !== null && event.kind === 'status-update',
+      );
+
+      expect(statusUpdateCalls.length).toBeGreaterThan(0);
+
+      const statusUpdate = statusUpdateCalls[statusUpdateCalls.length - 1]?.[0] as {
+        kind: string;
+        taskId: string;
+        status: {
+          state: string;
+          message?: {
+            referenceTaskIds?: string[];
+            parts?: Array<{ kind: string; text?: string }>;
+            metadata?: { referencedWorkflow?: unknown };
+          };
+        };
+      };
+
+      expect(statusUpdate.kind).toBe('status-update');
+      expect(statusUpdate.taskId).toBe('task-parent');
+      expect(statusUpdate.status.state).toBe('working');
+      expect(statusUpdate.status.message?.referenceTaskIds).toEqual(['task-child-wf-123']);
+
+      // And: Should include workflow metadata
+      expect(statusUpdate.status.message?.metadata?.referencedWorkflow).toEqual({
+        workflowName: 'Lending Protocol',
+        description: 'Manage lending positions',
+        pluginId: 'lending',
+      });
+
+      // And: Should include text part describing the workflow dispatch
+      expect(statusUpdate.status.message?.parts?.[0]?.kind).toBe('text');
+      expect(statusUpdate.status.message?.parts?.[0]?.text).toContain('Lending Protocol');
+      expect(statusUpdate.status.message?.parts?.[0]?.text).toContain('Manage lending positions');
+
+      // And: Should include workflow result parts
+      expect(statusUpdate.status.message?.parts?.length).toBeGreaterThan(1);
+    });
+
+    it('removes tool call from tracking after tool-result is processed', () => {
+      // Given: A tool call has been tracked
+      const artifactId = 'tool-call-get_price-xyz';
+      mockState.toolCalls = [
+        {
+          name: 'get_price',
+          artifactId,
+        },
+      ];
+      mockState.toolCallArtifacts.set(0, artifactId);
+
+      // Given: A tool-result event
+      const toolResultEvent = {
+        type: 'tool-result' as const,
+        output: { price: 1500 },
+      };
+
+      // When: Handling the tool-result event
+      void handler.handleStreamEvent(
+        toolResultEvent,
+        'task-123',
+        'ctx-1',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: Tool call should be removed from per-stream tracking
+      expect(mockState.toolCalls.length).toBe(0);
+      expect(mockState.toolCallArtifacts.size).toBe(0);
+    });
+
+    it('handles sequential workflow tool calls independently', () => {
+      // Given: First workflow tool call
+      const firstWorkflowCall = {
+        type: 'tool-call' as const,
+        toolCallId: 'call-wf-1',
+        toolName: 'dispatch_workflow_swap',
+        input: { token: 'ETH' },
+      };
+
+      // When: Handling first workflow tool call
+      void handler.handleStreamEvent(
+        firstWorkflowCall,
+        'task-parent',
+        'ctx-1',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: First tool call tracked
+      expect(mockState.toolCalls.length).toBe(1);
+      expect(mockState.toolCalls[0]?.name).toBe('dispatch_workflow_swap');
+
+      // Given: First workflow result
+      const firstArtifactId = mockState.toolCalls[0]?.artifactId;
+      mockState.toolCallArtifacts.set(0, firstArtifactId!);
+
+      const firstWorkflowResult = {
+        type: 'tool-result' as const,
+        output: {
+          result: [],
+          taskId: 'task-child-1',
+          metadata: {
+            workflowName: 'Swap',
+            description: 'Token swap',
+            pluginId: 'swap',
+          },
+        },
+      };
+
+      // When: Handling first workflow result
+      void handler.handleStreamEvent(
+        firstWorkflowResult,
+        'task-parent',
+        'ctx-1',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: First tool call should be removed
+      expect(mockState.toolCalls.length).toBe(0);
+
+      // Given: Second workflow tool call
+      const secondWorkflowCall = {
+        type: 'tool-call' as const,
+        toolCallId: 'call-wf-2',
+        toolName: 'dispatch_workflow_lending',
+        input: { amount: 1000 },
+      };
+
+      // When: Handling second workflow tool call
+      void handler.handleStreamEvent(
+        secondWorkflowCall,
+        'task-parent',
+        'ctx-1',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: Second tool call tracked independently
+      expect(mockState.toolCalls.length).toBe(1);
+      expect(mockState.toolCalls[0]?.name).toBe('dispatch_workflow_lending');
+
+      // Given: Second workflow result
+      const secondArtifactId = mockState.toolCalls[0]?.artifactId;
+      mockState.toolCallArtifacts.set(0, secondArtifactId!);
+
+      const secondWorkflowResult = {
+        type: 'tool-result' as const,
+        output: {
+          result: [],
+          taskId: 'task-child-2',
+          metadata: {
+            workflowName: 'Lending',
+            description: 'Lending protocol',
+            pluginId: 'lending',
+          },
+        },
+      };
+
+      // When: Handling second workflow result
+      void handler.handleStreamEvent(
+        secondWorkflowResult,
+        'task-parent',
+        'ctx-1',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: Each workflow dispatch should have published separate status updates
+      const statusUpdates = mockEventBus.publish.mock.calls
+        .filter(
+          ([event]) =>
+            typeof event === 'object' && event !== null && event.kind === 'status-update',
+        )
+        .map(([event]) => event as { status: { message?: { referenceTaskIds?: string[] } } });
+
+      const firstRefUpdate = statusUpdates.find((u) =>
+        u.status.message?.referenceTaskIds?.includes('task-child-1'),
+      );
+      const secondRefUpdate = statusUpdates.find((u) =>
+        u.status.message?.referenceTaskIds?.includes('task-child-2'),
+      );
+
+      expect(firstRefUpdate).toBeDefined();
+      expect(secondRefUpdate).toBeDefined();
+
+      // And: Each should reference only its own child task
+      expect(firstRefUpdate?.status.message?.referenceTaskIds).toEqual(['task-child-1']);
+      expect(secondRefUpdate?.status.message?.referenceTaskIds).toEqual(['task-child-2']);
+    });
+
+    it('does not publish parent status update for non-workflow tool results', () => {
+      // Given: A non-workflow tool call tracked
+      mockState.toolCalls = [
+        {
+          name: 'get_balance',
+          artifactId: 'tool-call-get_balance-123',
+        },
+      ];
+      mockState.toolCallArtifacts.set(0, 'tool-call-get_balance-123');
+
+      // Given: A non-workflow tool-result event
+      const regularToolResult = {
+        type: 'tool-result' as const,
+        output: { balance: 5000 },
+      };
+
+      // When: Handling the regular tool-result event
+      void handler.handleStreamEvent(
+        regularToolResult,
+        'task-456',
+        'ctx-2',
+        mockEventBus as unknown as ExecutionEventBus,
+        mockState,
+        mockArtifactManager as unknown as ArtifactManager,
+        mockToolCallCollector as unknown as ToolCallCollector,
+      );
+
+      // Then: Should publish tool-result artifact
+      expect(mockArtifactManager.createToolResultArtifact).toHaveBeenCalled();
+
+      // But: Should NOT publish status update with referenceTaskIds
+      const statusUpdateCalls = mockEventBus.publish.mock.calls.filter(
+        ([event]) => typeof event === 'object' && event !== null && event.kind === 'status-update',
+      );
+
+      expect(statusUpdateCalls.length).toBe(0);
     });
   });
 });

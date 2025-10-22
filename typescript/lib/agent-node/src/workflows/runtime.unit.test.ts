@@ -2,13 +2,38 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 
 import { WorkflowRuntime } from './runtime.js';
-import type {
-  WorkflowPlugin,
-  WorkflowContext,
-  WorkflowExecution,
-  UpdateEvent,
-  ArtifactEvent,
-} from './types.js';
+import type { WorkflowPlugin, WorkflowContext, WorkflowExecution, WorkflowState } from './types.js';
+
+type PauseSpec = {
+  status: {
+    state: 'input-required' | 'auth-required';
+    message?: unknown;
+  };
+  inputSchema: z.ZodObject<Record<string, z.ZodTypeAny>>;
+  artifact?: unknown;
+};
+
+type RuntimeArtifactEvent = {
+  artifact: {
+    name: string;
+    mimeType?: string;
+    data?: unknown;
+  };
+  append?: boolean;
+  lastChunk?: boolean;
+  metadata?: Record<string, unknown>;
+};
+
+function convertPause(pause: PauseSpec) {
+  const { status, inputSchema, artifact } = pause;
+  return {
+    type: 'interrupted' as const,
+    reason: status.state,
+    message: status.message,
+    inputSchema,
+    ...(artifact ? { artifact } : {}),
+  };
+}
 
 /**
  * Unit tests for Workflow Runtime behavior
@@ -37,7 +62,7 @@ describe('Workflow Runtime', () => {
         description: 'A test workflow plugin',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { success: true };
         },
       };
@@ -58,7 +83,7 @@ describe('Workflow Runtime', () => {
         name: 'Example Workflow',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { success: true };
         },
       };
@@ -80,7 +105,7 @@ describe('Workflow Runtime', () => {
         name: 'API Integration',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { success: true };
         },
       };
@@ -101,7 +126,7 @@ describe('Workflow Runtime', () => {
         name: 'First Plugin',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -113,7 +138,7 @@ describe('Workflow Runtime', () => {
         name: 'Second Plugin',
         version: '2.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -129,7 +154,7 @@ describe('Workflow Runtime', () => {
         name: 'Workflow One',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -138,7 +163,7 @@ describe('Workflow Runtime', () => {
         name: 'Workflow Two',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -160,7 +185,7 @@ describe('Workflow Runtime', () => {
         name: 'My Workflow',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -187,7 +212,7 @@ describe('Workflow Runtime', () => {
         name: 'Dispatch Test',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { success: true };
         },
       };
@@ -220,7 +245,7 @@ describe('Workflow Runtime', () => {
         name: 'Original',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -232,7 +257,7 @@ describe('Workflow Runtime', () => {
         name: 'Duplicate',
         version: '2.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -247,7 +272,7 @@ describe('Workflow Runtime', () => {
         id: 'invalid',
         // Missing required fields
         execute: function* () {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -264,7 +289,7 @@ describe('Workflow Runtime', () => {
         name: 'Plugin 1',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -273,7 +298,7 @@ describe('Workflow Runtime', () => {
         name: 'Plugin 2',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return {};
         },
       };
@@ -301,7 +326,7 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { result: 'success' };
         },
       };
@@ -329,7 +354,7 @@ describe('Workflow Runtime', () => {
           token: z.string().optional(),
         }),
         *execute(context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return context.parameters;
         },
       };
@@ -359,7 +384,7 @@ describe('Workflow Runtime', () => {
           value: z.number(),
         }),
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { result: 'completed' };
         },
       };
@@ -393,7 +418,7 @@ describe('Workflow Runtime', () => {
         name: 'Task Creating Workflow',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { result: 'completed' };
         },
       };
@@ -423,7 +448,7 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
           // Workflow receives and uses parameters
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { processed: true };
         },
       };
@@ -459,16 +484,16 @@ describe('Workflow Runtime', () => {
   describe('workflow status updates', () => {
     it('should emit status updates during execution', async (): Promise<void> => {
       // Given a workflow that reports progress
-      const updates: UpdateEvent[] = [];
+      const updates: WorkflowState[] = [];
       const plugin: WorkflowPlugin = {
         id: 'generator_test',
         name: 'Generator Test',
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
-          yield { type: 'progress', current: 50, total: 100 };
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Starting' };
+          yield { type: 'status-update', message: 'Progress: 50%' };
+          yield { type: 'status-update', message: 'Still working' };
           return { completed: true };
         },
       };
@@ -480,13 +505,17 @@ describe('Workflow Runtime', () => {
         taskId: 'task-gen',
       });
 
-      execution.on('update', (update: UpdateEvent) => updates.push(update));
+      execution.on('update', (update: unknown) => updates.push(update as WorkflowState));
       const result = (await execution.waitForCompletion()) as { completed: boolean };
 
       // Then all yields should be processed
       expect(updates.length).toBe(3);
-      expect(updates[0]?.type).toBe('status');
-      expect(updates[1]?.type).toBe('progress');
+      expect(updates.map((update) => update.type)).toEqual([
+        'status-update',
+        'status-update',
+        'status-update',
+      ]);
+      expect(updates[1]?.message).toBe('Progress: 50%');
       expect(result.completed).toBe(true);
     });
 
@@ -498,20 +527,12 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { message: 'Processing' } };
+          yield { type: 'status-update', message: 'Processing' };
 
           const input: unknown = yield {
-            type: 'pause',
-            status: {
-              state: 'input-required',
-              message: {
-                kind: 'message',
-                messageId: 'm-1',
-                contextId: 'ctx-pause',
-                role: 'agent',
-                parts: [{ kind: 'text', text: 'Need user input' }],
-              },
-            },
+            type: 'interrupted',
+            reason: 'input-required',
+            message: 'Need user input',
             inputSchema: z.object({}),
           };
 
@@ -545,17 +566,9 @@ describe('Workflow Runtime', () => {
 
         async *execute(_context: WorkflowContext) {
           const _input: unknown = yield {
-            type: 'pause',
-            status: {
-              state: 'input-required',
-              message: {
-                kind: 'message',
-                messageId: 'm-2',
-                contextId: 'ctx-resume',
-                role: 'agent',
-                parts: [{ kind: 'text', text: 'Provide input' }],
-              },
-            },
+            type: 'interrupted',
+            reason: 'input-required',
+            message: 'Provide input',
             inputSchema: z.object({}),
           };
           return { received: true };
@@ -594,17 +607,9 @@ describe('Workflow Runtime', () => {
 
         async *execute(_context: WorkflowContext) {
           const input = yield {
-            type: 'pause',
-            status: {
-              state: 'input-required',
-              message: {
-                kind: 'message',
-                messageId: 'm-3',
-                contextId: 'ctx-validate',
-                role: 'agent',
-                parts: [{ kind: 'text', text: 'Need age' }],
-              },
-            },
+            type: 'interrupted',
+            reason: 'input-required',
+            message: 'Need age',
             inputSchema: z.object({
               age: z.number().min(18),
             }),
@@ -649,7 +654,7 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           throw new Error('Workflow error');
         },
       };
@@ -709,16 +714,213 @@ describe('Workflow Runtime', () => {
         taskId: 'task-artifact',
       });
 
-      const artifacts: ArtifactEvent[] = [];
-      execution.on('artifact', (artifact: ArtifactEvent) => artifacts.push(artifact));
+      const artifacts: RuntimeArtifactEvent[] = [];
+      execution.on('artifact', (artifact: unknown) =>
+        artifacts.push(artifact as RuntimeArtifactEvent),
+      );
 
       await execution.waitForCompletion();
 
       // Then artifacts should be emitted
       expect(artifacts.length).toBe(2);
-      expect(artifacts[0]?.name).toBe('report');
-      expect((artifacts[0]?.data as { status: string })?.status).toBe('ready');
-      expect(artifacts[1]?.name).toBe('log');
+      expect(artifacts[0]?.artifact.name).toBe('report');
+      expect((artifacts[0]?.artifact.data as { status: string })?.status).toBe('ready');
+      expect(artifacts[1]?.artifact.name).toBe('log');
+    });
+
+    it('should emit artifacts after workflow resumes from pause', async (): Promise<void> => {
+      // Given: A workflow that pauses then emits artifacts after resume
+      const plugin: WorkflowPlugin = {
+        id: 'artifact_after_resume',
+        name: 'Artifact After Resume',
+        version: '1.0.0',
+
+        async *execute(_context: WorkflowContext) {
+          // Emit artifact before pause
+          yield {
+            type: 'artifact',
+            artifact: {
+              name: 'pre-pause.json',
+              mimeType: 'application/json',
+              data: { stage: 'before' },
+            },
+          };
+
+          // Pause for input
+          const input: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'Need input for next stage',
+            },
+            inputSchema: z.object({ value: z.string() }),
+          });
+
+          // Emit artifacts AFTER resume
+          yield {
+            type: 'artifact',
+            artifact: {
+              name: 'post-resume.json',
+              mimeType: 'application/json',
+              data: { stage: 'after', input },
+            },
+          };
+
+          return { completed: true };
+        },
+      };
+      runtime.register(plugin);
+
+      // When: dispatch → collect artifacts → pause → resume → collect more artifacts
+      const execution = runtime.dispatch('artifact_after_resume', {
+        contextId: 'ctx-artifact-resume',
+        taskId: 'task-artifact-resume',
+      });
+
+      const artifacts: RuntimeArtifactEvent[] = [];
+      execution.on('artifact', (artifact: unknown) =>
+        artifacts.push(artifact as RuntimeArtifactEvent),
+      );
+
+      // Wait for pause
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+
+      // Then: Should have artifact before pause
+      const preResumeCount = artifacts.length;
+      expect(preResumeCount).toBe(1);
+      expect(artifacts[0]?.artifact.name).toBe('pre-pause.json');
+      expect((artifacts[0]?.artifact.data as { stage: string })?.stage).toBe('before');
+
+      // When: Resume with input
+      await execution.resume({ value: 'test-data' });
+      await execution.waitForCompletion();
+
+      // Then: Should have artifacts before AND after resume
+      expect(artifacts.length).toBe(2);
+      expect(artifacts[1]?.artifact.name).toBe('post-resume.json');
+      expect(
+        (artifacts[1]?.artifact.data as { stage: string; input: { value: string } })?.stage,
+      ).toBe('after');
+      expect(
+        (artifacts[1]?.artifact.data as { stage: string; input: { value: string } })?.input.value,
+      ).toBe('test-data');
+    });
+
+    it('should emit artifacts between multiple pause/resume cycles', async (): Promise<void> => {
+      // Given: Workflow with artifacts between two pause points
+      const plugin: WorkflowPlugin = {
+        id: 'multi_pause_artifacts',
+        name: 'Multi Pause Artifacts',
+        version: '1.0.0',
+
+        async *execute(_context: WorkflowContext) {
+          // Artifact before first pause
+          yield {
+            type: 'artifact',
+            artifact: {
+              name: 'step1.json',
+              mimeType: 'application/json',
+              data: { step: 1 },
+            },
+          };
+
+          // First pause
+          const input1: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'First input',
+            },
+            inputSchema: z.object({ first: z.string() }),
+          });
+
+          // Artifacts after first resume
+          yield {
+            type: 'artifact',
+            artifact: {
+              name: 'step2.json',
+              mimeType: 'application/json',
+              data: { step: 2, input1 },
+            },
+          };
+          yield {
+            type: 'artifact',
+            artifact: {
+              name: 'step3.json',
+              mimeType: 'application/json',
+              data: { step: 3 },
+            },
+          };
+
+          // Second pause
+          const input2: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'Second input',
+            },
+            inputSchema: z.object({ second: z.string() }),
+          });
+
+          // Artifacts after second resume
+          yield {
+            type: 'artifact',
+            artifact: {
+              name: 'step4.json',
+              mimeType: 'application/json',
+              data: { step: 4, input2 },
+            },
+          };
+
+          return { completed: true };
+        },
+      };
+      runtime.register(plugin);
+
+      // When: Execute through both pause/resume cycles
+      const execution = runtime.dispatch('multi_pause_artifacts', {
+        contextId: 'ctx-multi-artifacts',
+        taskId: 'task-multi-artifacts',
+      });
+
+      const artifacts: RuntimeArtifactEvent[] = [];
+      execution.on('artifact', (artifact: unknown) =>
+        artifacts.push(artifact as RuntimeArtifactEvent),
+      );
+
+      // First pause
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+      expect(artifacts.length).toBe(1);
+      expect(artifacts[0]?.artifact.name).toBe('step1.json');
+
+      // Resume from first pause
+      await execution.resume({ first: 'data1' });
+
+      // Second pause
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+      expect(artifacts.length).toBe(3);
+      expect(artifacts[1]?.artifact.name).toBe('step2.json');
+      expect(artifacts[2]?.artifact.name).toBe('step3.json');
+
+      // Resume from second pause
+      await execution.resume({ second: 'data2' });
+      await execution.waitForCompletion();
+
+      // Then: All artifacts should be collected in order
+      expect(artifacts.length).toBe(4);
+      expect(artifacts[0]?.artifact.name).toBe('step1.json'); // Before first pause
+      expect(artifacts[1]?.artifact.name).toBe('step2.json'); // After first resume
+      expect(artifacts[2]?.artifact.name).toBe('step3.json'); // After first resume
+      expect(artifacts[3]?.artifact.name).toBe('step4.json'); // After second resume
+
+      // Validate artifact data
+      expect((artifacts[0]?.artifact.data as { step: number })?.step).toBe(1);
+      expect((artifacts[1]?.artifact.data as { step: number })?.step).toBe(2);
+      expect((artifacts[2]?.artifact.data as { step: number })?.step).toBe(3);
+      expect((artifacts[3]?.artifact.data as { step: number })?.step).toBe(4);
     });
   });
 
@@ -731,7 +933,7 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
         async *execute(context: WorkflowContext) {
           const delay = Math.random() * 50 + 10;
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           await new Promise<void>((resolve) => setTimeout(resolve, delay));
           return { taskId: context.taskId };
         },
@@ -769,7 +971,7 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
         async *execute(context: WorkflowContext) {
           const myValue = ++counter;
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           await new Promise<void>((resolve) => setTimeout(resolve, 20));
           return { myValue, contextId: context.contextId };
         },
@@ -801,7 +1003,7 @@ describe('Workflow Runtime', () => {
   describe('mixed yield types', () => {
     it('should handle non-pausing status yields', async (): Promise<void> => {
       // Given a workflow with mixed yield types per PRD line 94
-      const statusUpdates: UpdateEvent[] = [];
+      const statusUpdates: WorkflowState[] = [];
       const plugin: WorkflowPlugin = {
         id: 'mixed_yield_test',
         name: 'Mixed Yield Test',
@@ -809,20 +1011,20 @@ describe('Workflow Runtime', () => {
 
         async *execute(_context: WorkflowContext) {
           // Non-pausing status yields
-          yield { type: 'status', status: { state: 'working' } };
-          yield { type: 'progress', current: 25, total: 100 };
+          yield { type: 'status-update', message: 'Working' };
+          yield { type: 'status-update', message: 'Progress: 25%' };
 
           // Simulate work
           await new Promise<void>((resolve) => setTimeout(resolve, 10));
 
-          yield { type: 'status', status: { state: 'working' } };
-          yield { type: 'progress', current: 50, total: 100 };
+          yield { type: 'status-update', message: 'Working' };
+          yield { type: 'status-update', message: 'Progress: 50%' };
 
           // More work
           await new Promise<void>((resolve) => setTimeout(resolve, 10));
 
-          yield { type: 'status', status: { state: 'working' } };
-          yield { type: 'progress', current: 100, total: 100 };
+          yield { type: 'status-update', message: 'Working' };
+          yield { type: 'status-update', message: 'Progress: 100%' };
 
           return { result: 'success' };
         },
@@ -835,13 +1037,16 @@ describe('Workflow Runtime', () => {
         taskId: 'task-mixed',
       });
 
-      execution.on('update', (update: UpdateEvent) => statusUpdates.push(update));
+      execution.on('update', (update: unknown) => statusUpdates.push(update as WorkflowState));
       const result = (await execution.waitForCompletion()) as { result: string };
 
       // Then all status yields should be processed without pausing
       expect(statusUpdates.length).toBe(6);
-      expect(statusUpdates.filter((u: UpdateEvent) => u.type === 'status').length).toBe(3);
-      expect(statusUpdates.filter((u: UpdateEvent) => u.type === 'progress').length).toBe(3);
+      const messages = statusUpdates.map((update) => update.message);
+      expect(messages.filter((msg) => msg === 'Working').length).toBe(3);
+      expect(
+        messages.filter((msg) => typeof msg === 'string' && msg.startsWith('Progress')).length,
+      ).toBe(3);
       expect(execution.state).toBe('completed');
       expect(result.result).toBe('success');
     });
@@ -852,31 +1057,24 @@ describe('Workflow Runtime', () => {
         id: 'pause_status_test',
         name: 'Pause Status Test',
         version: '1.0.0',
-        *execute(context: WorkflowContext) {
+        *execute(_context: WorkflowContext) {
           // Non-pausing status
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
 
           // Pausing state - input required
-          const input: unknown = yield {
-            type: 'pause',
+          const input: unknown = yield convertPause({
             status: {
               state: 'input-required',
-              message: {
-                kind: 'message',
-                messageId: 'ms-2',
-                contextId: context.contextId,
-                role: 'agent',
-                parts: [{ kind: 'text', text: 'Please confirm' }],
-              },
+              message: 'Please confirm',
             },
             inputSchema: z.object({
               confirm: z.boolean().optional(),
             }),
-          };
+          });
           const typedInput = input as { confirm: boolean };
 
           // Non-pausing status after resume
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
 
           return { confirmed: typedInput.confirm };
         },
@@ -889,8 +1087,8 @@ describe('Workflow Runtime', () => {
         taskId: 'task-pause-status',
       });
 
-      const updates: UpdateEvent[] = [];
-      execution.on('update', (update: UpdateEvent) => updates.push(update));
+      const updates: WorkflowState[] = [];
+      execution.on('update', (update: unknown) => updates.push(update as WorkflowState));
 
       // Wait for pause
       await new Promise<void>((resolve) => {
@@ -899,7 +1097,7 @@ describe('Workflow Runtime', () => {
 
       // Then should pause only on pause yield
       expect(execution.state).toBe('input-required');
-      expect(updates.some((u: UpdateEvent) => u.type === 'status')).toBe(true);
+      expect(updates.some((update) => update.type === 'status-update')).toBe(true);
 
       // When resuming
       await execution.resume({ confirm: true });
@@ -917,33 +1115,26 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { message: 'Preparing transaction...' } };
+          yield { type: 'status-update', message: 'Preparing transaction...' };
 
           // Pause for wallet authorization
-          const auth = yield {
-            type: 'pause',
+          const auth = yield convertPause({
             status: {
               state: 'auth-required',
-              message: {
-                kind: 'message',
-                messageId: 'm-4',
-                contextId: 'ctx-auth',
-                role: 'agent',
-                parts: [{ kind: 'text', text: 'Please authorize transaction' }],
-              },
+              message: 'Please authorize transaction',
             },
             inputSchema: z.object({
               approved: z.boolean(),
               signature: z.string().optional(),
             }),
-          };
+          });
           const typedAuth = auth as { approved: boolean; signature: string };
 
           if (!typedAuth.approved) {
             throw new Error('Transaction rejected by user');
           }
 
-          yield { type: 'status', status: { message: 'Transaction approved, executing...' } };
+          yield { type: 'status-update', message: 'Transaction approved, executing...' };
 
           return {
             txHash: typedAuth.signature,
@@ -998,31 +1189,19 @@ describe('Workflow Runtime', () => {
           let attempts = 0;
 
           while (!validInput && attempts < 3) {
-            const input = yield {
-              type: 'pause',
+            const input = yield convertPause({
               status: {
                 state: 'input-required',
-                message: {
-                  kind: 'message',
-                  messageId: `m-self-${attempts}`,
-                  contextId: 'ctx-self-validate',
-                  role: 'agent',
-                  parts: [
-                    {
-                      kind: 'text',
-                      text:
-                        attempts > 0
-                          ? `Invalid input (attempt ${attempts}). Please try again.`
-                          : 'Enter deposit details',
-                    },
-                  ],
-                },
+                message:
+                  attempts > 0
+                    ? `Invalid input (attempt ${attempts}). Please try again.`
+                    : 'Enter deposit details',
               },
               inputSchema: z.object({
                 amount: z.string(),
                 token: z.enum(['USDC', 'ETH', 'WBTC']),
               }),
-            };
+            });
             const typedInput = input as { amount?: string; token?: string };
 
             attempts++;
@@ -1096,17 +1275,10 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          const input = yield {
-            type: 'pause',
+          const input = yield convertPause({
             status: {
               state: 'input-required',
-              message: {
-                kind: 'message',
-                messageId: 'm-complex',
-                contextId: 'ctx-complex',
-                role: 'agent',
-                parts: [{ kind: 'text', text: 'Provide positions' }],
-              },
+              message: 'Provide positions',
             },
             inputSchema: z.object({
               positions: z
@@ -1119,7 +1291,7 @@ describe('Workflow Runtime', () => {
                 )
                 .optional(),
             }),
-          };
+          });
           const typedInput = input as {
             positions?: Array<{ market?: string; size?: string; leverage?: number }>;
           };
@@ -1195,7 +1367,7 @@ describe('Workflow Runtime', () => {
         name: 'Restricted Plugin',
         version: '1.0.0',
         *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { success: true };
         },
       };
@@ -1222,20 +1394,13 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          const input = yield {
-            type: 'pause',
+          const input = yield convertPause({
             status: {
               state: 'input-required',
-              message: {
-                kind: 'message',
-                messageId: 'm-noresume',
-                contextId: 'ctx-noresume',
-                role: 'agent',
-                parts: [{ kind: 'text', text: 'Provide input' }],
-              },
+              message: 'Provide input',
             },
             inputSchema: z.object({}),
-          };
+          });
           return input;
         },
       };
@@ -1260,7 +1425,7 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           await new Promise<void>((resolve) => setTimeout(resolve, 1000));
           return { completed: true };
         },
@@ -1287,7 +1452,7 @@ describe('Workflow Runtime', () => {
         version: '1.0.0',
 
         async *execute(_context: WorkflowContext) {
-          yield { type: 'status', status: { state: 'working' } };
+          yield { type: 'status-update', message: 'Working' };
           return { done: true };
         },
       };
@@ -1304,6 +1469,338 @@ describe('Workflow Runtime', () => {
           taskId: 'task',
         }),
       ).toThrow();
+    });
+  });
+
+  describe('task state tracking', () => {
+    it('should return task state with pauseInfo after workflow pauses', async (): Promise<void> => {
+      // Given: A workflow that pauses for input
+      const plugin: WorkflowPlugin = {
+        id: 'task_state_pause_test',
+        name: 'Task State Pause Test',
+        version: '1.0.0',
+
+        async *execute(_context: WorkflowContext) {
+          yield { type: 'status-update', message: 'Working' };
+
+          const _input: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'Need wallet address',
+            },
+            inputSchema: z.object({
+              walletAddress: z.string(),
+            }),
+          });
+
+          return { received: true };
+        },
+      };
+      runtime.register(plugin);
+
+      // When: Workflow reaches pause point
+      const execution = runtime.dispatch('task_state_pause_test', {
+        contextId: 'ctx-task-state',
+        taskId: 'task-state-pause',
+      });
+
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+
+      // Then: getTaskState should return state with pauseInfo
+      const taskState = runtime.getTaskState('task-state-pause');
+      expect(taskState, 'Task state should be defined').toBeDefined();
+      expect(taskState?.state, 'Task state should be input-required').toBe('input-required');
+      expect(taskState?.pauseInfo, 'Pause info should be populated').toBeDefined();
+      expect(taskState?.pauseInfo?.state, 'Pause info state should be input-required').toBe(
+        'input-required',
+      );
+      expect(taskState?.pauseInfo?.message, 'Pause message should be defined').toBe(
+        'Need wallet address',
+      );
+      expect(taskState?.pauseInfo?.inputSchema, 'Input schema should be defined').toBeDefined();
+    });
+
+    it('should update task state during resume', async (): Promise<void> => {
+      // Given: A paused workflow
+      const plugin: WorkflowPlugin = {
+        id: 'task_state_resume_test',
+        name: 'Task State Resume Test',
+        version: '1.0.0',
+
+        async *execute(_context: WorkflowContext) {
+          const _input: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'Provide data',
+            },
+            inputSchema: z.object({
+              data: z.string(),
+            }),
+          });
+
+          yield { type: 'status-update', message: 'Working' };
+          return { completed: true };
+        },
+      };
+      runtime.register(plugin);
+
+      const execution = runtime.dispatch('task_state_resume_test', {
+        contextId: 'ctx-resume-state',
+        taskId: 'task-resume-state',
+      });
+
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+
+      // Then: Task state should be input-required
+      const pausedState = runtime.getTaskState('task-resume-state');
+      expect(pausedState?.state).toBe('input-required');
+
+      // When: Resume is called with input
+      await execution.resume({ data: 'test-input' });
+
+      // Allow async state update to propagate
+      await new Promise((resolve) => process.nextTick(resolve));
+
+      // Then: Task state should update to working
+      const resumedState = runtime.getTaskState('task-resume-state');
+      expect(resumedState?.state, 'Task state should be working after resume').toBe('working');
+
+      // Wait for completion
+      await execution.waitForCompletion();
+
+      // Then: Task state should be completed
+      const completedState = runtime.getTaskState('task-resume-state');
+      expect(completedState?.state).toBe('completed');
+      expect(completedState?.final).toBe(true);
+    });
+
+    it('should track task state through multiple pause/resume cycles', async (): Promise<void> => {
+      // Given: A workflow with multiple pause points
+      const plugin: WorkflowPlugin = {
+        id: 'multi_pause_state_test',
+        name: 'Multi Pause State Test',
+        version: '1.0.0',
+
+        async *execute(_context: WorkflowContext) {
+          // First pause
+          const _input1: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'First input',
+            },
+            inputSchema: z.object({ first: z.string() }),
+          });
+
+          yield { type: 'status-update', message: 'Working' };
+
+          // Second pause
+          const _input2: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'Second input',
+            },
+            inputSchema: z.object({ second: z.string() }),
+          });
+
+          return { done: true };
+        },
+      };
+      runtime.register(plugin);
+
+      // When: Workflow executes with multiple pauses
+      const execution = runtime.dispatch('multi_pause_state_test', {
+        contextId: 'ctx-multi-pause',
+        taskId: 'task-multi-pause',
+      });
+
+      // Wait for first pause
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+
+      // Then: Should be at first pause
+      const state1 = runtime.getTaskState('task-multi-pause');
+      expect(state1?.state).toBe('input-required');
+      expect(state1?.pauseInfo?.message).toBe('First input');
+
+      // When: Resume from first pause
+      await execution.resume({ first: 'data1' });
+
+      // Wait for second pause
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+
+      // Then: Should be at second pause
+      const state2 = runtime.getTaskState('task-multi-pause');
+      expect(state2?.state).toBe('input-required');
+      expect(state2?.pauseInfo?.message).toBe('Second input');
+
+      // When: Resume from second pause
+      await execution.resume({ second: 'data2' });
+      await execution.waitForCompletion();
+
+      // Then: Should be completed
+      const finalState = runtime.getTaskState('task-multi-pause');
+      expect(finalState?.state).toBe('completed');
+      expect(finalState?.final).toBe(true);
+    });
+
+    it('should maintain isolated task states for concurrent workflows', async (): Promise<void> => {
+      // Given: Multiple workflows running concurrently
+      const plugin: WorkflowPlugin = {
+        id: 'concurrent_state_test',
+        name: 'Concurrent State Test',
+        version: '1.0.0',
+
+        async *execute(context: WorkflowContext) {
+          const _input: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: `Paused for ${context.taskId}`,
+            },
+            inputSchema: z.object({ taskId: z.string() }),
+          });
+
+          return { taskId: context.taskId };
+        },
+      };
+      runtime.register(plugin);
+
+      // When: Dispatch multiple workflows
+      const execution1 = runtime.dispatch('concurrent_state_test', {
+        contextId: 'ctx-concurrent-1',
+        taskId: 'task-concurrent-1',
+      });
+
+      const execution2 = runtime.dispatch('concurrent_state_test', {
+        contextId: 'ctx-concurrent-2',
+        taskId: 'task-concurrent-2',
+      });
+
+      // Wait for both to pause
+      await Promise.all([
+        new Promise<void>((resolve) => execution1.on('pause', () => resolve())),
+        new Promise<void>((resolve) => execution2.on('pause', () => resolve())),
+      ]);
+
+      // Then: Each task should have isolated state
+      const state1 = runtime.getTaskState('task-concurrent-1');
+      const state2 = runtime.getTaskState('task-concurrent-2');
+
+      expect(state1, 'Task 1 state should be defined').toBeDefined();
+      expect(state2, 'Task 2 state should be defined').toBeDefined();
+      expect(state1?.state, 'Task 1 should be paused').toBe('input-required');
+      expect(state2?.state, 'Task 2 should be paused').toBe('input-required');
+      expect(state1?.pauseInfo?.message, 'Task 1 pause message should be specific').toBe(
+        'Paused for task-concurrent-1',
+      );
+      expect(state2?.pauseInfo?.message, 'Task 2 pause message should be specific').toBe(
+        'Paused for task-concurrent-2',
+      );
+
+      // When: Resume only task 1
+      await execution1.resume({ taskId: 'task-concurrent-1' });
+      await execution1.waitForCompletion();
+
+      // Then: Task 1 should be completed, task 2 still paused
+      const state1Final = runtime.getTaskState('task-concurrent-1');
+      const state2StillPaused = runtime.getTaskState('task-concurrent-2');
+
+      expect(state1Final?.state).toBe('completed');
+      expect(state1Final?.final).toBe(true);
+      expect(state2StillPaused?.state, 'Task 2 should still be paused').toBe('input-required');
+
+      // Cleanup: resume task 2
+      await execution2.resume({ taskId: 'task-concurrent-2' });
+      await execution2.waitForCompletion();
+    });
+
+    it('should return undefined for non-existent task IDs', (): void => {
+      // Given: No workflow with the specified task ID
+      // When: Querying task state for non-existent task
+      const taskState = runtime.getTaskState('non-existent-task-id');
+
+      // Then: Should return undefined
+      expect(taskState).toBeUndefined();
+    });
+
+    it('should preserve task state after workflow error', async (): Promise<void> => {
+      // Given: A workflow that will fail
+      const plugin: WorkflowPlugin = {
+        id: 'error_state_test',
+        name: 'Error State Test',
+        version: '1.0.0',
+
+        async *execute(_context: WorkflowContext) {
+          yield { type: 'status-update', message: 'Working' };
+          throw new Error('Workflow intentional error');
+        },
+      };
+      runtime.register(plugin);
+
+      // When: Workflow executes and fails
+      const execution = runtime.dispatch('error_state_test', {
+        contextId: 'ctx-error-state',
+        taskId: 'task-error-state',
+      });
+
+      await new Promise<Error>((resolve) => {
+        execution.on('error', (error: Error) => resolve(error));
+      });
+
+      // Then: Task state should reflect failure
+      const errorState = runtime.getTaskState('task-error-state');
+      expect(errorState, 'Error state should be defined').toBeDefined();
+      expect(errorState?.state, 'State should be failed').toBe('failed');
+      expect(errorState?.final, 'Should be marked as final').toBe(true);
+      expect(errorState?.error, 'Error should be captured').toBeDefined();
+    });
+
+    it('should track workflowGenerator reference in task state', async (): Promise<void> => {
+      // Given: A workflow that pauses
+      const plugin: WorkflowPlugin = {
+        id: 'generator_ref_test',
+        name: 'Generator Reference Test',
+        version: '1.0.0',
+
+        async *execute(_context: WorkflowContext) {
+          const _input: unknown = yield convertPause({
+            status: {
+              state: 'input-required',
+              message: 'Paused',
+            },
+            inputSchema: z.object({}),
+          });
+          return { done: true };
+        },
+      };
+      runtime.register(plugin);
+
+      // When: Workflow pauses
+      const execution = runtime.dispatch('generator_ref_test', {
+        contextId: 'ctx-gen-ref',
+        taskId: 'task-gen-ref',
+      });
+
+      await new Promise<void>((resolve) => {
+        execution.on('pause', () => resolve());
+      });
+
+      // Then: Task state should contain generator reference
+      const taskState = runtime.getTaskState('task-gen-ref');
+      expect(taskState?.workflowGenerator, 'Generator reference should be defined').toBeDefined();
+      expect(typeof taskState?.workflowGenerator?.next, 'Generator should have next method').toBe(
+        'function',
+      );
+
+      // Cleanup
+      await execution.resume({});
+      await execution.waitForCompletion();
     });
   });
 });

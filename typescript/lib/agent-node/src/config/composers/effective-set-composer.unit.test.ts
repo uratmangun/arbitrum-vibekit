@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { LoadedMCPRegistry } from '../loaders/mcp-loader.js';
 import type { LoadedSkill } from '../loaders/skill-loader.js';
 import type { LoadedWorkflowRegistry } from '../loaders/workflow-loader.js';
+
 import { composeEffectiveMCPServers, composeEffectiveWorkflows } from './effective-set-composer.js';
 
 // Mock validators

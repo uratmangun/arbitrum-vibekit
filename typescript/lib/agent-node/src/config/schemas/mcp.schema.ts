@@ -64,14 +64,14 @@ export function normalizeMCPServerConfig(config: MCPServerConfig): {
       return {
         type: 'http',
         url: config.url,
-        headers: config.headers as Record<string, string> | undefined,
+        headers: config.headers,
       };
     }
     return {
       type: 'stdio',
       command: config.command,
       args: config.args || [],
-      env: config.env as Record<string, string> | undefined,
+      env: config.env,
     };
   }
 
@@ -81,7 +81,7 @@ export function normalizeMCPServerConfig(config: MCPServerConfig): {
       type: 'stdio',
       command: config.command,
       args: config.args || [],
-      env: config.env as Record<string, string> | undefined,
+      env: config.env,
     };
   }
 

@@ -3,7 +3,7 @@
     "service": "xai",
     "endpoint": "/v1/chat/completions",
     "method": "POST",
-    "recordedAt": "2025-10-10T00:48:25.614Z"
+    "recordedAt": "2025-10-17T22:11:17.706Z"
   },
   "request": {
     "headers": {
@@ -23,21 +23,21 @@
   "response": {
     "status": 200,
     "headers": {
-      "date": "Fri, 10 Oct 2025 00:48:25 GMT",
+      "date": "Fri, 17 Oct 2025 22:11:17 GMT",
       "content-type": "application/json",
       "transfer-encoding": "chunked",
       "connection": "keep-alive",
       "content-encoding": "gzip",
       "x-zero-data-retention": "false",
-      "x-request-id": "00-fcdb559e9cef3a45d00b8372bc2200bc-7f61f1f3000b67ef-01",
+      "x-request-id": "00-ef2a1a141b176e27a21f0ecac9f76d14-3cfff5b9000bc24d-01",
       "vary": "origin, access-control-request-method, access-control-request-headers",
       "access-control-allow-origin": "*",
       "access-control-expose-headers": "*",
       "cf-cache-status": "DYNAMIC",
       "strict-transport-security": "max-age=31536000",
       "server": "cloudflare",
-      "cf-ray": "98c21c7d9baa42c7-EWR"
+      "cf-ray": "9903217c7c050866-EWR"
     },
-    "rawBody": "H4sIAAAAAAAAA3SSwW7bMBBEf4XdMxVIsi1ZvPTY5J5bUQg0uZIYU1yCS6ExDP17oRRxnCK9DjEzj7t7BWdBwb4py+a0G4pWN6bAY7Uv6uOpLsrqWHe6qQ8tHvuFC9Sciwok0OkFTQYFZtL5wdAcPWZHASSYhDqjBVW1TVke2rprJcxk0YOCMdG52BfDlpNQMwUXxs00kTPIoH5ewQWLr6BKCTMy6xFBXSGRR1CgmR1nHfLmoZAxbBCP6D19E8+TY+FY5AmFxUEvPosfic7irV0k5EjBujA+iEf6LYwO4klM6KO40CIyWX35DhISDgtrDyos3q8SBhccT/1fXFDAmSKsvyQs73Ax0Rxzn+mMgUFVh26je5/Jh36UkClrf1PqrpOf3b3FrJ3nLTbj6z+herGOblIpwc16xHvBaDOhvXNV6xcs9y23NXyY6vqLKm0Mxoy2jwmtM59+Vm5T2y7iP8+rhLDMPdOSDHK/8HYfm8oXzjj3gwsjppjc2zqH2He7pi6batiVsP4BAAD//wMAdRRcS6QCAAA="
+    "rawBody": "H4sIAAAAAAAAA3RSy47bMAz8FYGXvciBnYdT+1L0VOQLeigKg5HoWI0suhK9myDIvxfKdoNssXvUUDMcDnkBZ6EF2mDd2GpZrDfLssCqagr6UlNBG9NU26Vpqk3VzakgTFJUoIH3v8kItGAGlIXhcfIkjgNoMJFQyEJbbetyu2rKba1hZEseWjhEPhbros86kTBxcOGQSQM7QwnanxdwwdIJ2lLDSCnhgaC9QGRP0AKm5JJgkMzhIBSyiZ0oz3xMyrsjqTPPT5GUUBIXDkoGUpZ6nL2oPQ347Dgq7m/4zdZC7Z5G9T3yUav97PK3szp922mFwd5qA2U9VgP5Sb04GdSfOatzSFrRafIY8N+Lo3oZUOiZYjaiApFdqB8DijIY1E69TnCr3ZSELZ6/goZI/ZzQQxtm768aehdcGrrXlKCFJDzB9ZeG+S2TKfI4SSd8pJCgrTZNDuVtFXd8vdYgLOjvyKou9Xt2Z0nQ+ZRlhU7/ieJsHd+hUoMb8UCPgEEzkH1gVdcPvDx2uW//gbT9oBUaQ5OQ7aZI1pl3k5U5tXyIn5SvGsI8donnaCh1c8pnmdF0TkJj17twoDhFd7uifuqaVb0s66pflXD9CwAA//8DABRpFaEbAwAA"
   }
 }

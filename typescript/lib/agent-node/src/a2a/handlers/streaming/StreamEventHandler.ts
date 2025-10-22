@@ -2,15 +2,14 @@
  * Handles different types of stream events
  */
 
-import type { TaskArtifactUpdateEvent } from '@a2a-js/sdk';
+import type { Part, TaskArtifactUpdateEvent, TaskStatusUpdateEvent } from '@a2a-js/sdk';
 import type { ExecutionEventBus } from '@a2a-js/sdk/server';
 import type { TextStreamPart, Tool } from 'ai';
 import { v7 as uuidv7 } from 'uuid';
 
 import { Logger } from '../../../utils/logger.js';
 
-import { ArtifactManager } from './ArtifactManager.js';
-import type { ToolCallCollector } from './ToolCallCollector.js';
+import type { ArtifactManager } from './ArtifactManager.js';
 
 export interface StreamProcessingState {
   textChunkIndex: number;
@@ -22,6 +21,11 @@ export interface StreamProcessingState {
   // Accumulated content for building ModelMessage
   accumulatedText: string;
   accumulatedReasoning: string;
+  // Tool call tracking for matching SDK events
+  toolCalls: Array<{
+    name: string;
+    artifactId: string;
+  }>;
 }
 
 /**
@@ -44,7 +48,6 @@ export class StreamEventHandler {
     eventBus: ExecutionEventBus,
     state: StreamProcessingState,
     artifactManager: ArtifactManager,
-    toolCallCollector: ToolCallCollector,
   ): void {
     switch (streamEvent.type) {
       case 'text-delta':
@@ -52,27 +55,11 @@ export class StreamEventHandler {
         break;
 
       case 'tool-call':
-        this.handleToolCall(
-          streamEvent,
-          taskId,
-          contextId,
-          eventBus,
-          state,
-          artifactManager,
-          toolCallCollector,
-        );
+        this.handleToolCall(streamEvent, taskId, contextId, eventBus, state, artifactManager);
         break;
 
       case 'tool-result':
-        this.handleToolResult(
-          streamEvent,
-          taskId,
-          contextId,
-          eventBus,
-          state,
-          artifactManager,
-          toolCallCollector,
-        );
+        this.handleToolResult(streamEvent, taskId, contextId, eventBus, state, artifactManager);
         break;
 
       case 'reasoning-delta':
@@ -144,7 +131,6 @@ export class StreamEventHandler {
     eventBus: ExecutionEventBus,
     state: StreamProcessingState,
     artifactManager: ArtifactManager,
-    toolCallCollector: ToolCallCollector,
   ): void {
     if (!('toolName' in streamEvent)) {
       return;
@@ -156,34 +142,44 @@ export class StreamEventHandler {
     });
 
     const artifactId = `tool-call-${streamEvent.toolName}-${uuidv7()}`;
-    const toolCallIndex = toolCallCollector.getToolCalls().length;
+    const toolCallIndex = state.toolCalls.length;
 
     // Store the artifact ID for later update
     state.toolCallArtifacts.set(toolCallIndex, artifactId);
 
-    // Create and publish initial artifact
-    const artifact = artifactManager.createToolCallArtifact(
-      taskId,
-      contextId,
-      streamEvent.toolName,
-      {},
-    );
+    const isWorkflowDispatch = streamEvent.toolName.startsWith('dispatch_workflow_');
 
-    // Override the artifactId to match what we're tracking
-    artifact.artifact.artifactId = artifactId;
+    if (!isWorkflowDispatch) {
+      // Create and publish initial artifact for non-workflow tools
+      const artifact = artifactManager.createToolCallArtifact(
+        taskId,
+        contextId,
+        streamEvent.toolName,
+        {},
+      );
 
-    this.logger.debug('Publishing tool-call artifact', {
-      artifactId,
-      toolName: streamEvent.toolName,
-      toolCallIndex,
-    });
+      // Override the artifactId to match what we're tracking
+      artifact.artifact.artifactId = artifactId;
 
-    eventBus.publish(artifact);
+      this.logger.debug('Publishing tool-call artifact', {
+        artifactId,
+        toolName: streamEvent.toolName,
+        toolCallIndex,
+      });
 
-    // Add to collector
-    toolCallCollector.addToolCall({
+      eventBus.publish(artifact);
+    } else {
+      this.logger.debug('Skipping initial tool-call artifact for workflow dispatch', {
+        artifactId,
+        toolName: streamEvent.toolName,
+        toolCallIndex,
+      });
+    }
+
+    // Add to state tool calls array
+    state.toolCalls.push({
       name: streamEvent.toolName,
-      arguments: 'input' in streamEvent ? streamEvent.input : undefined,
+      artifactId,
     });
   }
 
@@ -194,7 +190,6 @@ export class StreamEventHandler {
     eventBus: ExecutionEventBus,
     state: StreamProcessingState,
     artifactManager: ArtifactManager,
-    toolCallCollector: ToolCallCollector,
   ): void {
     const toolResultEvent = streamEvent as {
       type: 'tool-result';
@@ -207,13 +202,10 @@ export class StreamEventHandler {
       isNull: toolResultEvent.output === null,
     });
 
-    const toolCalls = toolCallCollector.getToolCalls();
-    const toolCallIndex = toolCalls.length - 1;
-    const lastToolCall = toolCalls[toolCallIndex];
+    const toolCallIndex = state.toolCalls.length - 1;
+    const lastToolCall = state.toolCalls[toolCallIndex];
 
     if (lastToolCall) {
-      lastToolCall.result = toolResultEvent.output;
-
       const artifactId = state.toolCallArtifacts.get(toolCallIndex);
       if (artifactId) {
         const resultArtifact = artifactManager.createToolResultArtifact(
@@ -237,6 +229,70 @@ export class StreamEventHandler {
 
         eventBus.publish(resultArtifact);
       }
+
+      // Check if this is a workflow tool call and publish parent status update
+      if (lastToolCall.name.startsWith('dispatch_workflow_')) {
+        this.logger.debug('Tool result for workflow dispatch - publishing parent status update');
+
+        // Extract workflow metadata from tool result output
+        const workflowResult = toolResultEvent.output as {
+          result: Part[];
+          taskId: string;
+          metadata: { workflowName: string; description: string; pluginId: string };
+        };
+
+        if (workflowResult && workflowResult.taskId && workflowResult.metadata) {
+          // Build parts array with text, and add workflow-provided parts if present
+          const parts: Part[] = [
+            {
+              kind: 'text',
+              text: `Dispatching workflow: ${workflowResult.metadata.workflowName} (${workflowResult.metadata.description})`,
+            },
+          ];
+
+          // Append workflow result parts
+          if (workflowResult.result && workflowResult.result.length > 0) {
+            this.logger.debug('Merging workflow dispatch-response parts', {
+              partsCount: workflowResult.result.length,
+            });
+            parts.push(...workflowResult.result);
+          }
+
+          // Emit status update with referenceTaskIds
+          const statusUpdate: TaskStatusUpdateEvent = {
+            kind: 'status-update',
+            taskId,
+            contextId,
+            status: {
+              state: 'working',
+              message: {
+                kind: 'message',
+                messageId: uuidv7(),
+                contextId,
+                role: 'agent',
+                referenceTaskIds: [workflowResult.taskId],
+                parts,
+                metadata: {
+                  referencedWorkflow: workflowResult.metadata,
+                },
+              },
+            },
+            final: false,
+          };
+
+          this.logger.debug('Emitting workflow reference', {
+            parentTaskId: taskId,
+            childTaskId: workflowResult.taskId,
+            partsCount: parts.length,
+          });
+
+          eventBus.publish(statusUpdate);
+        }
+      }
+
+      // Clean up tracking for this tool call
+      state.toolCallArtifacts.delete(toolCallIndex);
+      state.toolCalls.pop();
     }
   }
 

@@ -4,38 +4,38 @@ export interface SessionContext {
   contextId: string;
 }
 
-export interface SessionState {
+export interface ContextState {
   tasks: string[];
   metadata: Record<string, unknown>;
   conversationHistory: ModelMessage[];
 }
 
-export interface Session {
+export interface Context {
   contextId: string;
   createdAt: Date;
   lastActivity: Date;
-  state: SessionState;
+  state: ContextState;
 }
 
-export interface SessionManager {
-  createSession(contextId?: string): Session;
-  getSession(contextId: string): Session | null;
-  listSessions(): Session[];
-  updateSessionState(contextId: string, updates: Partial<SessionState>): void;
+export interface ContextManager {
+  createContext(contextId?: string): Context;
+  getContext(contextId: string): Context | null;
+  listContexts(): Context[];
+  updateContextState(contextId: string, updates: Partial<ContextState>): void;
   addToHistory(contextId: string, message: ModelMessage): void;
   addTask(contextId: string, taskId: string): void;
   getTasks(contextId: string): string[];
   getMetadata(contextId: string): Record<string, unknown>;
   getHistory(contextId: string): ModelMessage[];
-  isSessionActive(contextId: string): boolean;
+  isContextActive(contextId: string): boolean;
   updateActivity(contextId: string): void;
   setLastActivity(contextId: string, timestamp: Date): void;
-  saveSession(contextId: string): void;
-  loadSession(contextId: string): Session | null;
-  cleanupInactiveSessions(maxInactivityMinutes: number): void;
-  deleteSession(contextId: string): void;
-  getOrCreateSession(contextId?: string): Session;
-  on(event: string, listener: (...args: unknown[]) => void): SessionManager;
+  saveContext(contextId: string): void;
+  loadContext(contextId: string): Context | null;
+  cleanupInactiveContexts(maxInactivityMinutes: number): void;
+  deleteContext(contextId: string): void;
+  getOrCreateContext(contextId?: string): Context;
+  on(event: string, listener: (...args: unknown[]) => void): ContextManager;
   emit(event: string, data: unknown): boolean;
 }
 

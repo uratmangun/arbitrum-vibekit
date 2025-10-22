@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 import type { LoadedAgentBase } from '../loaders/agent-loader.js';
 import type { LoadedSkill } from '../loaders/skill-loader.js';
+
 import { composePrompt } from './prompt-composer.js';
 
 describe('composePrompt', () => {

@@ -5,9 +5,9 @@
 
 import { spawn, type ChildProcess } from 'child_process';
 
+import { Logger } from '../../utils/logger.js';
 import type { EffectiveMCPServer } from '../composers/effective-set-composer.js';
 import { normalizeMCPServerConfig, type MCPServerConfig } from '../schemas/mcp.schema.js';
-import { Logger } from '../../utils/logger.js';
 
 export interface MCPServerInstance {
   id: string;
@@ -30,12 +30,10 @@ export class MCPInstantiator {
    * @param effectiveServers - Array of effective MCP servers
    * @returns Map of server ID to instance
    */
-  async instantiate(
-    effectiveServers: EffectiveMCPServer[],
-  ): Promise<Map<string, MCPServerInstance>> {
+  instantiate(effectiveServers: EffectiveMCPServer[]): Map<string, MCPServerInstance> {
     for (const server of effectiveServers) {
       try {
-        await this.instantiateServer(server);
+        this.instantiateServer(server);
       } catch (error) {
         this.logger.error(`Failed to instantiate MCP server ${server.id}`, error);
         throw error;
@@ -49,7 +47,7 @@ export class MCPInstantiator {
    * Instantiate a single MCP server
    * @param server - Effective MCP server
    */
-  private async instantiateServer(server: EffectiveMCPServer): Promise<void> {
+  private instantiateServer(server: EffectiveMCPServer): void {
     const normalized = normalizeMCPServerConfig(server.config);
 
     if (normalized.type === 'http') {
@@ -176,7 +174,7 @@ export class MCPInstantiator {
     for (const server of effectiveServers) {
       const existing = this.instances.get(server.id);
       if (!existing) {
-        await this.instantiateServer(server);
+        this.instantiateServer(server);
         started.push(server.id);
         continue;
       }
@@ -186,7 +184,7 @@ export class MCPInstantiator {
 
       if (!deepEqual(currentConfig, nextConfig)) {
         await this.stopInstance(server.id);
-        await this.instantiateServer(server);
+        this.instantiateServer(server);
         restarted.push(server.id);
         continue;
       }

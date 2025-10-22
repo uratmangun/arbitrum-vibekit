@@ -113,10 +113,28 @@ globs: ['**/*']
 - Avoid trivial comments that merely restate the next line of code
 - Never redefine existing interfaces - always import and reuse
 - Never produce mocks instead of real implementations
-- Don't create value/type aliases for compatibility - update call sites to use true names
-- When refactoring, update import paths rather than maintaining compatibility aliases
-- Never use `.passthrough()` with Zod schemas
 - **NEVER use `any` type** - use proper types, `unknown`, or type assertions with `as`
+- Never use `.passthrough()` with Zod schemas
+
+### Refactoring and Breaking Changes
+
+**CRITICAL: NEVER maintain backwards compatibility. This is an internal codebase, not a public library.**
+
+When refactoring:
+- ✅ Update ALL call sites immediately
+- ✅ Make breaking changes directly
+- ❌ NO compatibility aliases, re-exports, or type aliases (e.g., `type OldName = NewName`)
+- ❌ NO deprecation warnings or transition periods
+- ❌ NO keeping old names/paths alongside new ones
+
+```typescript
+// ❌ WRONG
+export const newName = () => { /* ... */ };
+export const oldName = newName; // NO!
+
+// ✅ CORRECT - rename and update all call sites
+export const newName = () => { /* ... */ };
+```
 
 ### Schema Validation (Zod)
 
@@ -291,8 +309,26 @@ Approach: [current attempt]
 - `pnpm test:watch` - Run tests in watch mode
 - `pnpm test:coverage` - Run tests with coverage report
 - `pnpm test:mocha` - Run existing Mocha tests
-- `pnpm test:grep -- "pattern"` - Run specific tests matching pattern
 - `pnpm test:record-mocks` - Record real API responses for integration test mocks
+
+**Running Specific Tests**:
+
+```bash
+# Run a single test file
+pnpm test:int tests/parallel-workflow-dispatch.int.test.ts
+
+# Run multiple files matching a pattern (shell glob)
+pnpm test:int tests/*workflow*.int.test.ts
+
+# Run files in a subdirectory matching a pattern
+pnpm test:int tests/integration/*a2a*.int.test.ts
+
+# Run specific test(s) by name within a file
+pnpm test:int tests/file.int.test.ts -t "test name pattern"
+
+# Combine file glob with test name filter
+pnpm test:int tests/*workflow*.int.test.ts -t "should handle pause"
+```
 
 **Note**: We are migrating from Mocha to Vitest. All new tests should be written for Vitest. The project follows Test-Driven Development principles - see the TDD agents and `docs/testing-strategy.md` for detailed testing guidelines.
 

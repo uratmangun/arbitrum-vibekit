@@ -6,23 +6,27 @@
 import { resolve, dirname } from 'path';
 
 import type { AgentCard } from '@a2a-js/sdk';
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import type { Tool } from 'ai';
 
-import { loadAgentBase } from '../loaders/agent-loader.js';
-import { loadManifest } from '../loaders/manifest-loader.js';
-import type { AgentManifest } from '../schemas/manifest.schema.js';
-import { loadSkills, type LoadedSkill } from '../loaders/skill-loader.js';
-import { loadMCPRegistry, type LoadedMCPRegistry } from '../loaders/mcp-loader.js';
-import { loadWorkflowRegistry, type LoadedWorkflowRegistry } from '../loaders/workflow-loader.js';
-import { composePrompt, type ComposedPrompt } from '../composers/prompt-composer.js';
+import { Logger } from '../../utils/logger.js';
+import type { WorkflowRuntime } from '../../workflows/runtime.js';
 import { composeAgentCard } from '../composers/card-composer.js';
 import { composeEffectiveSets, type EffectiveSets } from '../composers/effective-set-composer.js';
-import { MCPInstantiator, type MCPServerInstance } from './mcp-instantiator.js';
-import { WorkflowPluginLoader, type LoadedWorkflowPlugin } from './workflow-loader.js';
-import { ConfigWorkspaceWatcher, type ChangeHandler, type FileChange } from './watcher.js';
-import { loadTools, closeAllMCPClients } from './tool-loader.js';
-import { Logger } from '../../utils/logger.js';
+import { composePrompt, type ComposedPrompt } from '../composers/prompt-composer.js';
+import { loadAgentBase } from '../loaders/agent-loader.js';
+import { loadManifest } from '../loaders/manifest-loader.js';
+import { loadMCPRegistry, type LoadedMCPRegistry } from '../loaders/mcp-loader.js';
+import { loadSkills, type LoadedSkill } from '../loaders/skill-loader.js';
+import { loadWorkflowRegistry, type LoadedWorkflowRegistry } from '../loaders/workflow-loader.js';
 import type { ModelConfig } from '../schemas/agent.schema.js';
+import type { AgentManifest } from '../schemas/manifest.schema.js';
 import type { SkillModelOverride } from '../schemas/skill.schema.js';
+
+import { MCPInstantiator, type MCPServerInstance } from './mcp-instantiator.js';
+import { loadTools, closeAllMCPClients } from './tool-loader.js';
+import { ConfigWorkspaceWatcher, type ChangeHandler, type FileChange } from './watcher.js';
+import { WorkflowPluginLoader, type LoadedWorkflowPlugin } from './workflow-loader.js';
 
 export interface InitOptions {
   root: string;
@@ -219,10 +223,10 @@ export interface AgentConfig {
   effectiveSets: EffectiveSets;
   mcpInstances: Map<string, MCPServerInstance>;
   workflowPlugins: Map<string, LoadedWorkflowPlugin>;
-  workflowRuntime?: import('../../workflows/runtime.js').WorkflowRuntime;
+  workflowRuntime?: WorkflowRuntime;
   models: ModelConfigRuntime;
-  tools: Map<string, import('ai').Tool>;
-  mcpClients: Map<string, import('@modelcontextprotocol/sdk/client/index.js').Client>;
+  tools: Map<string, Tool>;
+  mcpClients: Map<string, Client>;
 }
 
 export interface AgentConfigHandle {
@@ -282,7 +286,7 @@ export async function initFromConfigWorkspace(options: InitOptions): Promise<Age
   });
 
   const mcpInstantiator = new MCPInstantiator();
-  const mcpInstances = await mcpInstantiator.instantiate(currentSnapshot.effectiveSets.mcpServers);
+  const mcpInstances = mcpInstantiator.instantiate(currentSnapshot.effectiveSets.mcpServers);
 
   const workflowLoader = new WorkflowPluginLoader();
   const workflowPlugins = await workflowLoader.load(

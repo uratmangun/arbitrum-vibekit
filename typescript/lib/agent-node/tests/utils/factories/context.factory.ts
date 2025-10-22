@@ -1,7 +1,7 @@
 import type { Message } from '@a2a-js/sdk';
 import type { RequestContext } from '@a2a-js/sdk/server';
 
-import type { WorkflowExecution } from '../../../src/workflows/types.js';
+import type { ResumeResult, WorkflowExecution } from '../../../src/workflows/types.js';
 
 /**
  * Factory for creating test RequestContext objects
@@ -65,8 +65,7 @@ export function createWorkflowExecutionStub(
     getArtifacts: () => [],
     getError: () => undefined,
     getPauseInfo: () => undefined,
-    resume: (_input: unknown): Promise<import('../../../src/workflows/types.js').ResumeResult> =>
-      Promise.resolve({ valid: true }),
+    resume: (_input: unknown): Promise<ResumeResult> => Promise.resolve({ valid: true }),
   };
 
   return execution;

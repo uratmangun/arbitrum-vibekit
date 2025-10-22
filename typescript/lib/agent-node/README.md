@@ -1,134 +1,162 @@
 # Agent Node
 
-Agent Node is a modern agent framework for the agentic economy. It enables building autonomous AI agents that can communicate with other agents, execute complex workflows, and perform transactions. It's a complete implementation of the [A2A (Agent-to-Agent) protocol](https://a2a.co) with integrated AI capabilities, workflow orchestration, and blockchain wallet support.
+**A modern agent framework for the agentic economy**
+
+Agent Node enables building autonomous AI agents that can communicate with other agents, execute complex workflows, and perform transactions. It's a complete implementation of the [A2A (Agent-to-Agent) protocol](https://a2a.co) with integrated AI capabilities, workflow orchestration, and blockchain wallet support.
 
 ## Features
 
 Agent Node provides a complete framework for building autonomous AI agents with these core capabilities:
 
-### AI-Powered Agent Communication
-
-Built on the A2A (Agent-to-Agent) protocol, your agents can send messages, stream responses in real-time, and manage complex tasks. The system handles session isolation and provides standards-compliant agent discovery.
-
-### Flexible AI Integration
-
-Choose from multiple AI providers (OpenRouter, OpenAI, xAI, Hyperbolic) and give your agents access to tools through the Model Context Protocol (MCP). Agents can trigger multi-step workflows and maintain conversation context across sessions.
-
-### Smart Workflow System
-
-Create sophisticated workflows using JavaScript generators that can pause for user input or authorization. The system validates inputs, tracks state transitions, and allows multiple workflows to run concurrently with isolated contexts.
-
-### Modular Configuration
-
-Organize your agent's capabilities using a file-based workspace. Define skills as separate modules, configure which tools they can access, and let the system automatically compose prompts. Changes are hot-reloaded during development.
-
-### Blockchain Integration
-
-Built-in wallet support for Ethereum and other EVM chains (Arbitrum, Base, etc.). Agents can sign transactions, estimate gas fees, and pause workflows for user approval before executing blockchain operations.
-
-### Developer Experience
-
-Simple CLI commands for initialization, validation, and deployment. Create new agent configurations, validate setups, and bundle everything for production deployment.
-
-## Architecture
-
-### Project Structure
-
-```
-agent-node/
-├── src/                     # Source code
-│   ├── a2a/                 # A2A protocol & message handling
-│   ├── ai/                  # AI providers & tool management
-│   ├── config/             # Configuration loading & validation
-│   ├── workflows/           # Workflow execution engine
-│   ├── cli/                 # Command-line interface
-│   └── utils/               # Shared utilities
-│
-├── config/                  # Your agent configuration
-│   ├── agent.md            # Agent personality & model
-│   ├── agent.manifest.json  # Skill/server selection
-│   ├── skills/             # Modular capabilities
-│   │   ├── general-assistant.md
-│   │   └── ember-onchain-actions.md
-│   ├── mcp.json            # MCP server registry
-│   ├── workflow.json       # Workflow registry
-│   └── workflows/          # Custom workflows
-│       └── example-workflow.ts
-│
-└── tests/                   # Test suites
-```
-
-### How It Works
-
-When you send a message to your agent, here's what happens:
-
-1. Your message arrives at the agent server
-2. The agent uses AI (Claude, GPT, etc.) to understand your request
-3. If needed, the agent chooses appropriate tools (DeFi actions, web requests, etc.)
-4. The agent executes the chosen tools or workflows
-5. You get back a helpful response with results
-
-**Example**: Ask "Swap 100 USDC for ETH" → Agent gets quote → Asks for approval → Executes swap → Returns transaction hash
-
-### How Your Agent Handles Complex Requests
-
-**Sessions**: Keep your conversations organized and private. Each chat is separate, you can have multiple ongoing conversations with your agent without them interfering with each other.
-
-**Tasks**: When your agent does something complex (like a DeFi transaction), it creates a task you can track. You'll see updates like "Getting quote..." → "Waiting for approval..." → "Transaction complete!"
-
-**Workflows**: Multi-step operations that pause for your input. For example: "Swap tokens" → Agent gets quote → Asks "Approve this swap?" → You say yes → Agent executes → Returns transaction hash.
-
-## Prerequisites
-
-Before you begin, ensure you have:
-
-- **Node.js 22+**: Download from [nodejs.org](https://nodejs.org)
-- **pnpm**: Install with `npm install -g pnpm`
-- **AI Provider API Key** : Get one from [OpenRouter](https://openrouter.ai), [OpenAI](https://openai.com), [xAI](https://x.ai), or [Hyperbolic](https://hyperbolic.ai)
+- **A2A Protocol Compliance**: Full implementation of the Agent-to-Agent communication protocol (v0.3.0)
+- **Multi-Provider AI**: Flexible AI provider selection (OpenRouter, OpenAI, xAI, Hyperbolic)
+- **Workflow Orchestration**: Generator-based workflow system with pause/resume capabilities
+- **MCP Integration**: Model Context Protocol support for dynamic tool/resource access
+- **Blockchain Support**: Embedded EOA wallet with multi-chain transaction signing
+- **Skills Framework**: Modular skill composition with isolated tool/resource scoping
+- **Type-Safe**: Full TypeScript support with Zod schema validation
 
 ## Installation
 
-1. Install dependencies:
+### Prerequisites
 
-   ```bash
-   cd typescript/lib/agent-node
-   pnpm install
-   ```
+- Node.js >= 22.0.0
+- pnpm (recommended) or npm
 
-2. Set up environment:
+### Install Dependencies
 
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+cd lib/agent-node
+pnpm install
+```
 
-   Edit `.env` and add your API keys.
+### CLI Access
 
-## Quickstart
+The agent CLI is available after installation:
 
-Creates a general-purpose AI agent with DeFi capabilities in 4 steps:
+- **Development**: `pnpm cli <command>` or `tsx src/cli/loader.ts <command>`
+- **Production**: `node dist/cli/loader.js <command>` (after running `pnpm build`)
 
-### 1. Initialize Your Agent
+**Environment Variable Loading**: The CLI automatically loads `.env` and `.env.local` files from the current directory using Node.js native `process.loadEnvFile()`. The loader entry point ensures environment variables are available before the application initializes. No need to manually specify `--env-file` flags.
+
+**Note**: If `tsx` is not found in your PATH, use `pnpm exec tsx` or `npx tsx` instead to run the locally installed version.
+
+See [CLI Reference](#cli-reference) for all available commands.
+
+### CLI Dependencies
+
+The CLI uses the following dependencies for clean, user-friendly output:
+
+- **picocolors** - Terminal colors (lightweight, fast)
+- **ora** - Spinners for long-running operations
+- **prompts** - _(future)_ For interactive CLI features when needed
+
+These dependencies are automatically installed when you run `pnpm install`.
+
+### Environment Setup
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to configure:
+
+```bash
+# AI Provider API Keys (at least one required)
+OPENROUTER_API_KEY=your_openrouter_key
+OPENAI_API_KEY=your_openai_key
+XAI_API_KEY=your_xai_key
+HYPERBOLIC_API_KEY=your_hyperbolic_key
+
+# Blockchain RPC URLs (optional, for wallet features)
+ETH_RPC_URL=https://eth.merkle.io
+ARBITRUM_RPC_URL=https://arb1.arbitrum.io/rpc
+
+# Server Configuration
+PORT=3000
+HOST=0.0.0.0
+```
+
+## Quick Start
+
+### Using the CLI (Recommended)
+
+#### 1. Initialize Config Workspace
 
 ```bash
 pnpm cli init
 ```
 
-This creates a `config/` directory with a general-purpose AI agent that has DeFi capabilities (swapping, lending, liquidity) and web tools. You can customize it by editing `config/agent.md`.
+This creates a `config/` directory with:
 
-### 2. Start the Server
+- `agent.md` - Base agent configuration and system prompt
+- `agent.manifest.json` - Skill composition settings
+- `skills/` - Directory for skill modules
+- `mcp.json` - MCP server registry
+- `workflow.json` - Workflow plugin registry
+
+#### 2. Customize Your Agent
+
+Edit `config/agent.md` to define your agent's personality and capabilities. Add skills in `config/skills/`.
+
+#### 3. Validate Configuration
+
+```bash
+pnpm cli doctor
+```
+
+Checks for configuration errors, missing references, and policy conflicts.
+
+#### 4. Run the Server
+
+Development mode (with hot reload):
 
 ```bash
 pnpm cli run --dev
 ```
 
-Your agent is now running at `http://0.0.0.0:3000`
-
-### 3. Test Your Agent
-
-In a different terminal, send a message to verify everything works:
+Production mode:
 
 ```bash
-curl -X POST http://0.0.0.0:3000/a2a \
+node dist/cli/loader.js run
+```
+
+### Using pnpm Scripts (Alternative)
+
+#### 1. Build the Project
+
+```bash
+pnpm build
+```
+
+#### 2. Start the Server
+
+Development mode (with hot reload):
+
+```bash
+pnpm dev
+```
+
+Production mode:
+
+```bash
+pnpm start
+```
+
+### Testing the Server
+
+The server exposes:
+
+- **A2A Endpoint**: `http://localhost:3000/a2a` (JSON-RPC)
+- **Agent Card**: `http://localhost:3000/.well-known/agent-card.json`
+- **Health Check**: POST to `/a2a` with `{"jsonrpc": "2.0", "method": "health", "id": 1}`
+
+Example message request:
+
+```bash
+curl -X POST http://localhost:3000/a2a \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -136,31 +164,22 @@ curl -X POST http://0.0.0.0:3000/a2a \
     "params": {
       "message": {
         "kind": "message",
-        "messageId": "test-1",
+        "messageId": "msg-1",
+        "contextId": "ctx-demo",
         "role": "user",
-        "parts": [{"kind": "text", "text": "Hello! Can you help me?"}]
+        "parts": [{"kind": "text", "text": "What is 2+2?"}]
       }
     },
     "id": 1
   }'
 ```
 
-Your agent is now ready to receive messages and execute workflows.
-
-### 4. Connect to Your Agent
-
-Your agent exposes these endpoints for integration:
-
-- **A2A Endpoint**: `http://0.0.0.0:3000/a2a` - Send messages and get responses
-- **Agent Card**: `http://0.0.0.0:3000/.well-known/agent-card.json` - Agent discovery
-- **Health Check**: POST to `/a2a` with `{"jsonrpc": "2.0", "method": "health", "id": 1}`
-
-**Using the A2A SDK:**
+### Connecting with A2A SDK
 
 ```typescript
 import { A2AClient } from '@a2a-js/sdk/client';
 
-const client = await A2AClient.fromCardUrl('http://0.0.0.0:3000/.well-known/agent-card.json');
+const client = await A2AClient.fromCardUrl('http://localhost:3000/.well-known/agent-card.json');
 
 const response = await client.sendMessage({
   message: {
@@ -174,181 +193,551 @@ const response = await client.sendMessage({
 console.log(response);
 ```
 
+## Configuration
+
+### Workspace Structure
+
+Agent Node uses a file-based configuration workspace:
+
+```
+config-workspace/
+├── agent.md                 # Base agent + model config
+├── agent.manifest.json      # Skill/server selection
+├── skills/                  # Modular skill definitions
+│   ├── skill-1.md
+│   └── skill-2.md
+├── mcp.json                # MCP server registry
+└── workflow.json           # Workflow registry
+```
+
+### Agent Definition (agent.md)
+
+```markdown
+---
+version: 1
+card:
+  protocolVersion: '0.3.0'
+  name: 'My Agent'
+  description: 'An autonomous AI agent'
+  url: 'http://localhost:3000/a2a'
+  version: '1.0.0'
+  capabilities:
+    streaming: true
+    pushNotifications: false
+  provider:
+    name: 'My Company'
+    url: 'https://example.com'
+
+model:
+  provider: openrouter
+  name: anthropic/claude-sonnet-4.5
+---
+
+You are an AI agent that helps users with...
+```
+
+### Skills (skills/\*.md)
+
+```markdown
+---
+skill:
+  id: token-swap
+  name: 'Token Swap Skill'
+  description: 'Execute token swaps on DEXes'
+  tags: [defi, swap]
+
+mcp:
+  servers:
+    - name: ember-onchain
+      allowedTools: [createSwap, getSwapQuote]
+---
+
+You can help users swap tokens using the createSwap tool...
+```
+
+### Manifest (agent.manifest.json)
+
+```json
+{
+  "version": "1.0",
+  "skills": ["token-swap", "wallet-management"],
+  "enabledWorkflows": ["approve-and-swap"]
+}
+```
+
+### MCP Registry (mcp.json)
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "ember-onchain": {
+      "type": "http",
+      "url": "https://api.emberai.xyz/mcp",
+      "headers": {
+        "Authorization": "$env:EMBER_API_KEY"
+      }
+    }
+  }
+}
+```
+
+## Core Concepts
+
+### Sessions
+
+Sessions provide conversation isolation using `contextId`:
+
+- **Server-Generated**: Omit `contextId` to create new session
+- **Client-Provided**: Reattach to existing session with `contextId`
+- **Isolation**: Tasks, messages, and state are session-scoped
+- **Persistence**: Sessions persist for agent uptime
+
+### Tasks
+
+Tasks represent async operations:
+
+- **Creation**: AI tool calls automatically create tasks
+- **States**: `submitted`, `working`, `input-required`, `auth-required`, `completed`, `failed`, `canceled`
+- **Streaming**: Subscribe to task updates via `message/stream` with `taskId`
+- **Artifacts**: Tasks emit structured data artifacts on completion
+
+### Workflows
+
+Workflows are multi-step operations:
+
+- **Generator Functions**: Use `yield` for status updates and pauses
+- **Pause Points**: Request user input or authorization
+- **Validation**: Zod schemas validate resume inputs
+- **Tool Exposure**: Only `dispatch_workflow_*` tools exposed to AI (no resume)
+
+Example workflow:
+
+```typescript
+export const swapWorkflow: WorkflowPlugin = {
+  id: 'token_swap',
+  name: 'Token Swap',
+  inputSchema: z.object({
+    fromToken: z.string(),
+    toToken: z.string(),
+    amount: z.string(),
+  }),
+
+  async *execute(context) {
+    // Step 1: Get quote
+    yield { type: 'status', status: { state: 'working', message: 'Getting quote...' } };
+    const quote = await getQuote(context.parameters);
+
+    // Step 2: Request approval
+    const approval = yield {
+      type: 'pause',
+      status: {
+        state: 'auth-required',
+        message: {
+          /* A2A message */
+        },
+      },
+      inputSchema: z.object({ approved: z.boolean() }),
+    };
+
+    if (!approval.approved) {
+      throw new Error('User rejected swap');
+    }
+
+    // Step 3: Execute swap
+    yield { type: 'status', status: { message: 'Executing swap...' } };
+    const txHash = await executeSwap(quote);
+
+    return { txHash, status: 'success' };
+  },
+};
+```
+
+### MCP Integration
+
+MCP (Model Context Protocol) provides dynamic tools:
+
+- **Server Discovery**: Skills select MCP servers from registry
+- **Tool Scoping**: Each skill specifies allowed tools
+- **HTTP & Stdio**: Support for both transport types
+- **Namespacing**: Tool names prefixed with server namespace
+
+## Creating Workflows
+
+For a comprehensive guide on building workflows, see **[Workflow Creation Guide](docs/WORKFLOW-CREATION-GUIDE.md)**.
+
+**Quick overview:**
+
+Workflows are multi-step operations defined as async generator functions:
+
+```typescript
+const plugin: WorkflowPlugin = {
+  id: 'my-workflow',
+  name: 'My Workflow',
+  description: 'Description of workflow',
+  version: '1.0.0',
+  inputSchema: z.object({
+    /* params */
+  }),
+
+  async *execute(context: WorkflowContext) {
+    // Yield status updates
+    yield {
+      type: 'status',
+      status: {
+        state: 'working',
+        message: {
+          /* ... */
+        },
+      },
+    };
+
+    // Emit artifacts
+    yield {
+      type: 'artifact',
+      artifact: {
+        /* ... */
+      },
+    };
+
+    // Pause for input
+    const userInput = yield {
+      type: 'pause',
+      status: {
+        state: 'input-required',
+        message: {
+          /* ... */
+        },
+      },
+      inputSchema: z.object({
+        /* ... */
+      }),
+    };
+
+    // Return result
+    return { success: true };
+  },
+};
+```
+
+**Key concepts:**
+
+- **Generator-based** - Use `yield` for state updates, `return` for final result
+- **Pause/Resume** - Request user input or authorization at any point
+- **Artifacts** - Emit structured data throughout execution
+- **State Machine** - Enforced transitions: `working` → `input-required` → `completed`
+- **Type Safety** - Zod schemas validate inputs automatically
+
+See the [Workflow Creation Guide](docs/WORKFLOW-CREATION-GUIDE.md) for complete documentation, patterns, and examples.
+
 ## CLI Commands
 
 The Agent CLI provides essential commands for managing your agent throughout its lifecycle:
 
 ```bash
-# Initialize agent configuration. Creates a new agent configuration workspace with sample files
+# Initialize agent configuration - Creates a new agent configuration workspace with sample files
 pnpm cli init
 
-# Run agent in development mode. Starts your agent with hot reload for development
+# Run agent in development mode - Starts your agent with hot reload for development
 pnpm cli run --dev
 
-# Validate configuration. Checks your configuration for errors and missing references
+# Validate configuration - Checks your configuration for errors and missing references
 pnpm cli doctor
 
-# View composed configuration. Shows your composed agent configuration in readable format
+# View composed configuration - Shows your composed agent configuration in readable format
 pnpm cli print-config
 
-# Create deployment bundle. Creates a production-ready deployment package
+# Create deployment bundle - Creates a production-ready deployment package
 pnpm cli bundle
 ```
 
 ## Development
 
-When working on Agent Node itself, use these commands for development:
+### Development Server
 
 ```bash
-# Start development server with hot reload. Use for active development with automatic file watching
 pnpm dev
+```
 
-# Run tests. Use to ensure your changes don't break existing functionality
-pnpm test
+Starts server with:
 
-# Lint and fix code. Use to automatically fix code formatting and style issues
+- Hot reload on file changes
+- Environment variable loading from `.env`
+- Config workspace watching (when enabled)
+
+### Code Quality
+
+```bash
+# Type checking
+pnpm typecheck
+
+# Linting
+pnpm lint:check
 pnpm lint:fix
 
-# Build for production. This creates optimized JavaScript files in the `dist/` directory
-pnpm build
+# All quality checks
+pnpm precommit
+```
+
+### Project Commands
+
+```bash
+pnpm build          # Build TypeScript to dist/
+pnpm clean          # Remove node_modules and build artifacts
+pnpm start          # Run production build
+```
+
+## Testing
+
+Agent Node uses Vitest with MSW (Mock Service Worker) for HTTP mocking.
+
+### Test Types
+
+- **Unit Tests** (`*.unit.test.ts`): Isolated component testing
+- **Integration Tests** (`*.int.test.ts`): Component interaction testing with mocked HTTP
+- **E2E Tests** (`*.e2e.test.ts`): Full server testing with real AI providers
+
+### Running Tests
+
+```bash
+# All tests (unit + integration)
+pnpm test
+
+# By type
+pnpm test:unit
+pnpm test:int
+pnpm test:e2e
+
+# Watch mode
+pnpm test:watch
+
+# Coverage
+pnpm test:coverage
+
+# Specific pattern
+pnpm test:grep -- "pattern"
+```
+
+### Recording Mocks
+
+Integration tests use recorded API responses:
+
+```bash
+pnpm test:record-mocks
+```
+
+This records real API calls to `tests/mocks/data/` for deterministic testing.
+
+### Mock Structure
+
+```
+tests/
+├── mocks/
+│   ├── data/                # Recorded responses
+│   │   ├── openrouter/
+│   │   ├── openai/
+│   │   └── [service]/
+│   ├── handlers/            # MSW request handlers
+│   │   ├── openrouter.ts
+│   │   └── index.ts
+│   └── utils/              # Mock utilities
+│
+├── utils/                   # Test helpers
+│   ├── test-server.ts      # Server setup
+│   ├── test-config-workspace.ts
+│   └── factories/          # Test data factories
+│
+└── setup/                   # Vitest config
+    ├── vitest.base.setup.ts
+    ├── vitest.unit.setup.ts
+    └── msw.setup.ts
+```
+
+### Test Organization
+
+Tests mirror source structure:
+
+```
+src/a2a/server.ts         → src/a2a/server.unit.test.ts
+src/workflows/runtime.ts  → src/workflows/runtime.unit.test.ts
+```
+
+Integration tests go in `tests/integration/`:
+
+```
+tests/integration/a2a.int.test.ts
+tests/integration/wallet.int.test.ts
 ```
 
 ## Deployment
 
 ### Production Build
 
-First, build your agent for production:
-
 ```bash
 pnpm build
 ```
 
-This creates optimized JavaScript files in the `dist/` directory.
-
-### Environment Variables
-
-Configure your production environment with these required variables:
-
-```bash
-OPENROUTER_API_KEY=your_api_key
-PORT=3000
-HOST=0.0.0.0
-```
+Output: `dist/` directory with compiled JavaScript
 
 ### Docker
 
-Deploy your agent server using Docker for containerized environments:
+#### Multi-Stage Dockerfile
+
+The project includes a production-ready multi-stage Dockerfile:
+
+```dockerfile
+# Build and deploy stage
+FROM node:22-alpine AS builder
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
+
+WORKDIR /workspace
+
+# Copy entire workspace
+COPY . .
+
+# Install all dependencies
+RUN pnpm install --frozen-lockfile
+
+# Build (clean is handled by build script)
+RUN pnpm --filter=agent-node build
+
+# Deploy to isolated directory with production dependencies only
+RUN pnpm --filter=agent-node --prod deploy /deploy
+
+# Production stage - minimal runtime image
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Copy deployed package from builder stage
+COPY --from=builder /deploy .
+
+# Expose port
+EXPOSE 3000
+
+# Run the application
+CMD ["node", "dist/server.js"]
+```
+
+**Key features:**
+
+- Multi-stage build for smaller final image
+- Uses pnpm workspaces with `--filter=agent-node`
+- Production dependencies only in final image
+- Node.js 22 Alpine for minimal size
+
+#### Docker Compose
+
+Two compose files are provided for different use cases:
+
+**Development (`docker-compose.yaml`):**
+
+- Direct port exposure on localhost:3000
+- Single app service
+- Ideal for local development and testing
+
+**Production (`docker-compose.prod.yaml`):**
+
+- Caddy reverse proxy with automatic HTTPS
+- Exposes ports 80/443
+- Automatic SSL certificate management via Let's Encrypt
+- Security headers and gzip compression
+
+**Prerequisites:**
+
+Before running with Docker, you must initialize the configuration workspace:
 
 ```bash
-# Build and run with Docker
-docker build -t agent-node .
-docker run -p 3000:3000 agent-node
+# Initialize config directory
+pnpm cli init
 
-# Or use Docker Compose for easier management
-docker compose up
-```
+# Customize your agent
+# Edit config/agent.md, add skills to config/skills/, etc.
 
-This creates a production-ready container with your agent server running on port 3000.
-
-## Creating Custom Workflows
-
-### What are Workflows?
-
-Workflows are powerful multi-step operations that enable your agent to handle complex, long-running tasks that require user interaction, external API calls, or sequential processing. Unlike simple tool calls that execute instantly, workflows can pause execution to wait for user input, show progress updates, and resume from where they left off. This makes them perfect for scenarios like multi-step onboarding processes, complex data analysis pipelines, interactive tutorials, or any task that requires back-and-forth communication with users. Workflows are built using generator functions that can yield status updates and pause for input, making them ideal for creating engaging, interactive agent experiences.
-
-### Workflow Execution
-
-Workflows are automatically triggered when your AI agent decides to use them during conversations. You don't manually call workflows, instead, you ask your agent to do something (like "help me swap tokens" or "guide me through onboarding"), and the agent intelligently chooses to use a workflow tool when appropriate. The workflow then executes in the background, can pause for your input, and returns results to continue the conversation. Here's how to create a simple workflow:
-
-### 1. Create Your Workflow File
-
-Create a workflow file in `config/workflows/`. Note that the `config/` folder and example workflow file are created when you run `pnpm cli init` and they don't exist in the initial repository. There is an example `config/workflows/example-workflow.ts` file provided for reference. The example workflow demonstrates progress updates, user interaction, and multi-step execution:
-
-```typescript
-import type { WorkflowPlugin, WorkflowContext } from '../../src/workflows/types.js';
-import { z } from 'zod';
-
-const plugin: WorkflowPlugin = {
-  id: 'my-workflow', // Unique identifier for your workflow
-  name: 'My Workflow', // Display name
-  description: 'A simple workflow example', // What this workflow does
-  version: '1.0.0', // Version for tracking changes
-
-  // Define what inputs this workflow expects
-  inputSchema: z.object({
-    message: z.string(), // Requires a string message parameter
-  }),
-
-  // The main workflow execution logic
-  async *execute(context: WorkflowContext) {
-    const { message } = context.parameters; // Extract the input message
-
-    // Step 1: Show progress to the user
-    yield {
-      type: 'status',
-      status: {
-        state: 'working', // Indicates the workflow is processing
-        message: {
-          kind: 'message',
-          messageId: 'processing',
-          contextId: context.contextId,
-          role: 'agent',
-          parts: [{ kind: 'text', text: 'Processing...' }], // Shows "Processing..." to user
-        },
-      },
-    };
-
-    // Step 2: Pause and ask for user confirmation
-    const userInput = yield {
-      type: 'pause', // Pauses execution to wait for user input
-      status: {
-        state: 'input-required', // Indicates user input is needed
-        message: {
-          kind: 'message',
-          messageId: 'confirmation',
-          contextId: context.contextId,
-          role: 'agent',
-          parts: [{ kind: 'text', text: 'Continue?' }], // Asks "Continue?" to user
-        },
-      },
-      inputSchema: z.object({
-        confirmed: z.boolean(), // Expects a boolean response from user
-      }),
-    };
-
-    // Step 3: Return the final result
-    return { success: true, message }; // Workflow completes successfully
-  },
-};
-
-export default plugin;
-```
-
-### 2. Register Your Workflow
-
-To register your workflow, add it to `config/workflow.json`. This step makes your workflow discoverable by the agent system:
-
-```json
-{
-  "workflows": {
-    "my-workflow": "./workflows/my-workflow.ts"
-  }
-}
-```
-
-And add it to `config/agent.manifest.json`. This step enables the workflow for your agent:
-
-```json
-{
-  "enabledWorkflows": ["my-workflow"]
-}
-```
-
-### 3. Test Your Workflow
-
-```bash
+# Validate configuration
 pnpm cli doctor
-pnpm cli run --dev
 ```
 
-This step validates your workflow configuration and starts the agent with your new workflow available. Your workflow becomes available as a tool with the naming pattern `dispatch_workflow_{workflow_id}` (e.g., `dispatch_workflow_my_workflow`).
+**Running with Docker Compose:**
+
+```bash
+# Development mode
+docker compose -f docker-compose.yaml up
+
+# Production mode (requires domain configured in Caddyfile)
+docker compose -f docker-compose.prod.yaml up -d
+
+# View logs
+docker compose -f docker-compose.yaml logs -f
+
+# Stop services
+docker compose -f docker-compose.yaml down
+```
+
+**Configuration Volume Mounting:**
+
+Both compose files mount the `config/` directory as a read-only volume:
+
+```yaml
+volumes:
+  - ./config:/app/config:ro
+```
+
+**Benefits of this approach:**
+
+- Config changes don't require image rebuilds
+- Edit workflows and skills without restarting containers
+- Matches how agent-node runs natively (`npx agent-node --config-dir=./config`)
+- Standard Docker volume mount pattern for configuration
+
+**Important:** The `config/` directory must exist before starting containers. If you see "Config workspace not found" errors, run `pnpm cli init` first.
+
+### Environment Variables
+
+Production deployment requires:
+
+```bash
+# Required
+OPENROUTER_API_KEY=***     # Or other AI provider key
+PORT=3000
+HOST=0.0.0.0
+
+# Optional
+NODE_ENV=production
+LOG_LEVEL=info
+```
+
+### Health Checks
+
+- **Endpoint**: `POST /a2a` with `{"jsonrpc": "2.0", "method": "health", "id": 1}`
+- **Expected**: `200 OK` with `{"jsonrpc": "2.0", "result": {...}, "id": 1}`
+
+### Reverse Proxy (Caddy)
+
+Example `Caddyfile`:
+
+```caddyfile
+agent.example.com {
+    reverse_proxy localhost:3000
+}
+```
+
+## License
+
+See `LICENSE` file in repository root.
+
+## Contributing
+
+See `CONTRIBUTING.md` for development guidelines.
+
+## Support
+
+- **Issues**: https://github.com/your-org/agent-node/issues
+- **Docs**: https://docs.yourproject.com
+- **A2A Protocol**: https://a2a.co

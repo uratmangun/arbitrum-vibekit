@@ -4,16 +4,17 @@
  */
 
 import { Client as MCPClient } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Tool } from 'ai';
 import { z } from 'zod';
 
-import { Logger } from '../../utils/logger.js';
 import { createCoreToolFromMCP } from '../../ai/adapters.js';
-import { canonicalizeName } from '../validators/tool-validator.js';
-import { WorkflowRuntime } from '../../workflows/runtime.js';
 import { workflowToCoreTools } from '../../ai/adapters.js';
+import { Logger } from '../../utils/logger.js';
+import { WorkflowRuntime } from '../../workflows/runtime.js';
+import { canonicalizeName } from '../validators/tool-validator.js';
+
 import type { MCPServerInstance } from './mcp-instantiator.js';
 import type { LoadedWorkflowPlugin } from './workflow-loader.js';
 
@@ -21,6 +22,10 @@ export interface ToolLoaderResult {
   tools: Map<string, Tool>;
   mcpClients: Map<string, MCPClient>;
   workflowRuntime?: WorkflowRuntime;
+}
+
+function assertUnreachable(value: never): never {
+  throw new Error(`Unknown MCP server type: ${String(value)}`);
 }
 
 /**
@@ -112,47 +117,12 @@ export async function loadTools(
         const canonicalId = canonicalizeName(plugin.id);
         const toolName = `dispatch_workflow_${canonicalId}`;
 
-        // Create execute function that dispatches the workflow
-        // NOTE: In normal operation, workflow tools are intercepted by StreamProcessor
-        // and executed via WorkflowHandler.dispatchWorkflow() which receives contextId
-        // from the A2A conversation. This execute function serves as a fallback.
-        const executeWorkflow = async (args: unknown): Promise<unknown> => {
-          const params = (args ?? {}) as Record<string, unknown>;
-          logger.debug('Executing workflow tool directly (not intercepted)', {
-            tool: toolName,
-            pluginId: canonicalId,
-          });
-
-          // contextId should come from the A2A conversation context
-          // If this execute function is called, contextId must be in the arguments
-          if (!params['contextId'] || typeof params['contextId'] !== 'string') {
-            throw new Error(
-              `Workflow tool ${toolName} requires contextId parameter. ` +
-                `contextId should be provided from the A2A conversation context.`,
-            );
-          }
-
-          const contextId = params['contextId'] as string;
-
-          const execution = workflowRuntime!.dispatch(canonicalId, {
-            contextId,
-            parameters: params,
-          });
-
-          await execution.waitForCompletion();
-
-          if (execution.error) {
-            throw execution.error;
-          }
-
-          return execution.result ?? { id: execution.id, state: execution.state };
-        };
-
-        // Create AI SDK tool from workflow plugin
+        // Create AI SDK tool from workflow plugin (schema-only, no execute)
+        // NOTE: Workflow dispatch is handled by StreamProcessor which has access to contextId
         const description = plugin.description || `Dispatch ${plugin.name} workflow`;
         const inputSchema = plugin.inputSchema ?? z.object({}).passthrough();
 
-        const aiTool = workflowToCoreTools(canonicalId, description, inputSchema, executeWorkflow);
+        const aiTool = workflowToCoreTools(canonicalId, description, inputSchema);
 
         tools.set(toolName, aiTool);
         logger.debug(`Loaded workflow tool: ${toolName}`);
@@ -201,7 +171,7 @@ async function connectMCPClient(instance: MCPServerInstance): Promise<MCPClient 
       await client.connect(transport);
       logger.info(`Connected MCP client to stdio server ${instance.id}`);
     } else {
-      throw new Error(`Unknown MCP server type: ${instance.type}`);
+      return assertUnreachable(instance.type);
     }
 
     return client;

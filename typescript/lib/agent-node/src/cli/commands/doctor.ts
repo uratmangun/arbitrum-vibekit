@@ -8,21 +8,21 @@ import { resolve } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { loadManifest } from '../../config/loaders/manifest-loader.js';
 import { loadAgentBase } from '../../config/loaders/agent-loader.js';
-import { loadSkills } from '../../config/loaders/skill-loader.js';
+import { loadManifest } from '../../config/loaders/manifest-loader.js';
 import { loadMCPRegistry } from '../../config/loaders/mcp-loader.js';
+import { loadSkills } from '../../config/loaders/skill-loader.js';
 import { loadWorkflowRegistry } from '../../config/loaders/workflow-loader.js';
 import { loadAgentConfig } from '../../config/orchestrator.js';
-import {
-  validateMCPServers,
-  validateWorkflows,
-} from '../../config/validators/conflict-validator.js';
 import {
   extractGuardrails,
   extractToolPolicies,
   type CardWithExtensions,
 } from '../../config/utils/card-inspector.js';
+import {
+  validateMCPServers,
+  validateWorkflows,
+} from '../../config/validators/conflict-validator.js';
 import { cliOutput } from '../output.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,6 +54,7 @@ function collectUnknownKeys(
     const results: string[] = [];
     rawValue.forEach((item, index) => {
       const nextPath = [...path, index];
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const nextParsed = index < parsedArray.length ? parsedArray[index] : undefined;
       results.push(...collectUnknownKeys(item, nextParsed, nextPath));
     });
@@ -77,6 +78,11 @@ function collectUnknownKeys(
   }
 
   return results;
+}
+
+function readJsonFile(filePath: string): unknown {
+  // JSON.parse returns `any`; surface as `unknown` so callers validate shape
+  return JSON.parse(readFileSync(filePath, 'utf-8')) as unknown;
 }
 
 function appendUnknownKeyWarnings(warnings: string[], source: string, unknownKeys: string[]): void {
@@ -105,7 +111,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
     cliOutput.success('Checking manifest...');
     const { manifest } = loadManifest(manifestPath);
     const manifestDir = resolve(configDir);
-    const manifestRaw = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    const manifestRaw = readJsonFile(manifestPath);
     appendUnknownKeyWarnings(warnings, 'manifest', collectUnknownKeys(manifestRaw, manifest));
 
     // 2. Validate agent base
@@ -162,7 +168,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
     const registries = manifest.registries ?? defaultRegistries;
     const mcpRegistryPath = resolve(manifestDir, registries.mcp);
     const mcpRegistry = loadMCPRegistry(mcpRegistryPath);
-    const mcpRaw = JSON.parse(readFileSync(mcpRegistryPath, 'utf-8'));
+    const mcpRaw = readJsonFile(mcpRegistryPath);
     appendUnknownKeyWarnings(
       warnings,
       'mcp registry',
@@ -184,7 +190,7 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
     cliOutput.success('Checking workflow registry...');
     const workflowRegistryPath = resolve(manifestDir, registries.workflows);
     const workflowRegistry = loadWorkflowRegistry(workflowRegistryPath);
-    const workflowRaw = JSON.parse(readFileSync(workflowRegistryPath, 'utf-8'));
+    const workflowRaw = readJsonFile(workflowRegistryPath);
     appendUnknownKeyWarnings(
       warnings,
       'workflow registry',

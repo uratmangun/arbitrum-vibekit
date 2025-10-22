@@ -5,5 +5,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup/vitest.e2e.setup.ts'],
     include: ['tests/**/*.e2e.test.ts'],
+    poolOptions: { threads: { singleThread: true } },
+    maxConcurrency: 1,
   },
 });

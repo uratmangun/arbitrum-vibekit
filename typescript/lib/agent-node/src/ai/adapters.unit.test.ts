@@ -3,10 +3,11 @@
  * Tests conversion functions for workflows and MCP tools
  */
 
+import type { Tool as MCPTool } from '@modelcontextprotocol/sdk/types.js';
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
+
 import { workflowToCoreTools, createCoreToolFromMCP } from './adapters.js';
-import type { Tool as MCPTool } from '@modelcontextprotocol/sdk/types.js';
 
 describe('workflowToCoreTools', () => {
   describe('Tool Creation', () => {
@@ -17,28 +18,29 @@ describe('workflowToCoreTools', () => {
       const inputSchema = z.object({
         param1: z.string(),
       });
-      const execute = vi.fn();
-
       // When: converting to AI SDK tool
-      const tool = workflowToCoreTools(workflowId, description, inputSchema, execute);
+      const tool = workflowToCoreTools(workflowId, description, inputSchema);
 
       // Then: should create tool with correct properties
       expect(tool).toBeDefined();
       expect(tool.description).toBe(description);
-      expect(tool.execute).toBeDefined();
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
+      expect(tool.inputSchema).toBe(inputSchema);
     });
 
     it('should use default description when not provided', () => {
       // Given: workflow without description
       const workflowId = 'no-description-workflow';
       const inputSchema = z.object({});
-      const execute = vi.fn();
 
       // When: converting with empty description
-      const tool = workflowToCoreTools(workflowId, '', inputSchema, execute);
+      const tool = workflowToCoreTools(workflowId, '', inputSchema);
 
       // Then: should use default description format
       expect(tool.description).toBe(`Dispatch ${workflowId} workflow`);
+      expect(tool.inputSchema).toBeDefined();
+      expect(tool.inputSchema).toBe(inputSchema);
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
     });
 
     it('should handle complex input schemas', () => {
@@ -56,14 +58,16 @@ describe('workflowToCoreTools', () => {
           })
           .optional(),
       });
-      const execute = vi.fn();
 
       // When: converting to tool
-      const tool = workflowToCoreTools(workflowId, description, inputSchema, execute);
+      const tool = workflowToCoreTools(workflowId, description, inputSchema);
 
       // Then: should preserve schema structure
       expect(tool).toBeDefined();
-      expect(tool.execute).toBeDefined();
+      expect(tool.description).toBe(description);
+      expect(tool.inputSchema).toBe(inputSchema);
+      expect(tool.inputSchema.safeParse({ name: 'Alice', age: 30 }).success).toBe(true);
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
     });
 
     it('should handle empty input schema', () => {
@@ -71,83 +75,16 @@ describe('workflowToCoreTools', () => {
       const workflowId = 'no-params-workflow';
       const description = 'No params workflow';
       const inputSchema = z.object({});
-      const execute = vi.fn();
 
       // When: converting to tool
-      const tool = workflowToCoreTools(workflowId, description, inputSchema, execute);
+      const tool = workflowToCoreTools(workflowId, description, inputSchema);
 
       // Then: should create valid tool with empty schema
       expect(tool).toBeDefined();
-      expect(tool.execute).toBeDefined();
-    });
-  });
-
-  describe('Tool Execution', () => {
-    it('should call execute function with provided arguments', async () => {
-      // Given: workflow tool with execute function
-      const workflowId = 'exec-workflow';
-      const description = 'Executable workflow';
-      const inputSchema = z.object({
-        message: z.string(),
-      });
-      const execute = vi.fn().mockResolvedValue({ success: true });
-
-      const tool = workflowToCoreTools(workflowId, description, inputSchema, execute);
-
-      // When: calling tool execute
-      const args = { message: 'test message' };
-      await tool.execute(args);
-
-      // Then: should invoke execute function with args
-      expect(execute).toHaveBeenCalledWith(args);
-      expect(execute).toHaveBeenCalledTimes(1);
-    });
-
-    it('should propagate execution results', async () => {
-      // Given: workflow that returns data
-      const expectedResult = {
-        success: true,
-        workflowId: 'test',
-        artifacts: ['file1.txt', 'file2.json'],
-      };
-      const execute = vi.fn().mockResolvedValue(expectedResult);
-
-      const tool = workflowToCoreTools('result-workflow', 'Result workflow', z.object({}), execute);
-
-      // When: executing tool
-      const result = await tool.execute({});
-
-      // Then: should return workflow result
-      expect(result).toEqual(expectedResult);
-    });
-
-    it('should propagate execution errors', async () => {
-      // Given: workflow that throws error
-      const expectedError = new Error('Workflow execution failed');
-      const execute = vi.fn().mockRejectedValue(expectedError);
-
-      const tool = workflowToCoreTools('error-workflow', 'Error workflow', z.object({}), execute);
-
-      // When: executing tool
-      // Then: should throw the error
-      await expect(tool.execute({})).rejects.toThrow('Workflow execution failed');
-    });
-
-    it('should handle async execution', async () => {
-      // Given: workflow with async operation
-      const execute = vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        return { processed: args };
-      });
-
-      const tool = workflowToCoreTools('async-workflow', 'Async workflow', z.object({}), execute);
-
-      // When: executing tool
-      const args = { data: 'test' };
-      const result = await tool.execute(args);
-
-      // Then: should complete async execution
-      expect(result).toEqual({ processed: args });
+      expect(tool.description).toBe(description);
+      expect(tool.inputSchema).toBeDefined();
+      expect(tool.inputSchema.safeParse({}).success).toBe(true);
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
     });
   });
 
@@ -157,17 +94,13 @@ describe('workflowToCoreTools', () => {
       const inputSchema = z.object({
         requiredField: z.string(),
       });
-      const execute = vi.fn();
 
-      const tool = workflowToCoreTools(
-        'validation-workflow',
-        'Validation workflow',
-        inputSchema,
-        execute,
-      );
+      const tool = workflowToCoreTools('validation-workflow', 'Validation workflow', inputSchema);
 
-      // When/Then: tool should be created with execute function
-      expect(tool.execute).toBeDefined();
+      // When/Then: schema should enforce requirements
+      expect(tool.inputSchema.safeParse({ requiredField: 'value' }).success).toBe(true);
+      expect(tool.inputSchema.safeParse({}).success).toBe(false);
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
     });
 
     it('should support optional parameters', () => {
@@ -176,17 +109,15 @@ describe('workflowToCoreTools', () => {
         required: z.string(),
         optional: z.string().optional(),
       });
-      const execute = vi.fn();
 
-      const tool = workflowToCoreTools(
-        'optional-workflow',
-        'Optional workflow',
-        inputSchema,
-        execute,
+      const tool = workflowToCoreTools('optional-workflow', 'Optional workflow', inputSchema);
+
+      // When/Then: schema should accept both forms
+      expect(tool.inputSchema.safeParse({ required: 'value' }).success).toBe(true);
+      expect(tool.inputSchema.safeParse({ required: 'value', optional: 'extra' }).success).toBe(
+        true,
       );
-
-      // When/Then: should create tool with mixed required/optional params
-      expect(tool.execute).toBeDefined();
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
     });
 
     it('should support default values in schema', () => {
@@ -195,17 +126,14 @@ describe('workflowToCoreTools', () => {
         message: z.string().default('default message'),
         count: z.number().int().positive().default(1),
       });
-      const execute = vi.fn();
 
-      const tool = workflowToCoreTools(
-        'defaults-workflow',
-        'Defaults workflow',
-        inputSchema,
-        execute,
-      );
+      const tool = workflowToCoreTools('defaults-workflow', 'Defaults workflow', inputSchema);
 
-      // When/Then: should preserve defaults in schema
-      expect(tool.execute).toBeDefined();
+      // When/Then: defaults should apply via parse
+      const parsed = tool.inputSchema.parse({});
+      expect(parsed.message).toBe('default message');
+      expect(parsed.count).toBe(1);
+      expect('execute' in (tool as Record<string, unknown>)).toBe(false);
     });
   });
 });

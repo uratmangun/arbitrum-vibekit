@@ -4,14 +4,16 @@
  */
 
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
 import { tmpdir } from 'os';
+import { join } from 'path';
+
 import { describe, it, expect, afterEach } from 'vitest';
 
-import { initCommand } from '../src/cli/commands/init.js';
-import { doctorCommand } from '../src/cli/commands/doctor.js';
-import { printConfigCommand } from '../src/cli/commands/print-config.js';
 import { bundleCommand } from '../src/cli/commands/bundle.js';
+import { doctorCommand } from '../src/cli/commands/doctor.js';
+import { initCommand } from '../src/cli/commands/init.js';
+import { printConfigCommand } from '../src/cli/commands/print-config.js';
+
 import { createTestConfigWorkspace } from './utils/test-config-workspace.js';
 
 describe('CLI Commands Integration Tests', () => {
@@ -146,9 +148,7 @@ describe('CLI Commands Integration Tests', () => {
       expect(skillContent).toContain('mcp:');
       expect(skillContent).toContain('servers:');
       expect(skillContent).toContain('- name: fetch');
-      expect(skillContent).toContain(
-        'allowedTools: [fetch__fetch_json, fetch__fetch_txt, fetch__fetch_markdown]',
-      );
+      expect(skillContent).toContain('allowedTools: [fetch_json, fetch_txt, fetch_markdown]');
 
       // Validate workflow integration (active by default)
       expect(skillContent).toContain('# Workflow integration');

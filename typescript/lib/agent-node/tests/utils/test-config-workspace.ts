@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
 import { tmpdir } from 'os';
+import { join } from 'path';
 
 /**
  * Creates a minimal config workspace for testing

@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RecordingEventBus } from '../../../tests/utils/mocks/event-bus.mock.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
+import { ContextManager } from '../sessions/manager.js';
 
 type MockedFn<T extends (...args: unknown[]) => unknown> = ReturnType<typeof vi.fn<T>>;
 
@@ -65,7 +66,7 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     eventBus = createEventBus();
   });
 
-  it('returns task ID and metadata when workflow is successfully dispatched', async () => {
+  it('returns task ID, metadata, and result parts when workflow is successfully dispatched', async () => {
     // Given: A workflow runtime with a registered plugin
     const mockExecution = {
       id: 'task-wf-123',
@@ -86,27 +87,37 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
       description: 'Execute token swaps on DEXs',
       version: '1.0.0',
       execute: vi.fn(),
+      dispatchResponseTimeout: 500,
     };
+
+    const dispatchResponseParts = [
+      { kind: 'text', text: 'Swap initiated' },
+      { kind: 'data', data: { swapId: '12345' } },
+    ];
 
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue({
+        type: 'dispatch-response',
+        parts: dispatchResponseParts,
+      }),
       cancelExecution: vi.fn(),
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: A workflow is dispatched
     const result = await handler.dispatchWorkflow(
       'dispatch_workflow_token_swap',
       { fromToken: 'ETH', toToken: 'USDC' },
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
-    // Then: Should return task ID and metadata
+    // Then: Should return task ID, metadata, and result parts
     expect(result).toEqual({
+      result: dispatchResponseParts,
       taskId: 'task-wf-123',
       metadata: {
         workflowName: 'Token Swap',
@@ -118,11 +129,65 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     // And: Should have called getPlugin with correct plugin ID
     expect(mockRuntime.getPlugin).toHaveBeenCalledWith('token_swap');
 
-    // And: Should have dispatched the workflow
-    expect(mockRuntime.dispatch).toHaveBeenCalledWith('token_swap', {
-      fromToken: 'ETH',
-      toToken: 'USDC',
-      contextId: 'ctx-test',
+    // And: Should have dispatched the workflow with its own contextId
+    const dispatchArgs = (mockRuntime.dispatch as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0]?.[1] as { contextId?: string; fromToken?: string; toToken?: string };
+    expect(dispatchArgs.fromToken).toBe('ETH');
+    expect(dispatchArgs.toToken).toBe('USDC');
+    expect(typeof dispatchArgs.contextId).toBe('string');
+    expect(dispatchArgs.contextId).not.toBe('ctx-test');
+
+    // And: Should have waited for first yield
+    expect(mockRuntime.waitForFirstYield).toHaveBeenCalledWith('task-wf-123', 500);
+  });
+
+  it('returns empty result array when workflow has no dispatch-response', async () => {
+    // Given: A workflow that yields no dispatch-response
+    const mockExecution = {
+      id: 'task-wf-456',
+      pluginId: 'background_task',
+      state: 'working',
+      metadata: {},
+      waitForCompletion: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn().mockReturnThis(),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      resume: vi.fn(),
+    };
+
+    const mockPlugin = {
+      id: 'background_task',
+      name: 'Background Task',
+      description: 'Run background tasks',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null), // No first yield
+      cancelExecution: vi.fn(),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
+
+    // When: A workflow is dispatched
+    const result = await handler.dispatchWorkflow(
+      'dispatch_workflow_background_task',
+      {},
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Then: Should return empty result array
+    expect(result.result).toEqual([]);
+    expect(result.taskId).toBe('task-wf-456');
+    expect(result.metadata).toEqual({
+      workflowName: 'Background Task',
+      description: 'Run background tasks',
+      pluginId: 'background_task',
     });
   });
 
@@ -151,17 +216,17 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
       cancelExecution: vi.fn(),
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: Workflow is dispatched
     const result = await handler.dispatchWorkflow(
       'dispatch_workflow_simple_plugin',
       {},
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
@@ -172,14 +237,13 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
   it('throws error when workflow runtime is not available', async () => {
     // Given: A handler without workflow runtime
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(undefined);
+    const handler = new WorkflowHandler(undefined, new ContextManager());
 
     // When/Then: Dispatching should throw
     await expect(
       handler.dispatchWorkflow(
         'dispatch_workflow_test',
         {},
-        'ctx-test',
         eventBus as unknown as ExecutionEventBus,
       ),
     ).rejects.toThrow('Workflow runtime not available');
@@ -192,14 +256,13 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When/Then: Dispatching should throw
     await expect(
       handler.dispatchWorkflow(
         'dispatch_workflow_nonexistent',
         {},
-        'ctx-test',
         eventBus as unknown as ExecutionEventBus,
       ),
     ).rejects.toThrow('Plugin nonexistent not found');
@@ -234,17 +297,17 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     const mockRuntime: Partial<WorkflowRuntime> = {
       getPlugin: vi.fn().mockReturnValue(mockPlugin),
       dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
       cancelExecution: vi.fn(),
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
 
     // When: A workflow is dispatched
     await handler.dispatchWorkflow(
       'dispatch_workflow_lending',
       { amount: 1000 },
-      'ctx-lending',
       recordingBus as unknown as ExecutionEventBus,
     );
 
@@ -269,5 +332,273 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     );
 
     expect(workingUpdate).toBeDefined();
+  });
+});
+
+describe('WorkflowHandler - pause and artifact streaming', () => {
+  let eventBus: RecordingEventBus;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    eventBus = new RecordingEventBus();
+  });
+
+  it('should publish artifact-update events from workflow execution', async () => {
+    // Given: A workflow that emits artifacts
+    const mockExecution = {
+      id: 'task-artifacts',
+      pluginId: 'artifact_workflow',
+      state: 'working',
+      metadata: { workflow: 'test' },
+      waitForCompletion: vi.fn().mockResolvedValue({ success: true }),
+      on: vi.fn((event, handler) => {
+        if (event === 'artifact') {
+          // Simulate artifact emission
+          setTimeout(() => {
+            handler({
+              artifact: {
+                artifactId: 'artifact-data',
+                name: 'data.json',
+                mimeType: 'application/json',
+                data: { value: 42 },
+              },
+            });
+            handler({
+              artifact: {
+                artifactId: 'artifact-report',
+                name: 'report.txt',
+                mimeType: 'text/plain',
+                data: 'Report content',
+              },
+            });
+          }, 10);
+        }
+        return mockExecution;
+      }),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      resume: vi.fn(),
+    };
+
+    const mockPlugin = {
+      id: 'artifact_workflow',
+      name: 'Artifact Workflow',
+      description: 'Workflow that emits artifacts',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
+      cancelExecution: vi.fn(),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
+
+    // When: Workflow executes and emits artifacts
+    await handler.dispatchWorkflow(
+      'dispatch_workflow_artifact_workflow',
+      {},
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Wait for artifacts to be emitted
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Then: Should publish artifact-update events (not message events)
+    const artifactUpdates = eventBus.findEventsByKind('artifact-update');
+    expect(artifactUpdates.length).toBe(2);
+
+    // Verify each artifact-update has proper structure with taskId
+    artifactUpdates.forEach((event) => {
+      expect(event).toMatchObject({
+        kind: 'artifact-update',
+        taskId: 'task-artifacts',
+        artifact: expect.objectContaining({
+          name: expect.any(String),
+          mimeType: expect.any(String),
+        }),
+        lastChunk: false,
+      });
+      expect(typeof (event as { contextId?: string }).contextId).toBe('string');
+      expect((event as { contextId?: string }).contextId).not.toBe('ctx-test');
+    });
+  });
+
+  it('should publish status-update with input-required when workflow pauses', async () => {
+    // Given: Workflow that pauses
+    const mockExecution = {
+      id: 'task-paused',
+      pluginId: 'pausing_workflow',
+      state: 'input-required',
+      metadata: {},
+      waitForCompletion: vi.fn().mockImplementation(() => new Promise(() => {})), // Never resolves
+      on: vi.fn((event, handler) => {
+        if (event === 'pause') {
+          // Simulate pause event
+          setTimeout(() => handler({ state: 'input-required', message: 'Need input' }), 10);
+        }
+        return mockExecution;
+      }),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      resume: vi.fn(),
+    };
+
+    const mockPlugin = {
+      id: 'pausing_workflow',
+      name: 'Pausing Workflow',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
+      cancelExecution: vi.fn(),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
+
+    // When: Workflow is dispatched and pauses
+    await handler.dispatchWorkflow(
+      'dispatch_workflow_pausing_workflow',
+      {},
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Wait for pause event
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Then: Should publish input-required status update
+    const statusUpdates = eventBus.findEventsByKind('status-update');
+    const pausedUpdate = statusUpdates.find((u) => u.status.state === 'input-required');
+    expect(pausedUpdate).toBeDefined();
+    expect(pausedUpdate?.taskId).toBe('task-paused');
+  });
+
+  it('should publish artifacts after workflow resumes', async () => {
+    // Given: A paused workflow that will emit artifacts after resume
+    const mockExecution = {
+      id: 'task-resume-artifacts',
+      pluginId: 'resume_artifact_workflow',
+      state: 'input-required',
+      metadata: {},
+      waitForCompletion: vi.fn().mockResolvedValue({ success: true }),
+      on: vi.fn((event, handler) => {
+        // Store artifact handler for later use
+        if (event === 'artifact') {
+          mockExecution._artifactHandler = handler;
+        }
+        return mockExecution;
+      }),
+      resume: vi.fn(async (input) => {
+        // Simulate execution.resume() emitting artifacts
+        if (mockExecution._artifactHandler) {
+          setTimeout(() => {
+            mockExecution._artifactHandler({
+              artifact: {
+                artifactId: 'artifact-post-resume',
+                name: 'post-resume.json',
+                mimeType: 'application/json',
+                data: { resumed: true, input },
+              },
+            });
+          }, 10);
+        }
+        return { valid: true };
+      }),
+      getArtifacts: vi.fn().mockReturnValue([]),
+      getError: vi.fn().mockReturnValue(undefined),
+      getPauseInfo: vi.fn().mockReturnValue(undefined),
+      _artifactHandler: undefined as ((artifact: unknown) => void) | undefined,
+    };
+
+    const mockPlugin = {
+      id: 'resume_artifact_workflow',
+      name: 'Resume Artifact Workflow',
+      version: '1.0.0',
+      execute: vi.fn(),
+    };
+
+    const mockGenerator = {
+      next: vi.fn().mockResolvedValue({
+        value: { type: 'status-update', message: 'Working' },
+        done: false,
+      }),
+    };
+
+    const mockRuntime: Partial<WorkflowRuntime> = {
+      getPlugin: vi.fn().mockReturnValue(mockPlugin),
+      dispatch: vi.fn().mockReturnValue(mockExecution),
+      waitForFirstYield: vi.fn().mockResolvedValue(null),
+      cancelExecution: vi.fn(),
+      getExecution: vi.fn().mockReturnValue(mockExecution),
+      getTaskState: vi.fn().mockReturnValue({
+        state: 'input-required',
+        pauseInfo: { inputSchema: { type: 'object', properties: {} } },
+        workflowGenerator: mockGenerator,
+      }),
+    };
+
+    const { WorkflowHandler } = await import('./workflowHandler.js');
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new ContextManager());
+
+    // When: Workflow is dispatched
+    await handler.dispatchWorkflow(
+      'dispatch_workflow_resume_artifact_workflow',
+      {},
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Clear events from dispatch
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const artifactsBeforeResume = eventBus.findEventsByKind('artifact-update');
+
+    // When: Workflow resumes
+    const taskState = mockRuntime.getTaskState!('task-resume-artifacts');
+    await handler.resumeWorkflow(
+      'task-resume-artifacts',
+      'ctx-test',
+      '',
+      { data: 'test' },
+      taskState!,
+      eventBus as unknown as ExecutionEventBus,
+    );
+
+    // Wait for artifacts to be emitted
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Then: Should publish artifact-update events after resume
+    const artifactsAfterResume = eventBus.findEventsByKind('artifact-update');
+
+    // Verify we got new artifacts after resume
+    expect(artifactsAfterResume.length).toBeGreaterThan(artifactsBeforeResume.length);
+
+    // Verify the post-resume artifact contains expected data
+    const postResumeArtifact = artifactsAfterResume.find(
+      (event) =>
+        event.taskId === 'task-resume-artifacts' &&
+        'artifact' in event &&
+        typeof event.artifact === 'object' &&
+        event.artifact !== null &&
+        'name' in event.artifact &&
+        event.artifact.name === 'post-resume.json',
+    );
+    expect(postResumeArtifact).toBeDefined();
+    expect(postResumeArtifact).toMatchObject({
+      kind: 'artifact-update',
+      taskId: 'task-resume-artifacts',
+      lastChunk: false,
+    });
+    expect(typeof (postResumeArtifact as { contextId?: string }).contextId).toBe('string');
+    expect((postResumeArtifact as { contextId?: string }).contextId).not.toBe('ctx-test');
   });
 });

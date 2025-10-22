@@ -76,8 +76,6 @@ const AgentCardValidationSchema = z
   })
   .passthrough();
 
-type AgentCardValidation = z.infer<typeof AgentCardValidationSchema>;
-
 /**
  * Validate composed agent card
  * @param card - Agent card to validate
@@ -95,5 +93,5 @@ export function validateAgentCard(card: AgentCard): AgentCard {
     throw new Error(`Agent card validation failed:\n${issues}`);
   }
 
-  return result.data as AgentCardValidation;
+  return result.data;
 }

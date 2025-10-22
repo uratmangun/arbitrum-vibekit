@@ -7,10 +7,10 @@ import {
   type StreamTextResult,
 } from 'ai';
 
+import type { ModelConfigRuntime } from '../config/runtime/init.js';
+import type { SkillModelOverride } from '../config/schemas/skill.schema.js';
 import { serviceConfig } from '../config.js';
 import { Logger } from '../utils/logger.js';
-import type { SkillModelOverride } from '../config/schemas/skill.schema.js';
-import type { ModelConfigRuntime } from '../config/runtime/init.js';
 
 import {
   createProviderSelector,
@@ -36,6 +36,7 @@ export interface AIContext {
 
 export interface AIOptions {
   tools?: Record<string, Tool>;
+  onToolCall?: (name: string, args: unknown) => Promise<unknown>;
 }
 
 export interface AIResponse {
@@ -207,7 +208,7 @@ export class AIService {
     this.agentModelParams = params;
 
     if (!this.providerLocked && modelConfig.agent.provider) {
-      const provider = modelConfig.agent.provider as 'openrouter' | 'openai' | 'xai' | 'hyperbolic';
+      const provider = modelConfig.agent.provider;
       const providerFn = this.providerSelector[provider];
       if (!providerFn) {
         throw new Error(
@@ -258,6 +259,7 @@ export class AIService {
 
     // Get tools for this request
     const tools = options?.tools || Object.fromEntries(this.availableTools);
+    const onToolCall = options?.onToolCall;
 
     this.logger.debug('Starting streamText', { maxSteps });
 
@@ -273,6 +275,7 @@ export class AIService {
       topP,
       stopWhen: stepCountIs(maxSteps),
       providerOptions,
+      ...(onToolCall ? { onToolCall } : {}),
     });
 
     // Return full stream to get tool call events including tool calls and results

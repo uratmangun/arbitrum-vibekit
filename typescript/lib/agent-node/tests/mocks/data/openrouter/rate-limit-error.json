@@ -3,7 +3,7 @@
     "service": "openrouter",
     "endpoint": "/api/v1/chat/completions",
     "method": "POST",
-    "recordedAt": "2025-10-10T00:48:08.532Z"
+    "recordedAt": "2025-10-17T22:11:03.587Z"
   },
   "request": {
     "headers": {
@@ -23,7 +23,7 @@
   "response": {
     "status": 404,
     "headers": {
-      "date": "Fri, 10 Oct 2025 00:48:08 GMT",
+      "date": "Fri, 17 Oct 2025 22:11:03 GMT",
       "content-type": "application/json",
       "transfer-encoding": "chunked",
       "connection": "keep-alive",
@@ -34,7 +34,7 @@
       "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
       "x-content-type-options": "nosniff",
       "server": "cloudflare",
-      "cf-ray": "98c21c44ce6475e1-EWR"
+      "cf-ray": "9903212b4a65da48-EWR"
     },
     "rawBody": "H4sIAAAAAAAAAwAAAP//JMaxCoMwEADQXwk3a1tKKpjdFixkKC7tUmzvEiKYCxcVQfz3Dn3T24BEWMBsMFLOvScwYFlRxMQhTlk5niMqx6I4UezD0aep1FyOIQbjhOgABXwZCYw+6b2AOZO8A4L57zxUy6Pu0F7vz+bmbdW1n3p94aVpYf8BAAD//wMAAzH0FX8AAAA="
   }

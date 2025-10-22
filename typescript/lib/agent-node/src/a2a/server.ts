@@ -1,12 +1,12 @@
-import { Server } from 'http';
+import type { Server } from 'http';
 
+import type { AgentCard } from '@a2a-js/sdk';
 import {
   DefaultRequestHandler,
   InMemoryTaskStore,
   DefaultExecutionEventBusManager,
 } from '@a2a-js/sdk/server';
 import { A2AExpressApp } from '@a2a-js/sdk/server/express';
-import type { AgentCard } from '@a2a-js/sdk';
 import cors from 'cors';
 import express, {
   type Express,
@@ -16,15 +16,15 @@ import express, {
   json,
 } from 'express';
 
-import { AIService } from '../ai/service.js';
 import { DEFAULT_MODELS } from '../ai/providers/index.js';
-import { SessionManager } from './sessions/manager.js';
-import { Logger } from '../utils/logger.js';
-import { WorkflowRuntime } from '../workflows/runtime.js';
+import { AIService } from '../ai/service.js';
 import type { AgentConfigHandle, HotReloadHandler } from '../config/runtime/init.js';
 import type { ServiceConfig } from '../config.js';
+import { Logger } from '../utils/logger.js';
+import { WorkflowRuntime } from '../workflows/runtime.js';
 
 import { createAgentExecutor } from './agentExecutor.js';
+import { ContextManager } from './sessions/manager.js';
 
 interface ServerConfig {
   serviceConfig: ServiceConfig;
@@ -142,9 +142,7 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
   const providerValue =
     config.serviceConfig.ai.provider ?? agentConfig.models.agent.provider ?? 'openrouter';
   const defaultModelForProvider =
-    agentConfig.models.agent.name ??
-    DEFAULT_MODELS[providerValue as keyof typeof DEFAULT_MODELS] ??
-    DEFAULT_MODELS.openrouter;
+    agentConfig.models.agent.name ?? DEFAULT_MODELS[providerValue] ?? DEFAULT_MODELS.openrouter;
   const modelValue = agentConfig.models.agent.name ?? defaultModelForProvider;
 
   logger.info('=== AI Configuration ===');
@@ -161,8 +159,14 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
     );
   }
 
-  const sessionManager = new SessionManager();
-  const agentExecutor = createAgentExecutor(workflowRuntime, aiService, sessionManager);
+  const contextManager = new ContextManager();
+  const agentExecutor = createAgentExecutor(
+    workflowRuntime,
+    aiService,
+    contextManager,
+    eventBusManager,
+    taskStore,
+  );
 
   const requestHandler = new DefaultRequestHandler(
     agentConfig.agentCard,
@@ -210,7 +214,7 @@ export async function createA2AServer(config: ServerConfig): Promise<Server> {
   (app as ExpressWithRuntime).taskStore = taskStore;
   (app as ExpressWithRuntime).loggingEnabled = loggingEnabled;
 
-  const handleHotReload: HotReloadHandler = async (event) => {
+  const handleHotReload: HotReloadHandler = (event) => {
     logger.info('Hot reload event received', { change: event.change.type });
 
     if (event.updated.prompt || event.updated.agentCard) {
@@ -362,15 +366,21 @@ export function registerAdditionalRoutes(app: Express, a2aPath: string): void {
 
   // Artifact download route for A2A resource URI compatibility
   const artifactRoute = buildArtifactRoute(a2aPath);
-  app.get(artifactRoute, (req: Request, res: Response) => {
+  app.get(artifactRoute, async (req: Request, res: Response) => {
     try {
-      const runtime = (app as ExpressWithRuntime).workflowRuntime;
-      if (!runtime?.getArtifact) {
-        res.status(404).json({ error: 'Artifacts not available' });
+      const taskStore = (app as ExpressWithRuntime).taskStore;
+      if (!taskStore) {
+        res.status(404).json({ error: 'Task store not available' });
         return;
       }
       const { taskId, artifactId } = req.params;
-      const artifact = runtime.getArtifact(taskId ?? '', artifactId ?? '');
+      // Query TaskStore for the task and find the artifact
+      const task = await taskStore.load(taskId ?? '');
+      if (!task?.artifacts) {
+        res.status(404).json({ error: 'Task or artifacts not found' });
+        return;
+      }
+      const artifact = task.artifacts.find((a) => a.artifactId === artifactId);
       if (!isArtifactRecord(artifact)) {
         res.status(404).json({ error: 'Artifact not found' });
         return;

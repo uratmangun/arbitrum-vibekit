@@ -1,4 +1,5 @@
 import type { TaskStatusUpdateEvent } from '@a2a-js/sdk';
+import { DefaultExecutionEventBusManager, InMemoryTaskStore } from '@a2a-js/sdk/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -7,26 +8,30 @@ import {
   createUserMessage,
   createWorkflowExecutionStub,
 } from '../../tests/utils/factories/index.js';
-import { RecordingEventBus } from '../../tests/utils/mocks/event-bus.mock.js';
 import { StubAIService } from '../../tests/utils/mocks/ai-service.mock.js';
-import { MockSessionManager } from '../../tests/utils/mocks/session-manager.mock.js';
+import { MockContextManager } from '../../tests/utils/mocks/context-manager.mock.js';
+import { RecordingEventBus } from '../../tests/utils/mocks/event-bus.mock.js';
 import { StubWorkflowRuntime } from '../../tests/utils/mocks/workflow-runtime.mock.js';
 import type { AIService } from '../ai/service.js';
-import type { SessionManager } from './sessions/manager.js';
 
 import { createAgentExecutor } from './agentExecutor.js';
+import type { ContextManager } from './sessions/manager.js';
 
 describe('AgentExecutor', () => {
   let eventBus: RecordingEventBus;
   let workflowRuntime: StubWorkflowRuntime;
   let llm: StubAIService;
-  let sessionManager: MockSessionManager;
+  let contextManager: MockContextManager;
+  let eventBusManager: DefaultExecutionEventBusManager;
+  let taskStore: InMemoryTaskStore;
 
   beforeEach(() => {
     eventBus = new RecordingEventBus();
     workflowRuntime = new StubWorkflowRuntime();
     llm = new StubAIService();
-    sessionManager = new MockSessionManager();
+    contextManager = new MockContextManager();
+    eventBusManager = new DefaultExecutionEventBusManager();
+    taskStore = new InMemoryTaskStore();
   });
 
   it('routes messages with taskId to existing paused workflows', async () => {
@@ -49,7 +54,9 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
+      eventBusManager,
+      taskStore,
     );
 
     // When: A message with taskId is received
@@ -83,7 +90,9 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
+      eventBusManager,
+      taskStore,
     );
 
     createUserMessage(contextId, 'Open a long position on ETH-USD');
@@ -126,7 +135,9 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
+      eventBusManager,
+      taskStore,
     );
 
     createTaskMessage(contextId, taskId, 'Update the order');
@@ -160,11 +171,12 @@ describe('AgentExecutor', () => {
       description: 'Execute complex workflow',
       version: '1.0.0',
       execute: async function* () {
-        yield { type: 'status', status: { state: 'working' } };
+        await Promise.resolve(); // Ensure async context
+        yield { type: 'status-update', message: 'Working' };
       },
     });
     llm.availableTools.set('dispatch_workflow_complex_flow', { description: 'Test tool' });
-    llm.processHandler = async function* () {
+    llm.processHandler = async function* (_context, options) {
       await Promise.resolve(); // Ensure async context
       // Emit tool call event for streaming
       yield {
@@ -172,10 +184,16 @@ describe('AgentExecutor', () => {
         toolName: 'dispatch_workflow_complex_flow',
         input: { leverage: 3 },
       };
+
+      const tool = options?.tools?.['dispatch_workflow_complex_flow'];
+      const toolResult = tool?.execute
+        ? await tool.execute({ leverage: 3 })
+        : { result: { success: true } };
+
       // Emit tool result
       yield {
         type: 'tool-result',
-        result: { success: true },
+        result: toolResult,
       };
       // Emit text response
       yield {
@@ -187,7 +205,9 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
+      eventBusManager,
+      taskStore,
     );
 
     createUserMessage(contextId, 'Execute complex workflow request');
@@ -249,7 +269,9 @@ describe('AgentExecutor', () => {
     const executor = createAgentExecutor(
       workflowRuntime,
       llm as unknown as AIService,
-      sessionManager as unknown as SessionManager,
+      contextManager as unknown as ContextManager,
+      eventBusManager,
+      taskStore,
     );
 
     createUserMessage(contextId, 'Start long running workflow');

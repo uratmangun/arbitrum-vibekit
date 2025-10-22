@@ -22,7 +22,7 @@ export function loadManifest(manifestPath: string): LoadedManifest {
 
   try {
     const fileContent = readFileSync(fullPath, 'utf-8');
-    const data = JSON.parse(fileContent);
+    const data: unknown = JSON.parse(fileContent);
 
     // Validate manifest
     const manifest = AgentManifestSchema.parse(data);

@@ -58,46 +58,6 @@ export class WorkflowToolManager {
     for (const pluginId of plugins) {
       const toolName = `dispatch_workflow_${pluginId}`;
 
-      // Create execute function for this workflow
-      const executeWorkflow = async (args: { [x: string]: unknown }): Promise<unknown> => {
-        this.logger.debug('Workflow tool execute called', {
-          tool: toolName,
-          pluginId,
-          hasArgs: !!args,
-        });
-        const start = Date.now();
-
-        if (!this.workflowRuntime?.dispatch) {
-          throw new Error('Workflow runtime dispatch not available');
-        }
-
-        const execution = this.workflowRuntime.dispatch(pluginId, args ?? {});
-        await execution.waitForCompletion?.();
-
-        if (execution.error) {
-          this.logger.error('Workflow tool execute error', execution.error, {
-            tool: toolName,
-            pluginId,
-            ms: Date.now() - start,
-          });
-          throw new Error(
-            execution.error instanceof Error
-              ? execution.error.message
-              : typeof execution.error === 'string'
-                ? execution.error
-                : JSON.stringify(execution.error),
-          );
-        }
-
-        const result = execution.result ?? { id: execution.id, state: execution.state };
-        this.logger.debug('Workflow tool execute completed', {
-          tool: toolName,
-          pluginId,
-          ms: Date.now() - start,
-        });
-        return result;
-      };
-
       // Get tool metadata from runtime
       const meta = this.workflowRuntime.getToolMetadata?.(toolName);
       const description = meta?.description || `Dispatch ${pluginId} workflow`;
@@ -107,7 +67,9 @@ export class WorkflowToolManager {
         (meta?.inputSchema as z.ZodObject<Record<string, z.ZodTypeAny>> | undefined) ||
         z.object({}).catchall(z.unknown());
 
-      const coreTool = workflowToCoreTools(pluginId, description, zodSchema, executeWorkflow);
+      // Create schema-only tool (no execute function)
+      // Workflow dispatch is handled by StreamProcessor
+      const coreTool = workflowToCoreTools(pluginId, description, zodSchema);
       this.workflowTools.set(toolName, coreTool);
       this.logger.info('Registered workflow tool', { tool: toolName, description });
     }

@@ -5,6 +5,7 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
+
 import { z } from 'zod';
 
 import { serviceConfig } from '../config.js';
@@ -89,6 +90,7 @@ export function validateConfig(config: unknown): ValidationResult<AIConfigFile> 
 export async function loadConfig(filePath: string): Promise<AIConfig> {
   try {
     const content = await readFile(filePath, 'utf-8');
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const parsed = JSON.parse(content);
 
     const validation = validateConfig(parsed);

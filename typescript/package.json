@@ -28,7 +28,7 @@
     "start:anvil": "pnpm run lint:require-submodule && npx tsx test/start-anvil.ts",
     "start:mainnet": "pnpm run lint:require-submodule && npx tsx test/start-mainnet.ts",
     "release": "multi-semantic-release --sequential --packages \"lib/ember-plugin-registry\" --ignore-private-packages",
-    "sync:rules": "rulesync generate"
+    "sync:rules": "cd .. && npx rulesync generate"
   },
   "keywords": [],
   "author": "",
@@ -53,6 +53,8 @@
     "dotenv": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
     "glob": "^11.0.3",
     "globals": "^16.1.0",
     "husky": "^9.1.7",

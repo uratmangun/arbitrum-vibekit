@@ -5,9 +5,11 @@
 
 import { writeFileSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
+
 import { describe, it, expect, afterEach } from 'vitest';
 
 import { loadAgentConfig } from '../src/config/orchestrator.js';
+
 import { createTestConfigWorkspace } from './utils/test-config-workspace.js';
 
 describe('Config Workspace Pipeline Integration Tests', () => {

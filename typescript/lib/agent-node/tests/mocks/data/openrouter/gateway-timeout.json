@@ -3,7 +3,7 @@
     "service": "openrouter",
     "endpoint": "/api/v1/chat/completions",
     "method": "POST",
-    "recordedAt": "2025-10-10T00:48:08.901Z"
+    "recordedAt": "2025-10-17T22:11:03.882Z"
   },
   "request": {
     "headers": {
@@ -23,11 +23,11 @@
   "response": {
     "status": 400,
     "headers": {
-      "date": "Fri, 10 Oct 2025 00:48:08 GMT",
+      "date": "Fri, 17 Oct 2025 22:11:03 GMT",
       "content-type": "application/json",
       "transfer-encoding": "chunked",
       "connection": "keep-alive",
-      "cf-ray": "98c21c463b7275e1-EWR",
+      "cf-ray": "9903212d2f1fda48-EWR",
       "access-control-allow-origin": "*",
       "vary": "Accept-Encoding",
       "permissions-policy": "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")",

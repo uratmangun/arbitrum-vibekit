@@ -1,9 +1,9 @@
-import { v7 as uuidv7 } from 'uuid';
 import type { TaskState } from '@a2a-js/sdk';
+import { v7 as uuidv7 } from 'uuid';
 
-import { ensureTransition } from './tasks/stateMachine.js';
 import { canonicalizeName } from '../config/validators/tool-validator.js';
 
+import { ensureTransition } from './tasks/stateMachine.js';
 import type {
   WorkflowPlugin,
   WorkflowContext,
@@ -13,11 +13,8 @@ import type {
   PauseInfo,
   ResumeResult,
   ToolExecutionResult,
-  WorkflowState,
 } from './types.js';
-
-const isWorkflowState = (value: unknown): value is WorkflowState =>
-  typeof value === 'object' && value !== null && 'type' in value;
+import { WorkflowStateSchema } from './types.js';
 
 export class WorkflowRuntime {
   private plugins: Map<string, WorkflowPlugin> = new Map();
@@ -32,10 +29,9 @@ export class WorkflowRuntime {
       final?: boolean;
       error?: unknown;
       validationErrors?: unknown[];
+      firstYield?: unknown; // Stores first yield for dispatch-response access
     }
   > = new Map();
-  private workflowGenerators: Map<string, AsyncGenerator<unknown, unknown, unknown>> = new Map();
-  private executionArtifacts: Map<string, unknown[]> = new Map();
   private executionListeners: Map<string, Map<string, Set<(...args: unknown[]) => void>>> =
     new Map();
   private isShuttingDown: boolean = false;
@@ -185,6 +181,41 @@ export class WorkflowRuntime {
       throw new Error(`Plugin ${pluginId} not found`);
     }
 
+    // Validate input parameters against plugin schema if provided
+    if (plugin.inputSchema && context.parameters) {
+      const parsed = plugin.inputSchema.safeParse(context.parameters);
+      if (!parsed.success) {
+        const validationError = new Error(
+          `Invalid workflow parameters for plugin ${pluginId}: ${JSON.stringify(parsed.error.issues)}`,
+        );
+        const executionId = context.taskId || this.generateExecutionId();
+        const failedExecution: WorkflowExecution = {
+          id: executionId,
+          pluginId,
+          state: 'failed',
+          context: {
+            contextId: context.contextId,
+            taskId: executionId,
+            parameters: context.parameters,
+            metadata: 'metadata' in context ? context.metadata : undefined,
+          },
+          error: validationError,
+          startedAt: new Date(),
+          completedAt: new Date(),
+          waitForCompletion: async () => Promise.reject(validationError),
+          on: () => failedExecution,
+          getError: () => validationError,
+          getPauseInfo: () => undefined,
+          resume: async () => {
+            await Promise.resolve();
+            return { valid: false, errors: [validationError.message] };
+          },
+        };
+        this.executions.set(executionId, failedExecution);
+        return failedExecution;
+      }
+    }
+
     const executionId = context.taskId || this.generateExecutionId();
     const fullContext: WorkflowContext = {
       contextId: context.contextId,
@@ -239,9 +270,6 @@ export class WorkflowRuntime {
         listeners.set(event, set);
         return execution;
       },
-      getArtifacts: (): unknown[] => {
-        return this.executionArtifacts.get(executionId) || [];
-      },
       getError: (): Error | undefined => {
         return this.executions.get(executionId)?.error;
       },
@@ -280,9 +308,6 @@ export class WorkflowRuntime {
       const generator = plugin.execute(context);
       let result: unknown;
 
-      // Store generator for potential pause/resume
-      this.workflowGenerators.set(execution.id, generator);
-
       // Initialize task state
       this.taskStates.set(execution.id, {
         state: 'working',
@@ -290,6 +315,7 @@ export class WorkflowRuntime {
       });
 
       // Iterate through generator yields
+      let isFirstYield = true;
       while (!this.isShuttingDown) {
         const { value, done } = await generator.next();
 
@@ -298,87 +324,119 @@ export class WorkflowRuntime {
           break;
         }
 
-        // Handle yielded values
-        if (isWorkflowState(value)) {
-          const yieldValue = value;
-          switch (yieldValue.type) {
-            case 'artifact': {
-              const artifact = yieldValue.artifact;
-              const arr = this.executionArtifacts.get(execution.id) || [];
-              arr.push(artifact);
-              this.executionArtifacts.set(execution.id, arr);
-              emit('artifact', artifact);
-              break;
-            }
-            case 'pause': {
-              const { status, inputSchema, correlationId } = yieldValue;
-              if (!status) {
-                throw new Error('Pause yield must include status');
-              }
-              const to = status.state;
-              if (!to) {
-                throw new Error('Pause yield must have status.state');
-              }
-              ensureTransition(execution.id, 'working', to as TaskState);
-              execution.state = to;
+        // Validate yielded value against WorkflowState schema
+        const parseResult = WorkflowStateSchema.safeParse(value);
 
-              const message = status.message as
-                | { parts?: Array<{ kind?: string; text?: string }> }
-                | undefined;
-              const pauseMessage = (() => {
-                if (message?.parts && Array.isArray(message.parts)) {
-                  const textPart = message.parts.find((part) => part?.kind === 'text');
-                  return typeof textPart?.text === 'string' ? textPart.text : undefined;
-                }
-                return undefined;
-              })();
+        if (!parseResult.success) {
+          // Invalid WorkflowState - this is a workflow implementation bug
+          const error = new Error(
+            `Invalid WorkflowState yielded by workflow ${plugin.id}: ${parseResult.error.message}`,
+          );
+          throw error;
+        }
 
-              const pauseInfo: PauseInfo = {
-                state: to,
-                message: pauseMessage,
-                inputSchema,
-                correlationId: typeof correlationId === 'string' ? correlationId : undefined,
-              };
+        // Handle validated yielded values
+        const yieldValue = parseResult.data;
 
-              this.taskStates.set(execution.id, {
-                state: to,
-                workflowGenerator: generator,
-                pauseInfo,
-              });
-              emit('pause', pauseInfo);
-              return; // Exit without completing
-            }
-            case 'status':
-            case 'progress': {
-              emit('update', yieldValue);
-              break;
-            }
-            case 'error': {
-              const error =
-                yieldValue.error instanceof Error
-                  ? yieldValue.error
-                  : new Error(String(yieldValue.error));
-              execution.error = error;
-              ensureTransition(execution.id, 'working', 'failed');
-              execution.state = 'failed';
-              execution.completedAt = new Date();
-              this.taskStates.set(execution.id, {
-                state: 'failed',
-                final: true,
-                error,
-              });
-              emit('error', error);
-              return;
-            }
-            default:
-              break;
+        // Store first yield for dispatch response access
+        if (isFirstYield) {
+          const taskState = this.taskStates.get(execution.id);
+          if (taskState) {
+            taskState.firstYield = yieldValue;
           }
+          isFirstYield = false;
+        }
+
+        switch (yieldValue.type) {
+          case 'dispatch-response': {
+            // dispatch-response is only for workflowHandler to consume
+            // Don't emit or process it here - it's handled during dispatch
+            break;
+          }
+          case 'status-update': {
+            // Emits update event, stays in current state
+            emit('update', yieldValue);
+            break;
+          }
+          case 'artifact': {
+            const { artifact, append, lastChunk, metadata } = yieldValue;
+            // Emit artifact directly - A2A SDK's ResultManager handles append/replace logic
+            emit('artifact', { artifact, append, lastChunk, metadata });
+            break;
+          }
+          case 'interrupted': {
+            const { reason, message, inputSchema, artifact } = yieldValue;
+            const to = reason; // 'input-required' | 'auth-required'
+
+            ensureTransition(execution.id, 'working', to as TaskState);
+            execution.state = to;
+
+            // If artifact present, emit it first
+            if (artifact) {
+              emit('artifact', { artifact });
+            }
+
+            // Extract message text for pauseInfo
+            const pauseMessage = (() => {
+              if (typeof message === 'string') {
+                return message;
+              }
+              if (Array.isArray(message)) {
+                const textPart = message.find(
+                  (part): part is { kind: 'text'; text: string } =>
+                    typeof part === 'object' &&
+                    part !== null &&
+                    'kind' in part &&
+                    part.kind === 'text' &&
+                    'text' in part &&
+                    typeof part.text === 'string',
+                );
+                return textPart?.text;
+              }
+              return undefined;
+            })();
+
+            const pauseInfo: PauseInfo = {
+              state: to,
+              message: pauseMessage,
+              inputSchema,
+            };
+
+            this.taskStates.set(execution.id, {
+              state: to,
+              workflowGenerator: generator,
+              pauseInfo,
+            });
+            emit('pause', pauseInfo);
+            return; // Exit without completing
+          }
+          case 'reject': {
+            const { reason } = yieldValue;
+            ensureTransition(execution.id, execution.state, 'rejected');
+            execution.state = 'rejected';
+            execution.completedAt = new Date();
+            execution.error = new Error(reason);
+
+            this.taskStates.set(execution.id, {
+              state: 'rejected',
+              final: true,
+              error: new Error(reason),
+            });
+
+            // Clean up
+            this.concurrentResumeTracking.delete(execution.id);
+
+            emit('reject', { reason });
+            return;
+          }
+          default:
+            break;
         }
       }
 
       // Update execution with result
       execution.result = result;
-      const currentState = execution.state as TaskState;
+      const currentState = execution.state;
       const targetState: TaskState = this.isShuttingDown ? 'canceled' : 'completed';
       if (currentState !== targetState) {
         ensureTransition(execution.id, currentState, targetState);
@@ -392,8 +450,7 @@ export class WorkflowRuntime {
         final: true,
       });
 
-      // Clean up generator
-      this.workflowGenerators.delete(execution.id);
+      // Clean up
       this.concurrentResumeTracking.delete(execution.id);
       emit('done');
     } catch (error) {
@@ -409,8 +466,7 @@ export class WorkflowRuntime {
         error,
       });
 
-      // Clean up generator
-      this.workflowGenerators.delete(execution.id);
+      // Clean up
       this.concurrentResumeTracking.delete(execution.id);
       emit('error', error);
     }
@@ -421,17 +477,6 @@ export class WorkflowRuntime {
    */
   getExecution(executionId: string): WorkflowExecution | undefined {
     return this.executions.get(executionId);
-  }
-
-  /**
-   * Get a specific artifact for a task/execution
-   */
-  getArtifact(taskId: string, artifactId: string): unknown {
-    const artifacts = this.executionArtifacts.get(taskId) || [];
-    return artifacts.find((a: unknown) => {
-      const artifact = a as { id?: string; name?: string };
-      return artifact.id === artifactId || artifact.name === artifactId;
-    });
   }
 
   /**
@@ -464,9 +509,53 @@ export class WorkflowRuntime {
         final?: boolean;
         error?: unknown;
         validationErrors?: unknown[];
+        firstYield?: unknown;
       }
     | undefined {
     return this.taskStates.get(taskId);
+  }
+
+  /**
+   * Wait for and get the first yield from a workflow execution
+   * Used by workflowHandler to get dispatch-response data
+   */
+  async waitForFirstYield(
+    executionId: string,
+    timeoutMs: number,
+  ): Promise<{ type: 'dispatch-response'; parts: unknown[] } | null> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      const taskState = this.taskStates.get(executionId);
+
+      // Check if execution completed or failed before first yield
+      const execution = this.executions.get(executionId);
+      if (execution && (execution.state === 'completed' || execution.state === 'failed')) {
+        return null;
+      }
+
+      // Check if first yield is available
+      if (taskState?.firstYield) {
+        const firstYield = taskState.firstYield;
+        // Only return if it's a dispatch-response
+        if (
+          typeof firstYield === 'object' &&
+          firstYield !== null &&
+          'type' in firstYield &&
+          firstYield.type === 'dispatch-response'
+        ) {
+          return firstYield as { type: 'dispatch-response'; parts: unknown[] };
+        }
+        // First yield exists but is not dispatch-response
+        return null;
+      }
+
+      // Wait a bit before checking again
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    // Timeout reached
+    return null;
   }
 
   isResumeInFlight(taskId: string): boolean {
@@ -478,7 +567,8 @@ export class WorkflowRuntime {
    * Resume a paused workflow
    */
   async resumeWorkflow(taskId: string, input: unknown): Promise<ResumeResult> {
-    const generator = this.workflowGenerators.get(taskId);
+    const taskState = this.taskStates.get(taskId);
+    const generator = taskState?.workflowGenerator;
     if (!generator) {
       throw new Error(`No workflow generator found for task ${taskId}`);
     }
@@ -565,7 +655,7 @@ export class WorkflowRuntime {
 
     // Resume the generator with input
     try {
-      ensureTransition(taskId, execution.state as TaskState, 'working');
+      ensureTransition(taskId, execution.state, 'working');
       execution.state = 'working';
       this.taskStates.set(taskId, {
         state: 'working',
@@ -582,7 +672,7 @@ export class WorkflowRuntime {
       await Promise.resolve(); // Ensure async compliance
       return { valid: true, metadata: updatedMetadata };
     } catch (error) {
-      ensureTransition(taskId, execution.state as TaskState, 'failed');
+      ensureTransition(taskId, execution.state, 'failed');
       execution.state = 'failed';
       execution.error = error as Error;
       execution.completedAt = new Date();
@@ -591,7 +681,6 @@ export class WorkflowRuntime {
         final: true,
         error,
       });
-      this.workflowGenerators.delete(taskId);
       throw error;
     }
   }
@@ -616,82 +705,98 @@ export class WorkflowRuntime {
       while (!result.done) {
         const value = result.value;
 
-        // Handle yielded values
-        if (isWorkflowState(value)) {
-          const yieldValue = value;
-          switch (yieldValue.type) {
-            case 'artifact': {
-              const artifact = yieldValue.artifact;
-              const arr = this.executionArtifacts.get(executionId) || [];
-              arr.push(artifact);
-              this.executionArtifacts.set(executionId, arr);
-              emit('artifact', artifact);
-              break;
-            }
-            case 'pause': {
-              const { status, inputSchema, correlationId } = yieldValue;
-              if (!status) {
-                throw new Error('Pause yield must include status');
-              }
-              const to = status.state;
-              if (!to) {
-                throw new Error('Pause yield must have status.state');
-              }
-              ensureTransition(executionId, 'working', to as TaskState);
-              execution.state = to;
+        // Validate yielded value against WorkflowState schema
+        const parseResult = WorkflowStateSchema.safeParse(value);
 
-              const message = status.message as
-                | { parts?: Array<{ kind?: string; text?: string }> }
-                | undefined;
-              const pauseMessage = (() => {
-                if (message?.parts && Array.isArray(message.parts)) {
-                  const textPart = message.parts.find((part) => part?.kind === 'text');
-                  return typeof textPart?.text === 'string' ? textPart.text : undefined;
-                }
-                return undefined;
-              })();
+        if (!parseResult.success) {
+          // Invalid WorkflowState - this is a workflow implementation bug
+          const error = new Error(
+            `Invalid WorkflowState yielded during resume of task ${executionId}: ${parseResult.error.message}`,
+          );
+          throw error;
+        }
 
-              const pauseInfo: PauseInfo = {
-                state: to,
-                message: pauseMessage,
-                inputSchema,
-                correlationId: typeof correlationId === 'string' ? correlationId : undefined,
-              };
-              this.taskStates.set(executionId, {
-                state: to,
-                workflowGenerator: generator,
-                pauseInfo,
-              });
-              // Give time for pause handler to be registered
-              await new Promise((resolve) => process.nextTick(resolve));
-              emit('pause', pauseInfo);
-              return; // Exit without completing
-            }
-            case 'status':
-            case 'progress': {
-              emit('update', yieldValue);
-              break;
-            }
-            case 'error': {
-              const error =
-                yieldValue.error instanceof Error
-                  ? yieldValue.error
-                  : new Error(String(yieldValue.error));
-              execution.error = error;
-              ensureTransition(executionId, 'working', 'failed');
-              execution.state = 'failed';
-              execution.completedAt = new Date();
-              this.taskStates.set(executionId, {
-                state: 'failed',
-                final: true,
-                error,
-              });
-              emit('error', error);
-              return;
-            }
-            default:
-              break;
+        // Handle validated yielded values
+        const yieldValue = parseResult.data;
+        switch (yieldValue.type) {
+          case 'artifact': {
+            const { artifact, append, lastChunk, metadata } = yieldValue;
+            // Emit artifact directly - A2A SDK's ResultManager handles append/replace logic
+            emit('artifact', { artifact, append, lastChunk, metadata });
+            break;
           }
+          case 'interrupted': {
+            const { reason, message, inputSchema, artifact } = yieldValue;
+            const to = reason; // 'input-required' | 'auth-required'
+
+            ensureTransition(executionId, 'working', to as TaskState);
+            execution.state = to;
+
+            // If artifact present, emit it first
+            if (artifact) {
+              emit('artifact', { artifact });
+            }
+
+            // Extract message text for pauseInfo
+            const pauseMessage = (() => {
+              if (typeof message === 'string') {
+                return message;
+              }
+              if (Array.isArray(message)) {
+                const textPart = message.find(
+                  (part): part is { kind: 'text'; text: string } =>
+                    typeof part === 'object' &&
+                    part !== null &&
+                    'kind' in part &&
+                    part.kind === 'text' &&
+                    'text' in part &&
+                    typeof part.text === 'string',
+                );
+                return textPart?.text;
+              }
+              return undefined;
+            })();
+
+            const pauseInfo: PauseInfo = {
+              state: to,
+              message: pauseMessage,
+              inputSchema,
+            };
+            this.taskStates.set(executionId, {
+              state: to,
+              workflowGenerator: generator,
+              pauseInfo,
+            });
+            // Give time for pause handler to be registered
+            await new Promise((resolve) => process.nextTick(resolve));
+            emit('pause', pauseInfo);
+            return; // Exit without completing
+          }
+          case 'status-update': {
+            emit('update', yieldValue);
+            break;
+          }
+          case 'reject': {
+            const { reason } = yieldValue;
+            ensureTransition(executionId, execution.state, 'rejected');
+            execution.state = 'rejected';
+            execution.completedAt = new Date();
+            execution.error = new Error(reason);
+
+            this.taskStates.set(executionId, {
+              state: 'rejected',
+              final: true,
+              error: new Error(reason),
+            });
+
+            // Clean up
+            this.concurrentResumeTracking.delete(executionId);
+
+            emit('reject', { reason });
+            return;
+          }
+          default:
+            break;
         }
 
         result = await generator.next();
@@ -699,7 +804,7 @@ export class WorkflowRuntime {
 
       // Update execution with result
       execution.result = result.value;
-      const currentState = execution.state as TaskState;
+      const currentState = execution.state;
       const targetState: TaskState = this.isShuttingDown ? 'canceled' : 'completed';
       if (currentState !== targetState) {
         ensureTransition(executionId, currentState, targetState);
@@ -713,8 +818,7 @@ export class WorkflowRuntime {
         final: true,
       });
 
-      // Clean up generator
-      this.workflowGenerators.delete(executionId);
+      // Clean up
       this.concurrentResumeTracking.delete(executionId);
       emit('done');
     } catch (error) {
@@ -730,8 +834,7 @@ export class WorkflowRuntime {
         error,
       });
 
-      // Clean up generator
-      this.workflowGenerators.delete(executionId);
+      // Clean up
       this.concurrentResumeTracking.delete(executionId);
       emit('error', error);
     }
@@ -746,7 +849,7 @@ export class WorkflowRuntime {
     // Cancel all running executions
     for (const execution of this.executions.values()) {
       if (!['completed', 'failed', 'canceled'].includes(execution.state)) {
-        ensureTransition(execution.id, execution.state as TaskState, 'canceled');
+        ensureTransition(execution.id, execution.state, 'canceled');
         execution.state = 'canceled';
         execution.completedAt = new Date();
       }
@@ -768,9 +871,7 @@ export class WorkflowRuntime {
     this.executions.clear();
     this.tools.clear();
     this.taskStates.clear();
-    this.workflowGenerators.clear();
     this.executionListeners.clear();
-    this.executionArtifacts.clear();
 
     await Promise.resolve(); // Ensure async compliance
   }
