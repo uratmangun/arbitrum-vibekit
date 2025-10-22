@@ -21,14 +21,14 @@ const pauseOnlyPlugin: WorkflowPlugin = {
   version: '1.0.0',
   inputSchema: z.object({}),
   async *execute(_context: WorkflowContext): AsyncGenerator<WorkflowState, unknown, unknown> {
-    // eslint-disable-next-line no-console
+     
     console.log('[parent] execute - ONE STATUS');
     yield {
       type: 'status-update',
       message: 'Starting pause-only',
     };
 
-    // eslint-disable-next-line no-console
+     
     console.log('[parent] execute - TWO ARTIFACT');
     yield {
       type: 'artifact',
@@ -39,7 +39,7 @@ const pauseOnlyPlugin: WorkflowPlugin = {
         parts: [{ kind: 'data', data: { step: 1 }, metadata: { mimeType: 'application/json' } }],
       },
     };
-    // eslint-disable-next-line no-console
+     
     console.log('[parent] execute - THREE PAUSE');
     const inputSchema = z.object({ ok: z.boolean() });
 
@@ -50,10 +50,10 @@ const pauseOnlyPlugin: WorkflowPlugin = {
       inputSchema,
     });
 
-    // eslint-disable-next-line no-console
+     
     console.log('[parent] execute - FOUR CONTINUE');
     yield { type: 'status-update', message: 'Resuming...' };
-    // eslint-disable-next-line no-console
+     
     console.log('[parent] execute - FIVE COMPLETED');
     yield { type: 'status-update', message: 'Completed' };
     return { done: true };
@@ -106,7 +106,7 @@ async function main(): Promise<void> {
     let childTaskId: string | undefined;
 
     for await (const event of parentStream) {
-      // eslint-disable-next-line no-console
+       
       console.log(
         `[parent] ${event.kind} ${event.kind === 'status-update' ? event.status.state : ''}`,
       );
@@ -148,7 +148,7 @@ async function main(): Promise<void> {
 
     const childStream = client.resubscribeTask({ id: childTaskId });
     for await (const event of childStream) {
-      // eslint-disable-next-line no-console
+       
       console.log('[child]', event.kind, event.kind === 'status-update' ? event.status.state : '');
       console.dir(event, { depth: null });
 

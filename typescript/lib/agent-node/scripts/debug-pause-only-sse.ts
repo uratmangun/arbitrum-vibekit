@@ -45,7 +45,7 @@ function emitEvent(raw: string, requestId: number | string): void {
 
     collectedEvents.push({ result: parsed.result, raw });
 
-    // eslint-disable-next-line no-console
+     
     console.log('SSE event result', parsed.result.kind, {
       state: parsed.result.status?.state,
       referenceTaskIds: parsed.result.status?.message?.referenceTaskIds,
@@ -212,11 +212,11 @@ async function main(): Promise<void> {
       body: JSON.stringify(rpcRequest),
     });
 
-    // eslint-disable-next-line no-console
+     
     console.log('HTTP status', response.status, response.statusText);
     await parseSseStream(response, rpcRequest.id);
     const childTaskId = findChildTaskId();
-    // eslint-disable-next-line no-console
+     
     console.log('Child task detected', childTaskId);
 
     if (!childTaskId) {
@@ -236,7 +236,7 @@ async function main(): Promise<void> {
       body: JSON.stringify(resubscribeRequest),
     });
 
-    // eslint-disable-next-line no-console
+     
     console.log('Resubscribe status', resubscribeResponse.status, resubscribeResponse.statusText);
 
     resumeState.sent = false;
@@ -331,7 +331,7 @@ async function processResubscribeEvent(
       console.warn('Resubscribe SSE id mismatch', { expected: requestId, received: parsed.id });
     }
 
-    // eslint-disable-next-line no-console
+     
     console.log('Resubscribe event', parsed.result.kind, {
       state: parsed.result.status?.state,
       final: parsed.result.final ?? false,
@@ -378,7 +378,7 @@ async function sendResume(context: ResubscribeContext, taskId: string): Promise<
   });
 
   const body = await response.text();
-  // eslint-disable-next-line no-console
+   
   console.log('Resume response', response.status, response.statusText, body);
 }
 
