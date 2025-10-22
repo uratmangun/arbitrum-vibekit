@@ -447,13 +447,31 @@ export class WorkflowHandler {
         });
 
         execution.on('update', (update: unknown) => {
-          const workflowUpdate = update as WorkflowEvent;
+          const workflowUpdate = update as WorkflowEvent & {
+            message?: Message;
+            status?: TaskStatus;
+          };
           if (workflowUpdate?.type === 'status' && workflowUpdate?.status) {
             const statusUpdate: TaskStatusUpdateEvent = {
               kind: 'status-update',
               taskId: execution.id,
               contextId,
               status: workflowUpdate.status as TaskStatus,
+              final: false,
+            };
+
+            hasStatusEvent = true;
+
+            publishChildEvent(statusUpdate);
+          } else if (workflowUpdate?.type === 'status-update' && workflowUpdate?.message) {
+            const statusUpdate: TaskStatusUpdateEvent = {
+              kind: 'status-update',
+              taskId: execution.id,
+              contextId,
+              status: {
+                state: execution.state as TaskStatus['state'],
+                message: workflowUpdate.message,
+              } as TaskStatus,
               final: false,
             };
 

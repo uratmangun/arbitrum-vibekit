@@ -105,6 +105,9 @@ async function main(): Promise<void> {
         role: 'user',
         parts: [{ kind: 'text', text: 'Execute USDai strategy workflow' }],
       },
+      configuration: {
+        blocking: true,
+      },
     });
 
     let contextId: string | undefined;
