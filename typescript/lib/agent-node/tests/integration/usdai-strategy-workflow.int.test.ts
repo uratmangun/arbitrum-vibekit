@@ -7,7 +7,10 @@ import {
   Implementation,
   toMetaMaskSmartAccount,
   type MetaMaskSmartAccount,
+  getDeleGatorEnvironment,
+  signDelegation as signDelegationWithPrivateKey,
 } from '@metamask/delegation-toolkit';
+import type { Hex } from 'viem';
 import { v4 as uuidv4 } from 'uuid';
 import type { privateKeyToAccount } from 'viem/accounts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -16,7 +19,7 @@ import type { AgentConfigHandle } from '../../src/config/runtime/init.js';
 import { WorkflowRuntime } from '../../src/workflows/runtime.js';
 import usdaiStrategyWorkflow from '../fixtures/workflows/usdai-strategy.js';
 import { createClients } from '../fixtures/workflows/utils/clients.js';
-import { get7702TestAccount, signDelegation } from '../utils/lifecycle-test-helpers.js';
+import { get7702TestAccount, getTestChainId } from '../utils/lifecycle-test-helpers.js';
 import {
   cleanupTestServer,
   createTestA2AServerWithStubs,
@@ -165,8 +168,8 @@ describe('USDai Strategy Workflow Integration', () => {
       }
     })();
 
-    // Wait briefly for workflow dispatch
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Wait for parent stream to finish dispatching and provide stable child task id
+    await parentEventsPromise;
 
     expect(workflowTaskId).toBeDefined();
     if (!workflowTaskId) {
@@ -216,6 +219,9 @@ describe('USDai Strategy Workflow Integration', () => {
             },
           ],
         },
+        configuration: {
+          blocking: false,
+        },
       });
     };
 
@@ -223,8 +229,8 @@ describe('USDai Strategy Workflow Integration', () => {
       console.log('[Test] Second pause detected - signing and submitting delegations');
 
       const delegationsArtifact =
-        artifacts.find((a) => a.artifactId === 'delegations-to-sign') ??
-        initialTask?.artifacts?.find((a) => a.artifactId === 'delegations-to-sign');
+        artifacts.find((a) => a.artifactId === 'delegations-data') ??
+        initialTask?.artifacts?.find((a) => a.artifactId === 'delegations-data');
       expect(delegationsArtifact).toBeDefined();
 
       if (!delegationsArtifact) {
@@ -238,12 +244,28 @@ describe('USDai Strategy Workflow Integration', () => {
 
       expect(delegationsData.length).toBe(2); // approve + supply
 
+      const rawPrivateKey = process.env['A2A_TEST_7702_PRIVATE_KEY'];
+      if (!rawPrivateKey || !rawPrivateKey.startsWith('0x') || rawPrivateKey.length !== 66) {
+        throw new Error(
+          'A2A_TEST_7702_PRIVATE_KEY not configured. Must be a 0x-prefixed 64-hex-char private key.',
+        );
+      }
+      const testPrivateKey = rawPrivateKey as Hex;
+      const chainId = getTestChainId();
+      const delegationEnvironment = getDeleGatorEnvironment(chainId);
+
       const signedDelegations = await Promise.all(
         delegationsData.map(async (data: any) => {
           const delegation = data.delegation as Delegation;
-          const signedDelegation = await signDelegation(testAccount, delegation);
+          const { signature: _ignoredSignature, ...unsignedDelegation } = delegation as any;
+          const signedDelegation = await signDelegationWithPrivateKey({
+            privateKey: testPrivateKey,
+            delegation: unsignedDelegation,
+            delegationManager: delegationEnvironment.DelegationManager,
+            chainId,
+          });
           return {
-            id: data.id,
+            id: data.id as string,
             signedDelegation,
           };
         }),
@@ -265,6 +287,9 @@ describe('USDai Strategy Workflow Integration', () => {
             },
           ],
         },
+        configuration: {
+          blocking: false,
+        },
       });
     };
 
@@ -285,6 +310,16 @@ describe('USDai Strategy Workflow Integration', () => {
             );
             if (!alreadyRecorded) {
               artifacts.push(event.artifact);
+            }
+
+            // If we are at the second pause (delegations-data emitted), resume immediately
+            if (
+              firstPauseHandled &&
+              !secondPauseHandled &&
+              event.artifact.artifactId === 'delegations-data'
+            ) {
+              secondPauseHandled = true;
+              await handleSecondPause();
             }
           }
 
@@ -312,8 +347,8 @@ describe('USDai Strategy Workflow Integration', () => {
               await handleFirstPause();
             } else if (!secondPauseHandled) {
               const hasDelegationsArtifact =
-                artifacts.some((a) => a.artifactId === 'delegations-to-sign') ||
-                initialTask?.artifacts?.some((a) => a.artifactId === 'delegations-to-sign');
+                artifacts.some((a) => a.artifactId === 'delegations-data') ||
+                initialTask?.artifacts?.some((a) => a.artifactId === 'delegations-data');
               if (hasDelegationsArtifact) {
                 secondPauseHandled = true;
                 await handleSecondPause();
@@ -337,7 +372,7 @@ describe('USDai Strategy Workflow Integration', () => {
     await Promise.race([
       collectEventsPromise,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Workflow timeout after 30s')), 30000),
+        setTimeout(() => reject(new Error('Workflow timeout after 60s')), 60000),
       ),
     ]);
 
@@ -369,13 +404,15 @@ describe('USDai Strategy Workflow Integration', () => {
     expect(artifacts.length).toBeGreaterThanOrEqual(2); // delegations + at least 1 transaction
 
     // Validate delegations artifact
-    const delegationsArtifact = artifacts.find((a) => a.artifactId === 'delegations-to-sign');
+    const delegationsArtifact = artifacts.find((a) => a.artifactId === 'delegations-data');
     expect(delegationsArtifact).toBeDefined();
     expect(delegationsArtifact?.parts.length).toBe(2); // approve + supply
 
-    // Validate transaction artifacts
-    const txArtifacts = artifacts.filter((a) => a.artifactId === 'transaction-executed');
-    expect(txArtifacts.length).toBeGreaterThanOrEqual(1); // at least supply tx
+    // Validate transaction history artifacts
+    const txHistoryArtifacts = artifacts.filter(
+      (a) => a.artifactId === 'transaction-history-display',
+    );
+    expect(txHistoryArtifacts.length).toBeGreaterThanOrEqual(1);
 
     console.log(`[Test] Workflow completed successfully with ${artifacts.length} artifacts`);
   }, 60000); // 60s timeout for full workflow execution

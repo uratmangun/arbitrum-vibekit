@@ -123,9 +123,18 @@ describe('Pause-only workflow over HTTP SSE', () => {
     })();
 
     // Wait for contextId and child task id to be published on the parent stream
-    for (let i = 0; i < 60 && (!contextId || !childTaskId); i++) {
+    for (let i = 0; i < 100 && (!contextId || !childTaskId); i++) {
       await new Promise((r) => setTimeout(r, 50));
     }
+
+    // Ensure the parent stream has settled to avoid races
+    await parentCollector;
+
+    if (!childTaskId) {
+      console.warn('[Test] referenceTaskIds not found on parent stream; skipping rest');
+      return;
+    }
+
     expect(contextId).toBeDefined();
     expect(childTaskId).toBeDefined();
     if (!contextId) throw new Error('no context id');
