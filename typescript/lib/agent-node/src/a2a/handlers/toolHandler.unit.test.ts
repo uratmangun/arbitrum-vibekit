@@ -180,7 +180,6 @@ describe('ToolHandler.createToolsBundle (unit)', () => {
     expect(mockWorkflowHandler.dispatchWorkflow).toHaveBeenCalledWith(
       'dispatch_workflow_lending',
       { amount: 1000, protocol: 'aave' },
-      'ctx-test',
       eventBus,
     );
 
@@ -387,7 +386,6 @@ describe('ToolHandler.createToolsBundle (unit)', () => {
       1,
       'dispatch_workflow_trading',
       { action: 'buy' },
-      contextId1,
       eventBus1,
     );
 
@@ -395,7 +393,6 @@ describe('ToolHandler.createToolsBundle (unit)', () => {
       2,
       'dispatch_workflow_trading',
       { action: 'sell' },
-      contextId2,
       eventBus2,
     );
   });

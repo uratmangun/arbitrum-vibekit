@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RecordingEventBus } from '../../../tests/utils/mocks/event-bus.mock.js';
 import type { WorkflowRuntime } from '../../workflows/runtime.js';
+import { SessionManager } from '../sessions/manager.js';
 
 type MockedFn<T extends (...args: unknown[]) => unknown> = ReturnType<typeof vi.fn<T>>;
 
@@ -105,13 +106,12 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When: A workflow is dispatched
     const result = await handler.dispatchWorkflow(
       'dispatch_workflow_token_swap',
       { fromToken: 'ETH', toToken: 'USDC' },
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
@@ -129,12 +129,13 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     // And: Should have called getPlugin with correct plugin ID
     expect(mockRuntime.getPlugin).toHaveBeenCalledWith('token_swap');
 
-    // And: Should have dispatched the workflow
-    expect(mockRuntime.dispatch).toHaveBeenCalledWith('token_swap', {
-      fromToken: 'ETH',
-      toToken: 'USDC',
-      contextId: 'ctx-test',
-    });
+    // And: Should have dispatched the workflow with its own contextId
+    const dispatchArgs = (mockRuntime.dispatch as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0]?.[1] as { contextId?: string; fromToken?: string; toToken?: string };
+    expect(dispatchArgs.fromToken).toBe('ETH');
+    expect(dispatchArgs.toToken).toBe('USDC');
+    expect(typeof dispatchArgs.contextId).toBe('string');
+    expect(dispatchArgs.contextId).not.toBe('ctx-test');
 
     // And: Should have waited for first yield
     expect(mockRuntime.waitForFirstYield).toHaveBeenCalledWith('task-wf-123', 500);
@@ -171,13 +172,12 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When: A workflow is dispatched
     const result = await handler.dispatchWorkflow(
       'dispatch_workflow_background_task',
       {},
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
@@ -221,13 +221,12 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When: Workflow is dispatched
     const result = await handler.dispatchWorkflow(
       'dispatch_workflow_simple_plugin',
       {},
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
@@ -238,14 +237,13 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
   it('throws error when workflow runtime is not available', async () => {
     // Given: A handler without workflow runtime
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(undefined);
+    const handler = new WorkflowHandler(undefined, new SessionManager());
 
     // When/Then: Dispatching should throw
     await expect(
       handler.dispatchWorkflow(
         'dispatch_workflow_test',
         {},
-        'ctx-test',
         eventBus as unknown as ExecutionEventBus,
       ),
     ).rejects.toThrow('Workflow runtime not available');
@@ -258,14 +256,13 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When/Then: Dispatching should throw
     await expect(
       handler.dispatchWorkflow(
         'dispatch_workflow_nonexistent',
         {},
-        'ctx-test',
         eventBus as unknown as ExecutionEventBus,
       ),
     ).rejects.toThrow('Plugin nonexistent not found');
@@ -305,13 +302,12 @@ describe('WorkflowHandler.dispatchWorkflow (unit)', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When: A workflow is dispatched
     await handler.dispatchWorkflow(
       'dispatch_workflow_lending',
       { amount: 1000 },
-      'ctx-lending',
       recordingBus as unknown as ExecutionEventBus,
     );
 
@@ -401,13 +397,12 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When: Workflow executes and emits artifacts
     await handler.dispatchWorkflow(
       'dispatch_workflow_artifact_workflow',
       {},
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
@@ -423,13 +418,14 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
       expect(event).toMatchObject({
         kind: 'artifact-update',
         taskId: 'task-artifacts',
-        contextId: 'ctx-test',
         artifact: expect.objectContaining({
           name: expect.any(String),
           mimeType: expect.any(String),
         }),
         lastChunk: false,
       });
+      expect(typeof (event as { contextId?: string }).contextId).toBe('string');
+      expect((event as { contextId?: string }).contextId).not.toBe('ctx-test');
     });
   });
 
@@ -469,13 +465,12 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When: Workflow is dispatched and pauses
     await handler.dispatchWorkflow(
       'dispatch_workflow_pausing_workflow',
       {},
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
@@ -554,13 +549,12 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     };
 
     const { WorkflowHandler } = await import('./workflowHandler.js');
-    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime);
+    const handler = new WorkflowHandler(mockRuntime as WorkflowRuntime, new SessionManager());
 
     // When: Workflow is dispatched
     await handler.dispatchWorkflow(
       'dispatch_workflow_resume_artifact_workflow',
       {},
-      'ctx-test',
       eventBus as unknown as ExecutionEventBus,
     );
 
@@ -602,8 +596,9 @@ describe('WorkflowHandler - pause and artifact streaming', () => {
     expect(postResumeArtifact).toMatchObject({
       kind: 'artifact-update',
       taskId: 'task-resume-artifacts',
-      contextId: 'ctx-test',
       lastChunk: false,
     });
+    expect(typeof (postResumeArtifact as { contextId?: string }).contextId).toBe('string');
+    expect((postResumeArtifact as { contextId?: string }).contextId).not.toBe('ctx-test');
   });
 });
