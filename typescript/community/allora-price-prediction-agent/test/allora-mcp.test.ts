@@ -19,7 +19,7 @@ const __dirname = dirname(__filename);
 describe('Allora MCP Server Tools', () => {
   let mcpClient: Client;
 
-  before(async function() {
+  before(async function () {
     this.timeout(30000); // 30 second timeout for connection
     console.log('🚀 Starting Allora MCP Server for isolated testing...');
 
@@ -30,7 +30,7 @@ describe('Allora MCP Server Tools', () => {
     console.log('✅ ALLORA_API_KEY is set');
 
     // Find the Allora MCP server path - it should be in the workspace
-    const mcpServerPath = join(__dirname, '../../../lib/mcp-tools/allora-mcp-server/dist/index.js');
+    const mcpServerPath = join(__dirname, '../../../lib/community-mcp-tools/allora-mcp-server/dist/index.js');
     console.log('MCP Server path:', mcpServerPath);
 
     // Create MCP client with stdio transport
@@ -65,7 +65,7 @@ describe('Allora MCP Server Tools', () => {
   });
 
   describe('list_all_topics', () => {
-    it('should list available topics', async function() {
+    it('should list available topics', async function () {
       this.timeout(30000); // 30 second timeout
       const result = await mcpClient.callTool({
         name: 'list_all_topics',
@@ -115,7 +115,7 @@ describe('Allora MCP Server Tools', () => {
   });
 
   describe('get_inference_by_topic_id', () => {
-    it('should get inference for a valid topic ID', async function() {
+    it('should get inference for a valid topic ID', async function () {
       this.timeout(30000); // 30 second timeout
       // First, get the list of topics to find a valid ID
       const topicsResult = await mcpClient.callTool({
@@ -166,7 +166,7 @@ describe('Allora MCP Server Tools', () => {
       expect(typeof inference).to.equal('object');
     });
 
-    it('should handle invalid topic ID gracefully', async function() {
+    it('should handle invalid topic ID gracefully', async function () {
       this.timeout(30000); // 30 second timeout
       const result = await mcpClient.callTool({
         name: 'get_inference_by_topic_id',
@@ -189,7 +189,7 @@ describe('Allora MCP Server Tools', () => {
   });
 
   describe('Token to Topic Mapping', () => {
-    it('should find topics for common crypto tokens', async function() {
+    it('should find topics for common crypto tokens', async function () {
       this.timeout(30000); // 30 second timeout
       const result = await mcpClient.callTool({
         name: 'list_all_topics',

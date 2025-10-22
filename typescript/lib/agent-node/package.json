@@ -28,8 +28,9 @@
     "ora": "^9.0.0",
     "permissionless": "^0.2.57",
     "picocolors": "^1.1.1",
+    "pinata": "^2.5.1",
     "uuid": "^13.0.0",
-    "viem": "^2.37.2",
+    "viem": "^2.37.9",
     "ws": "^8.18.3",
     "zod": "catalog:"
   },

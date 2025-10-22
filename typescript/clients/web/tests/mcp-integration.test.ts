@@ -15,7 +15,7 @@ async function startMcpServer(): Promise<any> {
       [
         path.join(
           __dirname,
-          '../../../lib/mcp-tools/coingecko-mcp-server/dist/stdio-server.js',
+          '../../../lib/community-mcp-tools/coingecko-mcp-server/dist/stdio-server.js',
         ),
       ],
       {

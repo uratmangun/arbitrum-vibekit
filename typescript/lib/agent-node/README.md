@@ -2,11 +2,11 @@
 
 **A modern agent framework for the agentic economy**
 
-Agent Node enables building autonomous AI agents that can communicate with other agents, execute complex workflows, and transact. It's a complete implementation of the [A2A (Agent-to-Agent) protocol](https://a2a.co) with integrated AI capabilities, workflow orchestration, and blockchain wallet support.
+Agent Node enables building autonomous AI agents that can communicate with other agents, execute complex workflows, and perform transactions. It's a complete implementation of the [A2A (Agent-to-Agent) protocol](https://a2a.co) with integrated AI capabilities, workflow orchestration, and blockchain wallet support.
 
-## Overview
+## Features
 
-Agent Node provides a production-ready framework for building AI agents with:
+Agent Node provides a complete framework for building autonomous AI agents with these core capabilities:
 
 - **A2A Protocol Compliance**: Full implementation of the Agent-to-Agent communication protocol (v0.3.0)
 - **Multi-Provider AI**: Flexible AI provider selection (OpenRouter, OpenAI, xAI, Hyperbolic)
@@ -15,72 +15,6 @@ Agent Node provides a production-ready framework for building AI agents with:
 - **Blockchain Support**: Embedded EOA wallet with multi-chain transaction signing
 - **Skills Framework**: Modular skill composition with isolated tool/resource scoping
 - **Type-Safe**: Full TypeScript support with Zod schema validation
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Architecture](#architecture)
-- [Configuration](#configuration)
-- [Core Concepts](#core-concepts)
-- [Creating Workflows](#creating-workflows)
-- [API Reference](#api-reference)
-- [Development](#development)
-- [Testing](#testing)
-- [Deployment](#deployment)
-
-## Features
-
-### A2A Protocol Server
-
-- **JSON-RPC Endpoints**: `message/send`, `message/stream`, `tasks/get`, `tasks/cancel`
-- **Server-Sent Events**: Real-time streaming updates for messages and tasks
-- **Task Management**: Automatic task creation for complex operations
-- **Session Handling**: Context-based session isolation and persistence
-- **Agent Card**: Standards-compliant agent discovery via `.well-known/agent-card.json` (v0.3.0)
-
-### AI Integration
-
-- **Provider Flexibility**: Switch between OpenRouter, OpenAI, xAI, or Hyperbolic
-- **Tool Access**: Dynamic MCP tool discovery and invocation
-- **Workflow Dispatch**: AI can trigger multi-step workflows via tool calls
-- **Context Management**: Conversation history tracking across sessions
-- **Streaming Support**: Token-by-token response streaming
-
-### Workflow System
-
-- **Generator-Based**: JavaScript generator functions for step-by-step execution
-- **Pause/Resume**: Workflows pause for user input or authorization
-- **State Transitions**: `working`, `input-required`, `auth-required`, `completed`, `failed`, `canceled`
-- **Input Validation**: Zod schema validation for workflow inputs
-- **Artifact Emission**: Workflows emit structured data artifacts
-- **Concurrent Execution**: Multiple workflows run independently with isolated contexts
-
-### Configuration Framework
-
-- **Workspace-Based**: File-based configuration in a structured directory
-- **Skill Composition**: Modular skills with frontmatter metadata
-- **MCP Scoping**: Skills select which MCP servers and tools they need
-- **Prompt Composition**: Automatic prompt building from base agent + skills
-- **Environment Variables**: `$env:VAR` references with validation
-- **Hot Reload**: Development mode watches for config changes
-
-### Wallet & Blockchain
-
-- **Embedded EOA**: Built-in Ethereum wallet (viem-based)
-- **Multi-Chain**: Support for Arbitrum, Ethereum, Base, and other EVM chains
-- **Transaction Signing**: Standard and EIP-712 typed data signing
-- **Gas Estimation**: Automatic EIP-1559 fee calculation
-- **Authorization Flow**: Workflows pause for user transaction approval
-
-### Command-Line Interface
-
-- **Workspace Scaffolding**: `agent init` creates config workspace with sample files
-- **Server Management**: `agent run` starts the server with optional hot-reload mode
-- **Configuration Validation**: `agent doctor` validates config and detects conflicts
-- **Config Inspection**: `agent print-config` displays composed configuration
-- **Deployment Bundling**: `agent bundle` exports production-ready bundle
 
 ## Installation
 
@@ -257,84 +191,6 @@ const response = await client.sendMessage({
 });
 
 console.log(response);
-```
-
-## Architecture
-
-### Directory Structure
-
-```
-agent-node/
-├── src/
-│   ├── a2a/                 # A2A protocol implementation
-│   │   ├── server.ts        # Express server setup
-│   │   ├── agentExecutor.ts # Message/task execution logic
-│   │   ├── handlers/        # JSON-RPC method handlers
-│   │   ├── builders/        # Response builders
-│   │   └── validation.ts    # A2A schema validation
-│   │
-│   ├── ai/                  # AI service integration
-│   │   ├── ai-service.ts    # Main AI service
-│   │   ├── providers/       # Provider implementations
-│   │   └── tools/           # Tool registry
-│   │
-│   ├── config/          # Configuration system
-│   │   ├── loaders/        # File loaders
-│   │   ├── composers/      # Prompt/card composition
-│   │   ├── validators/     # Schema validation
-│   │   └── runtime/        # Runtime initialization
-│   │
-│   ├── sessions/           # Session management
-│   │   ├── manager.ts      # Session lifecycle
-│   │   └── types.ts        # Session interfaces
-│   │
-│   ├── workflows/          # Workflow runtime
-│   │   ├── runtime.ts      # Execution engine
-│   │   ├── plugins/        # Built-in workflows
-│   │   └── types.ts        # Workflow interfaces
-│   │
-│   ├── wallet/             # Blockchain wallet
-│   │   ├── embedded.ts     # EOA wallet implementation
-│   │   └── manager.ts      # Wallet lifecycle
-│   │
-│   └── server.ts           # Main entry point
-│
-├── tests/                  # Test suites
-│   ├── integration/        # Integration tests
-│   ├── e2e/               # End-to-end tests
-│   ├── mocks/             # MSW handlers
-│   └── utils/             # Test helpers
-│
-├── config-workspace/       # Agent configuration (example)
-│   ├── agent.md           # Base agent definition
-│   ├── agent.manifest.json # Manifest
-│   ├── skills/            # Skill modules
-│   ├── mcp.json          # MCP server registry
-│   └── workflow.json     # Workflow registry
-│
-└── package.json
-```
-
-### Request Flow
-
-```
-Client Request
-    ↓
-Express Server (src/a2a/server.ts)
-    ↓
-JSON-RPC Router
-    ↓
-AgentExecutor (src/a2a/agentExecutor.ts)
-    ↓
-AIService (src/ai/ai-service.ts)
-    ↓
-Provider (OpenRouter/OpenAI/xAI)
-    ↓
-Tool Calls → MCP Client / Workflow Runtime
-    ↓
-Response Builder
-    ↓
-SSE Stream / JSON Response
 ```
 
 ## Configuration
@@ -578,282 +434,25 @@ const plugin: WorkflowPlugin = {
 
 See the [Workflow Creation Guide](docs/WORKFLOW-CREATION-GUIDE.md) for complete documentation, patterns, and examples.
 
-## API Reference
+## CLI Commands
 
-### A2A Methods
-
-#### `message/send`
-
-Send a message and get immediate response:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "message/send",
-  "params": {
-    "message": {
-      "kind": "message",
-      "messageId": "msg-123",
-      "contextId": "ctx-456", // optional
-      "role": "user",
-      "parts": [{ "kind": "text", "text": "Hello" }]
-    }
-  },
-  "id": 1
-}
-```
-
-Response: `Message` (simple queries) or `Task` (complex operations)
-
-#### `message/stream`
-
-Stream message response via SSE:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "message/stream",
-  "params": {
-    "message": {
-      /* same as message/send */
-    },
-    "taskId": "task-789" // optional, for task-scoped streaming
-  },
-  "id": 1
-}
-```
-
-Returns: `text/event-stream` with message deltas and task updates
-
-#### `tasks/get`
-
-Retrieve task status:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tasks/get",
-  "params": {
-    "taskId": "task-789"
-  },
-  "id": 1
-}
-```
-
-#### `tasks/cancel`
-
-Cancel a running task:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tasks/cancel",
-  "params": {
-    "taskId": "task-789"
-  },
-  "id": 1
-}
-```
-
-## CLI Reference
-
-The Agent CLI provides commands for configuration management, validation, and deployment.
-
-### Usage
-
-Using the convenience script (recommended):
+The Agent CLI provides essential commands for managing your agent throughout its lifecycle:
 
 ```bash
-pnpm cli <command> [options]
-```
-
-Or directly with TypeScript:
-
-```bash
-tsx src/cli/loader.ts <command> [options]
-```
-
-Production (compiled):
-
-```bash
-node dist/cli/loader.js <command> [options]
-```
-
-**Environment Variable Loading**: The CLI uses a loader entry point that automatically loads `.env` and `.env.local` files before application initialization. This ensures environment variables (like `OPENROUTER_API_KEY`) are available when needed.
-
-**Note**: If `tsx` is not found in your PATH, use `pnpm exec tsx` or `npx tsx` instead to run the locally installed version.
-
-### Commands
-
-#### `agent init`
-
-Initialize a new config workspace with sample files.
-
-**Options:**
-
-- `--target <dir>` - Target directory (default: `./config`)
-- `--force` - Overwrite existing directory
-
-**Example:**
-
-```bash
-pnpm cli init --target ./my-agent-config
-```
-
-Creates:
-
-- `agent.md` - Base agent definition with A2A card
-- `agent.manifest.json` - Skill composition manifest
-- `mcp.json` - MCP server registry
-- `workflow.json` - Workflow plugin registry
-- `skills/` - Directory for skill modules
-- `workflows/` - Directory for workflow implementations
-
----
-
-#### `agent run`
-
-Run the agent server with optional development mode.
-
-**Options:**
-
-- `--config-dir <dir>` - Config directory (default: `./config`)
-- `--dev` - Enable hot reload (watches config files)
-- `--port <number>` - Server port (default: `3000`)
-- `--host <string>` - Server host (default: `0.0.0.0`)
-
-**Examples:**
-
-```bash
-# Development mode with hot reload
-pnpm cli run --dev
-
-# Production mode with custom port
-node dist/cli/loader.js run --port 8080
-
-# Custom config directory
-pnpm cli run --config-dir ./production-config
-```
-
----
-
-#### `agent doctor`
-
-Validate configuration and detect issues.
-
-**Options:**
-
-- `--config-dir <dir>` - Config directory (default: `./config`)
-- `--verbose` - Show detailed diagnostics
-
-**Checks:**
-
-- Agent card required fields (name, description)
-- Skill definitions and frontmatter
-- MCP server registry structure
-- Workflow registry structure
-- Unreferenced MCP servers or workflows
-- Tool policy and guardrail merge results
-
-**Example:**
-
-```bash
-pnpm cli doctor --verbose
-```
-
----
-
-#### `agent print-config`
-
-Display composed configuration from workspace.
-
-**Options:**
-
-- `--config-dir <dir>` - Config directory (default: `./config`)
-- `--format <json|yaml>` - Output format (default: `json`)
-- `--no-redact` - Show sensitive values (API keys, etc.)
-- `--prompt <summary|full>` - Prompt detail level (default: `summary`)
-
-**Examples:**
-
-```bash
-# JSON output with redacted secrets
-pnpm cli print-config
-
-# YAML output with full prompt
-pnpm cli print-config --format yaml --prompt full
-
-# Show sensitive values (development only)
-pnpm cli print-config --no-redact
-```
-
----
-
-#### `agent bundle`
-
-Export deployment bundle with all configuration.
-
-**Options:**
-
-- `--config-dir <dir>` - Config directory (default: `./config`)
-- `--output <file>` - Output file (default: `./agent-bundle.json`)
-- `--format <json|yaml>` - Output format (default: `json`)
-
-**Bundle Contents:**
-
-- Agent card (A2A protocol metadata)
-- Composed system prompt
-- Prompt parts with skill attribution
-- MCP server configurations
-- Workflow configurations
-
-**Example:**
-
-```bash
-pnpm cli bundle --output ./dist/production-bundle.json
-```
-
----
-
-### Typical Workflows
-
-**New Agent Setup:**
-
-```bash
-# 1. Initialize workspace
+# Initialize agent configuration - Creates a new agent configuration workspace with sample files
 pnpm cli init
 
-# 2. Edit configuration
-# Edit config/agent.md, add skills to config/skills/
-
-# 3. Validate
-pnpm cli doctor
-
-# 4. Run
+# Run agent in development mode - Starts your agent with hot reload for development
 pnpm cli run --dev
-```
 
-**Configuration Inspection:**
-
-```bash
-# View composed config
-pnpm cli print-config --format yaml
-
-# Validate for issues
-pnpm cli doctor --verbose
-```
-
-**Production Deployment:**
-
-```bash
-# 1. Validate
+# Validate configuration - Checks your configuration for errors and missing references
 pnpm cli doctor
 
-# 2. Create bundle
-pnpm cli bundle --output ./deploy/agent.json
+# View composed configuration - Shows your composed agent configuration in readable format
+pnpm cli print-config
 
-# 3. Run in production
-node dist/cli/loader.js run --config-dir ./production-config
+# Create deployment bundle - Creates a production-ready deployment package
+pnpm cli bundle
 ```
 
 ## Development

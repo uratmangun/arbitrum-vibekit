@@ -23,7 +23,9 @@ export const defiSafetyEvaluationSkill = defineSkill({
     'Score the transparency and security practices of MakerDAO based on their documentation',
   ],
   inputSchema: z.object({
-    instruction: z.string().describe('Natural language instruction for DeFi safety evaluation operations'),
+    instruction: z
+      .string()
+      .describe('Natural language instruction for DeFi safety evaluation operations'),
   }),
   tools: [evaluateProtocolTool, compareProtocolsTool, generateReportTool],
 
@@ -33,11 +35,11 @@ export const defiSafetyEvaluationSkill = defineSkill({
       args: [
         path.join(
           __dirname,
-          '../../../../lib/mcp-tools/defisafety-implementation/dist/index.js'
-        )
+          '../../../../lib/community-mcp-tools/defisafety-implementation/dist/index.js',
+        ),
       ],
       env: Object.fromEntries(
-        Object.entries(process.env).filter(([_, value]) => value !== undefined)
+        Object.entries(process.env).filter(([_, value]) => value !== undefined),
       ) as Record<string, string>,
     },
   },
