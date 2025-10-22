@@ -41,7 +41,7 @@ export class StubAIService implements Partial<AIService> {
    */
   setSimpleResponse(events: unknown[]): void {
     // Synthesize tool-result events for tool-call entries when tests don't provide them
-    this.processHandler = async function* (context: AIContext, options?: AIOptions) {
+    this.processHandler = async function* (_context: AIContext, options?: AIOptions) {
       await Promise.resolve();
       const evts = Array.isArray(events) ? events : [];
       const hasExplicitToolResult = evts.some(
@@ -53,7 +53,7 @@ export class StubAIService implements Partial<AIService> {
       );
 
       for (const raw of evts) {
-        const event = raw as unknown;
+        const event = raw;
         yield event;
 
         const isToolCall =
