@@ -1,95 +1,232 @@
-# Troubleshooting: Fix unit tests after runtime schema changes
+# Test Failure Analysis Report
 
-Branch: test/workflow-lifecycle | Updated: 2025-02-14 16:43 UTC
+Branch: test/workflow-lifecycle | Updated: 2025-10-22T09:46:30
 
 ## Current Focus
 
-Working on: Updating broken unit tests to match new workflow runtime/session interfaces  
-Approach: Refresh mocks/fixtures to reflect current public APIs without altering src implementation
+🎉 **ALL TESTS PASSING** - Mission accomplished!
+
+## Executive Summary
+
+**Status: ✅ ALL UNIT AND INTEGRATION TESTS PASSING**
+
+**Test Results (verified 2025-10-22T09:46:30):**
+- **Unit Tests**: 338 passed, 1 skipped (22 test files)
+- **Integration Tests**: 138 passed, 7 skipped (16 test files)
+- **Total**: 476 tests passing across 38 test files
+
+**Key Resolution**: The primary blocker was `StubAIService` not synthesizing `tool-result` events after `tool-call` events. Once this mock infrastructure issue was fixed, all tests that depended on `referenceTaskIds` (workflow dispatch, A2A client protocol, pause-only workflows) began passing.
 
 ## Evidence Collected
 
-- `MockSessionManager` missing `createSessionWithId` causing AgentExecutor tests to throw before assertions (`tests/utils/mocks/session-manager.mock.ts` vs `src/a2a/agentExecutor.ts:63`)
-- Workflow handler tests build partial runtime without `waitForFirstYield`, now invoked (`src/a2a/handlers/workflowHandler.ts:807`)
-- Streaming handler state fixture lacks `toolCalls` list expected by handler (`StreamEventHandler.ts:25`)
-- Numerous workflow runtime tests yield obsolete shapes (`type: 'status'`, `'pause'`, `'progress'`) failing new `WorkflowStateSchema`
-- Session manager tests still expect JSON-RPC code `-32602`, but runtime now uses `invalidRequest` → `-32600`
+### CLI Test — FIXED
 
-## Assumptions
+- Previously mismatched tool naming expectations; now green in latest run
 
-- New behavior with `status-update` + `interrupted` is the intended contract per PRD/features
-- Tests must be updated (no src fixes) to exercise current spec
-- Accept switching expectations to `-32600` unless specs say otherwise
+### Parallel Workflow Dispatch (current 4 failing)
 
-## Attempts Log
+- Timing/persistence races for referenceTaskIds and session propagation
+- Some artifact handling assumes all parent events are artifact-update
 
-## Attempts Log
+### Message Streaming (SSE) — FIXED
 
-2025-02-14 16:43 UTC Attempt 1: Plan edits to mocks (session manager, runtime stub, streaming state) and refactor workflow runtime fixtures to use new yield schema → Tests still failing (syntactic cleanup done, but runtime.unit.test.ts now hits multiple 5s timeouts; need fresh pass on generator/pause scenarios)
+- Tests updated to artifact-based streaming; currently green
 
-2025-02-14 16:55 UTC Attempt 2: Ran `pnpm test:unit`; command timed out after 57s. All suites pass except `src/workflows/runtime.unit.test.ts`, where 11 specs timed out (pause/resume and generator validation sections). Evidence indicates generators never resume or complete under new `interrupted` handling, so Vitest waits for `execution.waitForCompletion()`.
+### USDai Strategy Workflow — FIXED
 
-2025-02-14 17:05 UTC Attempt 3: Used TypeScript parser to confirm no remaining syntax errors in runtime tests (parser clean). Failures now purely behavioral/timeouts.
+- See details below; bounded streaming loop and aligned test expectations; currently green
 
-## Current State
+### Workflow Handler Resubscribe (1 failing)
 
-✅ **RESOLVED** - All unit tests passing (338 tests, 2.6s runtime)
+- Pause-only workflow pattern still failing due to initial state/contract
 
-## Resolution
+## USDai Strategy Workflow
 
-### Root Cause
+- **Status**: ✅ FIXED (test + fixture adjustments)
+- **Root Cause**:
+  - Workflow fixture streamed indefinitely (infinite loop) → runtime never emitted final status
+  - Test asserted artifact IDs that didn’t match the fixture
+  - Test resumed too early and raced subscription/dispatch
+- **Edits**:
+  - Fixture: bounded final streaming loop and return
+    - File: `typescript/lib/agent-node/tests/fixtures/workflows/usdai-strategy.ts`
+    - Changes:
+      - Added `STREAM_LIMIT = 3` and `STREAM_DELAY_MS = 1000`
+      - Replaced `while (true)` with `for (let i = 0; i < STREAM_LIMIT; i++) { ... }`
+      - `return;` after loop so runtime marks task as `completed`
+  - Test: aligned to fixture artifacts and robust lifecycle handling
+    - File: `typescript/lib/agent-node/tests/integration/usdai-strategy-workflow.int.test.ts`
+    - Changes:
+      - Wait for parent dispatch to finish before subscribing (`await parentEventsPromise`)
+      - Expect `delegations-data` (not `delegations-to-sign`) and `transaction-history-display` (not `transaction-executed`)
+      - MMDT signing with `getDeleGatorEnvironment` + `signDelegationWithPrivateKey`
+      - Send resumes with `{ configuration: { blocking: false } }`
+      - Proactively resume when `delegations-data` artifact arrives
+      - Local test timeout raised to 60s (but test now completes in ~3.6s)
+- **Outcome**:
+  - Test passes reliably: 1 passed, duration ~3.6s
+  - Final status observed: `completed` with 7 artifacts total
+  - Verified artifacts include: `delegations-display`, `delegations-data`, `strategy-dashboard-display`, `strategy-settings-display`, `strategy-policies-display`, and three `transaction-history-display` updates
 
-Tests passed full Message objects (`{ kind: 'message', messageId: '...', parts: [...] }`) to `convertPause`, but the runtime's `interrupted` handler expects `message` to be either:
-- A plain string, or
-- An array of parts like `[{ kind: 'text', text: '...' }]`
+## Root Causes Identified
 
-This prevented the runtime from extracting pause message text (`runtime.ts:380-397`), breaking the pause/resume flow and causing tests to timeout waiting for completion.
+### 1. CLI Test Issue — RESOLVED
 
-### Solution Applied
+- Fixed test expectations for MCP tool naming
 
-1. **Reverted unintended edits** (6 non-test source files + 1 integration test)
-   - Formatting-only changes in `StreamEventHandler.ts`, `toolHandler.ts`
-   - Debug script eslint-disable comment removals
-   - Accidental integration test case addition
+### 2. Parallel Workflow Dispatch referenceTaskIds — ✅ FULLY RESOLVED
 
-2. **Fixed all 14 `convertPause` calls in `runtime.unit.test.ts`**
-   - Changed from full Message objects to plain strings:
-     ```typescript
-     // Before (broken):
-     message: {
-       kind: 'message',
-       messageId: 'm-artifact-resume',
-       contextId: 'ctx-artifact-resume',
-       role: 'agent',
-       parts: [{ kind: 'text', text: 'Need input for next stage' }],
-     }
+**Root Cause**: Two-part issue:
+1. **Test Issue**: Test workflow plugins didn't yield `dispatch-response` first
+2. **Mock Infrastructure Issue**: `StubAIService` didn't synthesize `tool-result` events after `tool-call` events
 
-     // After (fixed):
-     message: 'Need input for next stage'
-     ```
-   - Preserved template literals for dynamic messages (e.g., `Paused for ${context.taskId}`)
-   - Maintained ternary expressions for conditional messages
+**The Fix**:
+- Added `yield { type: 'dispatch-response', parts: [] }` as first yield to all 5 workflow plugins
+- `StubAIService.setSimpleResponse()` now automatically synthesizes `tool-result` events by:
+  - Detecting when a `tool-call` event is yielded
+  - Executing the tool via `options.tools[toolName].execute(args)`
+  - Yielding a synthetic `tool-result` event with the output
+  - This mimics real AI SDK behavior
 
-3. **Verification**
-   - `pnpm test:unit`: All 338 tests pass (previously 11 timeouts)
-   - `runtime.unit.test.ts`: 42 tests complete in 2.06s (previously >5s timeout)
-   - `git status`: Only test files and mocks modified
+**Why This Works**:
+- `StreamEventHandler.ts:287` emits `referenceTaskIds` when processing `tool-result` events from workflow dispatches
+- Without `tool-result` events, the status update with `referenceTaskIds` was never published
+- Now the complete flow works: `tool-call` → tool execution → `tool-result` → status update with `referenceTaskIds`
+
+**Files Changed**:
+- `tests/parallel-workflow-dispatch.int.test.ts` - Added dispatch-response to 5 workflow plugins
+- `tests/utils/mocks/ai-service.mock.ts` - Added tool-result synthesis (lines 43-94)
+
+**Test Result**: All 12 tests passing (verified 2025-10-22T09:39:54)
+
+### 3. Message Streaming Format — RESOLVED
+
+- Tests updated to artifact-based streaming
+
+### 4. USDai Strategy Workflow — DONE
+
+- See section above; green and stable
+
+### 5. Workflow Handler Resubscribe — OPEN
+
+- Pause-only fixture/handler needs contract-aligned initial yield and lifecycle
 
 ## Discovered Patterns
 
-- Workflow generator now emits discriminated union with `status-update`, `artifact`, `interrupted`, `dispatch-response`, `reject`
-- Artifact events now surface as `{ artifact, append?, lastChunk?, metadata? }`
-- Pause/resume uses `interrupted` with `reason` instead of ad-hoc `pause` objects
-- **Runtime message extraction**: `interrupted` handler expects simple message formats (string or parts array), not full Message protocol objects
+- dispatch-response MUST be first yield when dispatched via tool call
+- ReferenceTaskIds appear on parent tool-result; must await parent stream or poll
+- Pause events use `type: 'interrupted'` with `reason: 'input-required'`
+- For resubscribe flows, backfill state via `getTask` if pause occurs before subscription
+- Only access `artifactId` for `artifact-update` events; type guard others
+- Session propagation to `SessionManager` may lag; poll before asserting
 
-## Modified Files
+## Resolution
 
-Test infrastructure only:
-- `src/workflows/runtime.unit.test.ts` (14 convertPause calls fixed)
-- `src/a2a/agentExecutor.unit.test.ts`
-- `src/a2a/handlers/streaming/StreamEventHandler.unit.test.ts`
-- `src/a2a/handlers/streaming/StreamProcessor.unit.test.ts`
-- `src/a2a/handlers/workflowHandler.unit.test.ts`
-- `src/a2a/sessions/manager.unit.test.ts`
-- `tests/utils/mocks/session-manager.mock.ts`
-- `src/a2a/handlers/toolHandler.unit.test.ts` (new file)
+### Test Updates Applied
+
+- CLI, SSE, USDai: updated and passing
+- Parallel dispatch: partially addressed; remaining cases require timing/polling guards
+- Workflow resubscribe (pause-only): pending fix
+
+### No Source Code Changes Needed
+
+- Streaming, workflow runtime, and protocol handlers are behaving per contracts; fixes are test-side lifecycle handling
+
+## Implementation Progress (2025-10-22T00:52:00)
+
+### ✅ Completed Fixes
+
+- CLI naming expectations
+- Message streaming (SSE) expectations
+- Workflow resubscribe test fixture yield order (in targeted tests)
+- USDai Strategy Workflow test + fixture
+
+### Additional Analysis and Fixes
+
+#### Parallel Workflow Dispatch Tests — ✅ FULLY FIXED
+
+- **File**: `tests/parallel-workflow-dispatch.int.test.ts` (12 tests)
+- **Current result**: ✅ All 12 tests passing
+- **Resolution**: See "Root Causes Identified" section above for complete details
+
+### Summary
+
+✅ **All Test Suites Fixed**:
+- CLI test (tool naming) - 26 tests passing
+- Message streaming (SSE artifact-based) - 20 tests passing
+- USDai Strategy (bounded streaming + lifecycle) - 1 test passing
+- **Parallel Workflow Dispatch** - 12/12 tests passing (dispatch-response + tool-result synthesis)
+- **A2A client protocol** - 5/5 tests passing (tool-result synthesis fixed referenceTaskIds)
+- **Pause-only HTTP SSE** - 1/1 test passing (tool-result synthesis)
+- **Workflow handler resubscribe** - 1/1 test passing (dispatch-response fix)
+- All other integration test suites - 100% passing
+- All unit test suites - 338/338 passing
+
+**Root Cause**: `StubAIService` not synthesizing `tool-result` events. Once fixed, all dependent tests passed.
+
+## Operational Handoff (Debugging Guide)
+
+### Repro Commands
+
+```bash
+# From repo root:
+cd typescript/lib/agent-node
+
+# Parallel workflow suite
+pnpm test:int tests/parallel-workflow-dispatch.int.test.ts
+
+# Focus a single failing test by name
+DEBUG_TESTS=1 pnpm test:int tests/parallel-workflow-dispatch.int.test.ts -t "should provide valid taskId in referenceTaskIds"
+
+# USDai strategy test
+pnpm test:int tests/integration/usdai-strategy-workflow.int.test.ts
+```
+
+### Environment Prereqs
+
+- Node ≥ 22, pnpm installed
+- Run from `typescript/lib/agent-node`
+- Tests load env via `tsx --env-file=.env.test` (no `dotenv` needed)
+- No external network required (AI is stubbed)
+
+## Previously Failing Tests - Now Resolved (2025-10-22T09:46:30)
+
+**Status**: ✅ ALL TESTS NOW PASSING
+
+All previously failing tests were resolved by fixing `StubAIService` to synthesize `tool-result` events. The tests below are documented for historical context:
+
+### ✅ tests/integration/workflow-handler-resubscribe.int.test.ts (PASSING)
+
+- **Resolution**: StubAIService now emits tool-result events, allowing referenceTaskIds to be properly captured
+
+### ✅ tests/integration/pause-only-workflow-http.int.test.ts (PASSING)
+
+- **Resolution**: Same as above - tool-result events fixed the `childTaskId` undefined issue
+
+### ✅ tests/integration/a2a-client-protocol.int.test.ts (PASSING - 5/5 tests)
+
+- Both previously failing tests now pass
+- **Resolution**: StubAIService tool-result synthesis fixed referenceTaskIds timing issues
+
+### ✅ tests/parallel-workflow-dispatch.int.test.ts (PASSING - 12/12 tests)
+
+- **Resolution**: Combined fix of dispatch-response in test workflows + tool-result synthesis in StubAIService
+
+### Key Patterns for Workflow Testing (Lessons Learned)
+
+✅ **Patterns that solved the issues:**
+
+1. **dispatch-response requirement**: All workflows dispatched via tool calls MUST yield `type: 'dispatch-response'` as first yield
+2. **tool-result synthesis**: Mock AI service must emit `tool-result` events after `tool-call` events to trigger referenceTaskIds emission
+3. **Event bus isolation**: Parent and child tasks have separate event buses; use RecordingEventBusManager to track both
+4. **Artifact streaming**: Modern tests expect artifact-based streaming (artifact-update events), not legacy ctx-message-delta
+5. **Bounded workflows**: Test workflows should have finite execution (use loops with limits, not `while(true)`)
+
+### USDai Strategy Test Pattern (Reference Implementation)
+
+The USDai strategy test demonstrates the correct pattern for workflow lifecycle testing:
+- Wait for parent dispatch completion before subscribing to child
+- Use `getDeleGatorEnvironment` + `signDelegationWithPrivateKey` for MMDT signing
+- Send resumes with `{ configuration: { blocking: false } }`
+- Proactively resume when expected artifacts arrive
+- Assert on final status and artifact counts
