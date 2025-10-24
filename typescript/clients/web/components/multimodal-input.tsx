@@ -49,16 +49,16 @@ function PureMultimodalInput({
   onAgentChange,
 }: {
   chatId: string;
-  input: UseChatHelpers['input'];
-  setInput: UseChatHelpers['setInput'];
-  status: UseChatHelpers['status'];
+  input: UseChatHelpers<any>['input'];
+  setInput: UseChatHelpers<any>['setInput'];
+  status: UseChatHelpers<any>['status'];
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
+  setMessages: UseChatHelpers<any>['setMessages'];
+  append: UseChatHelpers<any>['append'];
+  handleSubmit: UseChatHelpers<any>['handleSubmit'];
   className?: string;
   selectedAgentId: string;
   onAgentChange?: (agentId: string) => void;
@@ -307,7 +307,7 @@ function PureAttachmentsButton({
   status,
 }: {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers['status'];
+  status: UseChatHelpers<any>['status'];
 }) {
   return (
     <Button
@@ -332,7 +332,7 @@ function PureStopButton({
   setMessages,
 }: {
   stop: () => void;
-  setMessages: UseChatHelpers['setMessages'];
+  setMessages: UseChatHelpers<any>['setMessages'];
 }) {
   return (
     <Button
