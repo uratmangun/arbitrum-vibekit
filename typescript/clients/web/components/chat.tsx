@@ -1,7 +1,8 @@
 'use client';
 
-import { useChat, type Message } from '@ai-sdk/react';
+import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
+import { DefaultChatTransport } from 'ai';
 import { useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
@@ -33,7 +34,7 @@ export function Chat({
   selectedChatAgent: initialChatAgent,
 }: {
   id: string;
-  initialMessages: Array<Message>;
+  initialMessages: Array<UIMessage>;
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
@@ -44,35 +45,55 @@ export function Chat({
   const { data: session } = useSession();
 
   const [selectedChatAgent, _setSelectedChatAgent] = useState(initialChatAgent);
+  const [input, setInput] = useState('');
 
   const {
     messages,
     setMessages,
-    handleSubmit,
-    input,
-    setInput,
-    append,
+    sendMessage,
     status,
     stop,
     reload,
   } = useChat({
-    id,
-    body: {
-      id,
-      selectedChatModel,
-      context: {
-        walletAddress: address,
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      body: {
+        id,
+        selectedChatModel,
+        context: {
+          walletAddress: address,
+        },
       },
-    },
-    initialMessages,
-    experimental_throttle: 100,
-    sendExtraMessageFields: true,
+    }),
+    messages: initialMessages,
     generateId: generateUUID,
     onFinish: () => {
       mutate('/api/history');
     },
-    onError: () => {
-      toast.error('An error occured, please try again!');
+    onError: (error) => {
+      console.error('Chat error:', error);
+
+      let errorMessage = 'An error occurred, please try again!';
+
+      // Check for specific error types and provide user-friendly messages
+      if (error.name === 'AI_APICallError') {
+        errorMessage = 'Connection error. Please check your internet connection and try again.';
+      } else if (error.name === 'AI_NoSuchModelError') {
+        errorMessage = 'The selected AI model is not available. Please choose a different model.';
+      } else if (error.name === 'AI_UnsupportedFunctionalityError') {
+        errorMessage = 'This feature is not supported. Please try a different approach.';
+      } else if (error.name === 'AI_RetryError') {
+        errorMessage = 'The request timed out. Please try again.';
+      } else if (error.message?.includes('Unauthorized') || error.message?.includes('401')) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message) {
+        // Use the actual error message if it's user-friendly
+        errorMessage = `Error: ${error.message}`;
+      }
+
+      toast.error(errorMessage);
     },
   });
 
@@ -83,6 +104,29 @@ export function Chat({
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
+
+  // Wrapper functions for compatibility with AI SDK 5.0
+  const handleSubmit = (e?: React.FormEvent<HTMLFormElement>) => {
+    e?.preventDefault();
+    if (input.trim()) {
+      sendMessage({ text: input });
+      setInput('');
+    }
+  };
+
+  const append = (message: UIMessage | { role: string; content: string }) => {
+    // Handle both old format (content) and new format (parts)
+    let text = '';
+    if ('content' in message && typeof message.content === 'string') {
+      text = message.content;
+    } else if ('parts' in message && Array.isArray(message.parts)) {
+      text = message.parts.map(p => p.type === 'text' ? p.text : '').join('');
+    }
+    
+    if (text.trim()) {
+      sendMessage({ text });
+    }
+  };
 
   return (
     <>

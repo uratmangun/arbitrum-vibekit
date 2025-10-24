@@ -1,59 +1,59 @@
 services:
-  lending-agent-no-wallet:
-    build:
-      context: ./
-      dockerfile: community/lending-agent-no-wallet/Dockerfile
-    container_name: vibekit-lending-agent-no-wallet
-    env_file:
-      - path: .env
-        required: true
-      - path: community/lending-agent-no-wallet/.env
-        required: false
-    ports:
-      - 3001:3001
-    restart: unless-stopped
-
-  swapping-agent-no-wallet:
-    build:
-      context: ./
-      dockerfile: community/swapping-agent-no-wallet/Dockerfile
-    container_name: vibekit-swapping-agent-no-wallet
-    env_file:
-      - path: .env
-        required: true
-      - path: community/swapping-agent-no-wallet/.env
-        required: false
-    ports:
-      - 3005:3005
-    restart: unless-stopped
-
-  coingecko-mcp-server:
-    build:
-      context: ./
-      dockerfile: lib/community-mcp-tools/coingecko-mcp-server/Dockerfile
-    container_name: vibekit-coingecko-mcp-server
-    env_file:
-      - path: .env
-        required: true
-    ports:
-      - 3011:3011
-    restart: unless-stopped
-
-  defisafety-agent:
-    build:
-      context: ./
-      dockerfile: templates/defisafety-agent/Dockerfile
-    container_name: vibekit-defisafety-agent
-    env_file:
-      - path: .env
-        required: true
-      - path: templates/defisafety-agent/.env
-        required: false
-    environment:
-      - PORT=3010
-    ports:
-      - 3010:3010
-    restart: unless-stopped
+#  lending-agent-no-wallet:
+#    build:
+#      context: ./
+#      dockerfile: community/lending-agent-no-wallet/Dockerfile
+#    container_name: vibekit-lending-agent-no-wallet
+#    env_file:
+#      - path: .env
+#        required: true
+#      - path: community/lending-agent-no-wallet/.env
+#        required: false
+#    ports:
+#      - 3001:3001
+#    restart: unless-stopped
+#
+#  swapping-agent-no-wallet:
+#    build:
+#      context: ./
+#      dockerfile: community/swapping-agent-no-wallet/Dockerfile
+#    container_name: vibekit-swapping-agent-no-wallet
+#    env_file:
+#      - path: .env
+#        required: true
+#      - path: community/swapping-agent-no-wallet/.env
+#        required: false
+#    ports:
+#      - 3005:3005
+#    restart: unless-stopped
+#
+#  coingecko-mcp-server:
+#    build:
+#      context: ./
+#      dockerfile: lib/community-mcp-tools/coingecko-mcp-server/Dockerfile
+#    container_name: vibekit-coingecko-mcp-server
+#    env_file:
+#      - path: .env
+#        required: true
+#    ports:
+#      - 3011:3011
+#    restart: unless-stopped
+#
+#  defisafety-agent:
+#    build:
+#      context: ./
+#      dockerfile: templates/defisafety-agent/Dockerfile
+#    container_name: vibekit-defisafety-agent
+#    env_file:
+#      - path: .env
+#        required: true
+#      - path: templates/defisafety-agent/.env
+#        required: false
+#    environment:
+#      - PORT=3010
+#    ports:
+#      - 3010:3010
+#    restart: unless-stopped
 
   # langgraph-workflow-agent:
   #   build:
@@ -145,10 +145,7 @@ services:
       context: ./
       dockerfile: clients/web/Dockerfile.prod
     env_file:
-      - path: .env
-        required: true
-      - path: clients/web/.env
-        required: false
+      - .env
     environment:
       POSTGRES_URL: postgresql://chatbot:changeme@db:5432/chatbot
       AUTH_URL: http://localhost:3000/api/auth
