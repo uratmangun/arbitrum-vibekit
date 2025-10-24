@@ -177,6 +177,7 @@ export const chatAgents = [
 ] as const;
 
 export const DEFAULT_SERVER_URLS = new Map<ChatAgentId, string>([
+  ['ember-aave', 'https://api.emberai.xyz/mcp'],
   // ['ember-aave', 'http://lending-agent-no-wallet:3001/sse'],
   // ['ember-camelot', 'http://swapping-agent-no-wallet:3005/sse'],
   // ['defisafety-agent', 'http://defisafety-agent:3010/sse'],
