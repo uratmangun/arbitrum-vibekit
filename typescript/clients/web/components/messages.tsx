@@ -30,6 +30,9 @@ function PureMessages({
   const [messagesContainerRef, messagesEndRef] =
     useScrollToBottom<HTMLDivElement>();
 
+  // Debug: Log messages to see what's being received
+  console.log('[Messages] Received messages:', messages.length, messages);
+
   return (
     <div
       ref={messagesContainerRef}

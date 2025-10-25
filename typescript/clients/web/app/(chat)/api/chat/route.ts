@@ -14,6 +14,7 @@ import {
 } from '@/lib/db/queries';
 import {
   getMostRecentUserMessage,
+  generateUUID,
 } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
 // import { createDocument } from '@/lib/ai/tools/create-document';
@@ -194,6 +195,13 @@ export async function POST(request: Request) {
                 throw new Error('No assistant message found!');
               }
 
+              // Generate a valid UUID if the message ID is missing or invalid
+              const messageId = lastAssistantMessage.id && lastAssistantMessage.id.trim() !== '' 
+                ? lastAssistantMessage.id 
+                : generateUUID();
+
+              console.log('[ROUTE] Saving assistant message with ID:', messageId);
+
               // Extract file attachments from message parts (v5 represents files as parts)
               const assistantFileAttachments = lastAssistantMessage.parts
                 .filter((part): part is { type: 'file'; mediaType: string; filename?: string; url: string } =>
@@ -209,7 +217,7 @@ export async function POST(request: Request) {
               await saveMessages({
                 messages: [
                   {
-                    id: lastAssistantMessage.id,
+                    id: messageId,
                     chatId: id,
                     role: lastAssistantMessage.role,
                     parts: lastAssistantMessage.parts,
