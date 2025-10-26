@@ -18,6 +18,29 @@ const openRouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
+// Create a dynamic language model function that handles any OpenRouter model ID
+function createDynamicOpenRouterModel(modelId: string) {
+  // Check if it's a predefined model with special settings
+  const predefinedModels: Record<string, any> = {
+    'chat-model': openRouter('google/gemini-2.5-pro-preview', {
+      reasoning: {
+        exclude: true,
+        effort: 'low',
+      },
+    }),
+    'chat-model-medium': openRouter('google/gemini-2.5-pro-preview', {
+      reasoning: {
+        effort: 'medium',
+      },
+    }),
+    'title-model': openRouter('google/gemini-2.5-flash'),
+    'artifact-model': openRouter('google/gemini-2.5-flash'),
+  };
+
+  // Return predefined model if it exists, otherwise create a new one with the modelId
+  return predefinedModels[modelId] || openRouter(modelId);
+}
+
 export const openRouterProvider: any = isTestEnvironment
   ? customProvider({
       languageModels: {
@@ -27,26 +50,12 @@ export const openRouterProvider: any = isTestEnvironment
         'artifact-model': artifactModel,
       },
     })
-  : customProvider({
-      languageModels: {
-        'chat-model': openRouter('google/gemini-2.5-pro-preview', {
-          reasoning: {
-            exclude: true,
-            effort: 'low',
-          },
-        }) as any,
-        'chat-model-medium': openRouter('google/gemini-2.5-pro-preview', {
-          reasoning: {
-            effort: 'medium',
-          },
-        }) as any,
-        'title-model': openRouter('google/gemini-2.5-flash') as any,
-        'artifact-model': openRouter('google/gemini-2.5-flash') as any,
-      },
+  : {
+      languageModel: (modelId: string) => createDynamicOpenRouterModel(modelId),
       imageModels: {
         'small-model': xai.image('grok-2-image') as any,
       },
-    });
+    };
 
 export const grokProvider: any = isTestEnvironment
   ? customProvider({

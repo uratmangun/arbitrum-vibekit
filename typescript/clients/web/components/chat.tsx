@@ -3,7 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { DefaultChatTransport } from 'ai';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
@@ -46,6 +46,27 @@ export function Chat({
 
   const [selectedChatAgent, _setSelectedChatAgent] = useState(initialChatAgent);
   const [input, setInput] = useState('');
+  
+  // Load MCP servers from localStorage synchronously during initialization
+  const [mcpServers] = useState<Array<{
+    id: string;
+    url: string;
+    enabled: boolean;
+    headers?: Record<string, string>;
+  }>>(() => {
+    // This function runs only once during initialization
+    try {
+      const stored = localStorage.getItem('mcp_servers_config');
+      if (stored) {
+        const servers = JSON.parse(stored);
+        console.log('[Chat] Loaded MCP servers from localStorage:', servers.length);
+        return servers;
+      }
+    } catch (error) {
+      console.error('[Chat] Error loading MCP servers:', error);
+    }
+    return [];
+  });
 
   const {
     messages,
@@ -62,6 +83,7 @@ export function Chat({
         selectedChatModel,
         context: {
           walletAddress: address,
+          mcpServers, // Now contains data from initialization
         },
       },
     }),

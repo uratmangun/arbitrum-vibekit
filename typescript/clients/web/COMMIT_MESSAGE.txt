@@ -1,0 +1,42 @@
+✨ feat: Add OpenRouter model autocomplete with custom API key support
+
+Implemented a custom autocomplete dropdown component that allows users to search and filter through 400+ OpenRouter AI models in real-time, with optional custom API key support.
+
+## Changes:
+
+### New Components
+- `components/ui/autocomplete.tsx` - Reusable autocomplete component with search, loading states, and click-outside handling
+- `components/openrouter-model-autocomplete.tsx` - OpenRouter-specific wrapper with API integration and debounced search
+- `lib/ai/openrouter-types.ts` - TypeScript types for OpenRouter API responses
+- `app/(chat)/api/models/route.ts` - API endpoint to fetch and filter OpenRouter models
+
+### Modified Components
+- `components/sidebar-user-nav.tsx` - Replaced hardcoded select with autocomplete dropdown + added optional API key input field
+- `components/openrouter-model-autocomplete.tsx` - Added support for custom API key via props
+- `app/(chat)/api/models/route.ts` - Added support for custom API key via x-openrouter-api-key header
+- `lib/ai/providers.ts` - Added dynamic model ID support via createDynamicOpenRouterModel()
+- `components/model-selector.tsx` - Enhanced with dynamic model fetching
+
+### Documentation
+- `docs/openrouter-dynamic-models.md` - Complete feature documentation
+- `AUTOCOMPLETE_IMPLEMENTATION.md` - Implementation summary and guide
+
+## Features:
+- Real-time search and filtering across 400+ models
+- **Optional custom OpenRouter API key support**
+- API keys stored securely in browser localStorage
+- Show/hide toggle for API key visibility
+- Debounced API calls (300ms) for performance
+- Loading and error states
+- Click-outside to close
+- Rich display with model names and descriptions
+- 1-hour API response caching
+- Fully typed with TypeScript
+
+## Testing:
+1. Run `pnpm run dev`
+2. Open http://localhost:3100
+3. Click wallet address → Settings
+4. (Optional) Enter your OpenRouter API key in the "OpenRouter API Key" section
+5. Use the AI Model autocomplete dropdown
+6. Search for models (e.g., "gpt", "claude", "gemini")

@@ -32,6 +32,12 @@ import { z } from 'zod';
 
 const ContextSchema = z.object({
   walletAddress: z.string().optional(),
+  mcpServers: z.array(z.object({
+    id: z.string(),
+    url: z.string(),
+    enabled: z.boolean(),
+    headers: z.record(z.string()).optional(),
+  })).optional(),
 });
 type Context = z.infer<typeof ContextSchema>;
 
@@ -136,7 +142,13 @@ export async function POST(request: Request) {
 
     let dynamicTools: Awaited<ReturnType<typeof getDynamicTools>>;
     try {
-      dynamicTools = await getDynamicTools();
+      // Pass MCP servers from client context to getDynamicTools
+      const mcpServers = validatedContext.mcpServers || [];
+      const enabledServers = mcpServers.filter(s => s.enabled);
+      const serverMap = new Map(enabledServers.map(s => [s.id, s.url]));
+      
+      console.log('[ROUTE] Loading dynamic tools with MCP servers:', enabledServers.length);
+      dynamicTools = await getDynamicTools(serverMap);
     } catch (error) {
       console.error('[ROUTE] Error loading dynamic tools:', error);
       dynamicTools = {};

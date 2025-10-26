@@ -1,78 +1,78 @@
 export const chatAgents = [
-  {
-    id: 'ember-aave' as const,
-    name: 'Lending',
-    description: 'AAVE lending agent',
-    suggestedActions: [
-      {
-        title: 'Deposit WETH',
-        label: 'to my balance',
-        action: 'Deposit WETH to my balance',
-      },
-      { title: 'Check', label: 'balance', action: 'Check balance' },
-    ],
-  },
-  {
-    id: 'ember-camelot' as const,
-    name: 'Trading',
-    description: 'Camelot Swapping agent',
-    suggestedActions: [
-      {
-        title: 'Swap USDC for ETH',
-        label: 'on Arbitrum Network.',
-        action: 'Swap USDC for ETH tokens from Arbitrum to Arbitrum.',
-      },
-      {
-        title: 'Buy ARB',
-        label: 'on Arbitrum.',
-        action: 'Buy ARB token.',
-      },
-    ],
-  },
-  {
-    id: 'defisafety-agent' as const,
-    name: 'DeFi Safety',
-    description: 'AI agent for evaluating DeFi protocol safety and documentation quality',
-    suggestedActions: [
-      {
-        title: 'Quick Evaluation',
-        label: 'safety score',
-        action: 'Evaluate the safety of Aave protocol with 30 pages',
-      },
-      {
-        title: 'Compare Protocols',
-        label: 'side by side',
-        action: 'Compare Uniswap and SushiSwap safety scores with 20 pages each',
-      },
-      {
-        title: 'Generate Report',
-        label: 'detailed analysis',
-        action: 'Generate a comprehensive safety report for Compound with 50 pages',
-      },
-    ],
-  },
-  {
-    id: 'coingecko' as const,
-    name: 'Price Charts',
-    description: 'Cryptocurrency price data and charts',
-    suggestedActions: [
-      {
-        title: 'Generate BTC',
-        label: 'price chart',
-        action: 'Generate a price chart for BTC over 7 days',
-      },
-      {
-        title: 'Show supported',
-        label: 'tokens',
-        action: 'What cryptocurrency tokens are supported?',
-      },
-      {
-        title: 'Generate ETH',
-        label: 'price chart',
-        action: 'Generate a price chart for ETH over 30 days',
-      },
-    ],
-  },
+  // {
+  //   id: 'ember-aave' as const,
+  //   name: 'Lending',
+  //   description: 'AAVE lending agent',
+  //   suggestedActions: [
+  //     {
+  //       title: 'Deposit WETH',
+  //       label: 'to my balance',
+  //       action: 'Deposit WETH to my balance',
+  //     },
+  //     { title: 'Check', label: 'balance', action: 'Check balance' },
+  //   ],
+  // },
+  // {
+  //   id: 'ember-camelot' as const,
+  //   name: 'Trading',
+  //   description: 'Camelot Swapping agent',
+  //   suggestedActions: [
+  //     {
+  //       title: 'Swap USDC for ETH',
+  //       label: 'on Arbitrum Network.',
+  //       action: 'Swap USDC for ETH tokens from Arbitrum to Arbitrum.',
+  //     },
+  //     {
+  //       title: 'Buy ARB',
+  //       label: 'on Arbitrum.',
+  //       action: 'Buy ARB token.',
+  //     },
+  //   ],
+  // },
+  // {
+  //   id: 'defisafety-agent' as const,
+  //   name: 'DeFi Safety',
+  //   description: 'AI agent for evaluating DeFi protocol safety and documentation quality',
+  //   suggestedActions: [
+  //     {
+  //       title: 'Quick Evaluation',
+  //       label: 'safety score',
+  //       action: 'Evaluate the safety of Aave protocol with 30 pages',
+  //     },
+  //     {
+  //       title: 'Compare Protocols',
+  //       label: 'side by side',
+  //       action: 'Compare Uniswap and SushiSwap safety scores with 20 pages each',
+  //     },
+  //     {
+  //       title: 'Generate Report',
+  //       label: 'detailed analysis',
+  //       action: 'Generate a comprehensive safety report for Compound with 50 pages',
+  //     },
+  //   ],
+  // },
+  // {
+  //   id: 'coingecko' as const,
+  //   name: 'Price Charts',
+  //   description: 'Cryptocurrency price data and charts',
+  //   suggestedActions: [
+  //     {
+  //       title: 'Generate BTC',
+  //       label: 'price chart',
+  //       action: 'Generate a price chart for BTC over 7 days',
+  //     },
+  //     {
+  //       title: 'Show supported',
+  //       label: 'tokens',
+  //       action: 'What cryptocurrency tokens are supported?',
+  //     },
+  //     {
+  //       title: 'Generate ETH',
+  //       label: 'price chart',
+  //       action: 'Generate a price chart for ETH over 30 days',
+  //     },
+  //   ],
+  // },
   // {
   //   id: 'langgraph-workflow' as const,
   //   name: 'Greeting Optimizer',
@@ -176,17 +176,35 @@ export const chatAgents = [
   },
 ] as const;
 
-export const DEFAULT_SERVER_URLS = new Map<ChatAgentId, string>([
-  ['ember-aave', 'https://api.emberai.xyz/mcp'],
-  // ['ember-aave', 'http://lending-agent-no-wallet:3001/sse'],
-  // ['ember-camelot', 'http://swapping-agent-no-wallet:3005/sse'],
-  // ['defisafety-agent', 'http://defisafety-agent:3010/sse'],
-  // ['coingecko', 'http://coingecko-mcp-server:3011/mcp'], // CoinGecko MCP server
-  // ['langgraph-workflow', 'http://langgraph-workflow-agent:3009/sse'],
-  // ['quickstart-agent-template', 'http://quickstart-agent-template:3007/sse'],
-  // ['allora-price-prediction-agent', 'http://allora-price-prediction-agent:3008/sse'],
-  // ["ember-lp", "http://liquidity-agent-no-wallet:3002/sse"],
-  // ["ember-pendle", "http://pendle-agent:3003/sse"],
-]);
+// Dynamic MCP server URLs - now managed through UI in Settings
+// This function loads the enabled MCP servers from localStorage
+export function getEnabledMCPServers(): Map<string, string> {
+  if (typeof window === 'undefined') {
+    // Server-side fallback
+    return new Map([
+
+    ]);
+  }
+
+  try {
+    const stored = localStorage.getItem('mcp_servers_config');
+    if (stored) {
+      const servers = JSON.parse(stored);
+      const enabledServers = servers.filter((s: any) => s.enabled);
+      console.log(enabledServers)
+      return new Map(enabledServers.map((s: any) => [s.id, s.url]));
+    }
+  } catch (error) {
+    console.error('Error loading MCP servers:', error);
+  }
+
+  // Default fallback
+  return new Map([
+
+  ]);
+}
+
+// Legacy export for backward compatibility
+export const DEFAULT_SERVER_URLS = getEnabledMCPServers();
 
 export type ChatAgentId = (typeof chatAgents)[number]['id'];

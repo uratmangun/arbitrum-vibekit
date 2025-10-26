@@ -24,7 +24,9 @@ import type { ChatAgentId } from '../../../agents-config';
 }); */
 
 const URL_CHAT_IDS = new Map<string, ChatAgentId>();
-DEFAULT_SERVER_URLS.forEach((value, key) => URL_CHAT_IDS.set(value, key));
+if (DEFAULT_SERVER_URLS.size > 0) {
+  DEFAULT_SERVER_URLS.forEach((value, key) => URL_CHAT_IDS.set(value, key));
+}
 
 const convertToZodSchema = (schema: any): z.ZodSchema => {
   if (!schema) return z.object({});
@@ -131,8 +133,18 @@ async function getTool(serverUrl: string) {
   return toolObject;
 }
 
-export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
+export const getTools = async (serverMap?: Map<string, string>): Promise<{ [key: string]: CoreTool }> => {
   console.log('Initializing MCP client...');
+
+  // Use provided serverMap or fall back to DEFAULT_SERVER_URLS
+  const SERVER_URLS = serverMap || DEFAULT_SERVER_URLS;
+  
+  console.log('[getTools] Using MCP servers:', Array.from(SERVER_URLS.entries()));
+
+  if (SERVER_URLS.size === 0) {
+    console.log('[getTools] No MCP servers configured, returning empty tools');
+    return {};
+  }
 
   const cookieStore = await cookies();
   const rawAgentId = cookieStore.get('agent')?.value;
@@ -141,13 +153,14 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
 
   // helper that chooses override first, then config file
   const resolveUrl = (id: ChatAgentId) =>
-    overrideUrl ?? DEFAULT_SERVER_URLS.get(id) ?? '';
+    overrideUrl ?? SERVER_URLS.get(id) ?? '';
 
   // "all" agents: fan-out to every URL
   if (!agentId || agentId === 'all') {
-    const urls = Array.from(DEFAULT_SERVER_URLS.keys()).map((id) =>
+    const urls = Array.from(SERVER_URLS.keys()).map((id) =>
       resolveUrl(id),
     );
+    console.log('[getTools] Loading tools from all servers:', urls);
     const toolsByAgent = await Promise.all(urls.map(getTool));
     // flatten and prefix so you don't get name collisions
     return toolsByAgent.reduce(
@@ -156,7 +169,7 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
         tools: { [key: string]: CoreTool },
         idx: number,
       ) => {
-        const id = Array.from(DEFAULT_SERVER_URLS.keys())[idx];
+        const id = Array.from(SERVER_URLS.keys())[idx];
         Object.entries(tools).forEach(([toolName, tool]) => {
           all[`${id}-${toolName}`] = tool; // Changed to dash for clarity
         });
@@ -175,5 +188,6 @@ export const getTools = async (): Promise<{ [key: string]: CoreTool }> => {
     console.error(`No server URL configured for agent "${agentId}"`);
     return {};
   }
+  console.log('[getTools] Loading tools from single server:', serverUrl);
   return getTool(serverUrl);
 };
