@@ -1,3 +1,4 @@
+<<<<<<< ours
 import { AsyncLocalStorage } from "node:async_hooks";
 import { xmcpHandler } from "@xmcp/adapter";
 import type { NextRequest } from "next/server";
@@ -28,3 +29,9 @@ async function loggedHandler(request: NextRequest) {
 }
 
 export { loggedHandler as GET, loggedHandler as POST };
+|||||||
+=======
+import { xmcpHandler } from '@xmcp/adapter';
+
+export { xmcpHandler as GET, xmcpHandler as POST };
+>>>>>>> theirs
