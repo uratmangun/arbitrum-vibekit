@@ -1,3 +1,4 @@
+<<<<<<< ours
 import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const pregenWallets = pgTable("pregen_wallets", {
@@ -10,3 +11,18 @@ export const pregenWallets = pgTable("pregen_wallets", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   claimedAt: timestamp("claimed_at"),
 });
+|||||||
+=======
+import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+export const pregenWallets = pgTable("pregen_wallets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull(),
+  walletId: text("wallet_id").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  walletType: text("wallet_type").notNull(),
+  userShare: text("user_share").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  claimedAt: timestamp("claimed_at"),
+});
+>>>>>>> theirs
