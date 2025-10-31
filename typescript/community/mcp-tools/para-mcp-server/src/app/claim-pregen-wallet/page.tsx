@@ -1,7 +1,14 @@
 "use client";
 
+<<<<<<< ours
 import { openPopup, useClient } from "@getpara/react-sdk";
 import { useEffect, useState } from "react";
+||||||| ancestor
+import { useState } from "react";
+=======
+import { useEffect, useState } from "react";
+import { useClient, openPopup } from "@getpara/react-sdk";
+>>>>>>> theirs
 
 export default function ClaimPregenWallet() {
   const [userShare, setUserShare] = useState("");
@@ -10,6 +17,7 @@ export default function ClaimPregenWallet() {
   >("idle");
   const [message, setMessage] = useState("");
   const [recoverySecret, setRecoverySecret] = useState("");
+<<<<<<< ours
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const para = useClient();
 
@@ -62,6 +70,54 @@ export default function ClaimPregenWallet() {
       );
     }
   };
+||||||| ancestor
+=======
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const para = useClient();
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        if (!para) {
+          if (active) setIsLoggedIn(false);
+          return;
+        }
+        const authed = await para.isFullyLoggedIn();
+        if (active) setIsLoggedIn(authed);
+      } catch {
+        if (active) setIsLoggedIn(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [para]);
+
+  const handleLogin = async () => {
+    setStatus("loading");
+    setMessage("");
+    try {
+      if (!para) throw new Error("Para client not ready");
+      let authed = await para.isFullyLoggedIn();
+      if (!authed) {
+        const url = await para.refreshSession({ shouldOpenPopup: true });
+        const popupRef = openPopup({ url, target: "para-login", type: "LOGIN_PASSKEY" });
+        await para.waitForLoginAndSetup({ popupWindow: popupRef?.window });
+        authed = await para.isFullyLoggedIn();
+      }
+      if (!authed) throw new Error("Login failed. Please complete Para authentication.");
+
+      setIsLoggedIn(true);
+      setStatus("idle");
+      setMessage("Logged in with Para. You can now claim the wallet.");
+    } catch (err) {
+      setIsLoggedIn(false);
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Failed to login with Para");
+    }
+  };
+>>>>>>> theirs
 
   const handleClaim = async () => {
     if (!userShare.trim()) {
@@ -89,10 +145,16 @@ export default function ClaimPregenWallet() {
         headers: {
           "Content-Type": "application/json",
         },
+<<<<<<< ours
         body: JSON.stringify({
           userShare,
           recoverySecret: claimedRecoverySecret,
         }),
+||||||| ancestor
+        body: JSON.stringify({ userShare }),
+=======
+        body: JSON.stringify({ userShare, recoverySecret: claimedRecoverySecret }),
+>>>>>>> theirs
       });
 
       const data = await response.json();
@@ -102,9 +164,15 @@ export default function ClaimPregenWallet() {
 
       setStatus("success");
       setMessage("Wallet claimed successfully!");
+<<<<<<< ours
       if (claimedRecoverySecret) {
         setRecoverySecret(claimedRecoverySecret);
       }
+||||||| ancestor
+      setRecoverySecret(data.recoverySecret);
+=======
+      setRecoverySecret(claimedRecoverySecret);
+>>>>>>> theirs
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "An error occurred");
@@ -141,6 +209,7 @@ export default function ClaimPregenWallet() {
             />
           </div>
 
+<<<<<<< ours
           {isLoggedIn !== true && (
             <button
               type="button"
@@ -162,6 +231,36 @@ export default function ClaimPregenWallet() {
               {status === "loading" ? "Claiming..." : "Claim Wallet"}
             </button>
           )}
+||||||| ancestor
+          <button
+            type="button"
+            onClick={handleClaim}
+            disabled={status === "loading"}
+            className="flex h-12 items-center justify-center rounded-md bg-zinc-900 px-6 font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            {status === "loading" ? "Claiming..." : "Claim Wallet"}
+          </button>
+=======
+          {isLoggedIn !== true && (
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={status === "loading"}
+              className="flex h-12 items-center justify-center rounded-md bg-blue-600 px-6 font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-400"
+            >
+              {status === "loading" ? "Logging in..." : "Login with Para"}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleClaim}
+            disabled={status === "loading" || isLoggedIn !== true}
+            className="flex h-12 items-center justify-center rounded-md bg-zinc-900 px-6 font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            {status === "loading" ? "Claiming..." : "Claim Wallet"}
+          </button>
+>>>>>>> theirs
 
           {message && (
             <div
