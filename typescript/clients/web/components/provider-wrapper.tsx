@@ -1,60 +1,110 @@
 'use client';
 
 import '@rainbow-me/rainbowkit/styles.css';
-import {
-  darkTheme,
-  getDefaultConfig,
-  RainbowKitProvider,
-} from '@rainbow-me/rainbowkit';
+import "@getpara/react-sdk/styles.css";
+import { darkTheme, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import {
   cookieStorage,
   cookieToInitialState,
   createStorage,
   WagmiProvider,
+  createConfig,
+  http,
 } from 'wagmi';
 import { mainnet, arbitrum } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { RainbowKitSiweNextAuthProvider } from '@rainbow-me/rainbowkit-siwe-next-auth';
+import { paraConnector } from '@getpara/wagmi-v2-integration';
+import Para from '@getpara/web-sdk';
+import { injected, walletConnect } from 'wagmi/connectors';
 
-export function ProviderWrapper({ children }: { children: React.ReactNode }) {
-  const config = useMemo(
-    () =>
-      getDefaultConfig({
-        appName: 'Arbitrum VibeKit',
-        projectId: '4b49e5e63b9f6253943b470873b47208',
-        chains: [arbitrum, mainnet],
-        ssr: true, // If your dApp uses server side rendering (SSR)
-        storage: createStorage({ storage: cookieStorage }),
-      }),
+function WagmiConfig({
+  children,
+  queryClient,
+}: {
+  children: React.ReactNode;
+  queryClient: QueryClient;
+}) {
+  // Initialize Para SDK
+  const para = useMemo(
+    () => new Para(process.env.NEXT_PUBLIC_PARA_API_KEY || ''),
     [],
   );
 
-  const queryClient = useMemo(() => new QueryClient(), []);
+  // Create Para connector
+  const paraWagmiConnector = useMemo(
+    () =>
+      paraConnector({
+        para,
+        chains: [arbitrum, mainnet],
+        appName: 'Arbitrum VibeKit',
+        options: {},
+        queryClient,
+      }),
+    [para, queryClient],
+  );
+
+  const config = useMemo(
+    () =>
+      createConfig({
+        chains: [arbitrum, mainnet],
+        ssr: true,
+        storage: createStorage({ storage: cookieStorage }),
+        transports: {
+          [arbitrum.id]: http(
+            process.env.NEXT_PUBLIC_RPC_ARBITRUM ||
+              'https://arb1.arbitrum.io/rpc',
+          ),
+          [mainnet.id]: http(
+            process.env.NEXT_PUBLIC_RPC_MAINNET ||
+              'https://ethereum-rpc.publicnode.com',
+          ),
+        },
+        connectors: [
+          // Para social login
+          paraWagmiConnector as any,
+          // Common external wallets
+          injected({ shimDisconnect: true }),
+          walletConnect({
+            projectId: '4b49e5e63b9f6253943b470873b47208',
+            showQrModal: true,
+          }),
+        ],
+      }),
+    [paraWagmiConnector],
+  );
+
   const cookie = cookieStorage.getItem('wagmi.storage') || '';
   const initialState = cookieToInitialState(config, cookie);
 
   return (
-    <>
-      <WagmiProvider
-        config={config}
-        reconnectOnMount={true}
-        initialState={initialState}
-      >
-        <QueryClientProvider client={queryClient}>
-          <RainbowKitSiweNextAuthProvider>
-            <RainbowKitProvider
-              theme={darkTheme({
-                accentColor: '#4E76A9',
-                accentColorForeground: '#fff',
-              })}
-              initialChain={arbitrum}
-            >
-              {children}
-            </RainbowKitProvider>
-          </RainbowKitSiweNextAuthProvider>
-        </QueryClientProvider>
-      </WagmiProvider>
-    </>
+    <WagmiProvider
+      config={config}
+      reconnectOnMount={true}
+      initialState={initialState}
+    >
+      <RainbowKitSiweNextAuthProvider>
+        <RainbowKitProvider
+          theme={darkTheme({
+            accentColor: '#4E76A9',
+            accentColorForeground: '#fff',
+          })}
+          initialChain={arbitrum}
+        >
+          {children}
+        </RainbowKitProvider>
+      </RainbowKitSiweNextAuthProvider>
+    </WagmiProvider>
+  );
+}
+
+export function ProviderWrapper({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WagmiConfig queryClient={queryClient}>{children}</WagmiConfig>
+    </QueryClientProvider>
   );
 }
