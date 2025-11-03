@@ -99,7 +99,10 @@ function getPregenWalletCached(id: string) {
         .limit(1);
 
       if (!row) {
-        return { wallet: null as PregenWallet | null, userShare: undefined as string | undefined };
+        return {
+          wallet: null as PregenWallet | null,
+          userShare: undefined as string | undefined,
+        };
       }
 
       const wallet: PregenWallet = {
@@ -126,7 +129,9 @@ export default async function ClaimPregenWalletById({
 }) {
   const { id } = await params;
   const { wallet, userShare } = await getPregenWalletCached(id);
-  const error = wallet ? null : "Wallet not found. You can still paste your user share to claim.";
+  const error = wallet
+    ? null
+    : "Wallet not found. You can still paste your user share to claim.";
 
   return (
     <ClaimPregenWalletClient
