@@ -190,6 +190,28 @@ export const MessageRenderer = ({
       return candidate ?? {};
     };
     const jsonForViewer = pickJsonObject();
+
+    // Extract txPreview and txPlan from output.result.content[0].text for MCP tools
+    const extractTransactionData = () => {
+      const out = (toolCall as any)?.output;
+      if (!out) return { txPreview: null, txPlan: null };
+
+      try {
+        // Check if output has result.content[0].text structure
+        const contentText = out?.result?.content?.[0]?.text;
+        if (typeof contentText === 'string') {
+          const parsed = JSON.parse(contentText);
+          const txPreview = parsed?.artifacts?.[0]?.parts?.[0]?.data?.txPreview || null;
+          const txPlan = parsed?.artifacts?.[0]?.parts?.[0]?.data?.txPlan || null;
+          return { txPreview, txPlan };
+        }
+      } catch (error) {
+        console.error('Error parsing transaction data from tool output:', error);
+      }
+
+      return { txPreview: null, txPlan: null };
+    };
+    const { txPreview: toolCallTxPreview, txPlan: toolCallTxPlan } = extractTransactionData();
     return (
       <div
         key={toolCallId}
@@ -238,7 +260,7 @@ export const MessageRenderer = ({
             isMarketList={false}
           />
         ) : (
-          <TemplateComponent txPreview={null} txPlan={null} jsonObject={jsonForViewer} />
+          <TemplateComponent txPreview={toolCallTxPreview} txPlan={toolCallTxPlan} jsonObject={jsonForViewer} />
         )}
       </div>
     );
