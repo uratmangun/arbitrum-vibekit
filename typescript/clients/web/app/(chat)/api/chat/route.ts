@@ -301,7 +301,7 @@ IMPORTANT: When a tool execution is not approved by the user, do not retry it. S
       });
 
       return result.toUIMessageStreamResponse({
-        sendReasoning: true,
+        sendReasoning: false,
         onFinish: async ({ messages }) => {
           console.log('🔍 [ROUTE] StreamText finished');
           if (session.user?.id) {
