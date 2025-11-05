@@ -12,43 +12,22 @@ catalog:
   '@modelcontextprotocol/sdk': ^1.18.2
   '@centrifuge/sdk': ^0.24.0
   dotenv: ^17.2.3
-<<<<<<< ours
   ai: ^5.0.59
   '@ai-sdk/openai': ^2.0.0
   cors: ^2.8.5
-||||||| ancestor
-  ai: ^5.0.59
-=======
-  ai: ^5.0.78
-  '@ai-sdk/openai': ^2.0.42
->>>>>>> theirs
   express: ^5.1.0
-<<<<<<< ours
   viem: ^2.38.1
   graphql-request: ^7.3.1
   '@centrifuge/sdk': ^0.27.2
-||||||| ancestor
-=======
-  cors: ^2.8.5
->>>>>>> theirs
   '@openrouter/ai-sdk-provider': ^1.2.0
   '@emberai/arbitrum-vibekit-core': ^0.1.2
-  '@centrifuge/sdk': ^0.21.1
-  viem: ^2.38.1
   '@ai-sdk/provider-utils': ^3.0.8
   '@ai-sdk/xai': ^2.0.23
-  graphql-request: ^7.3.1
 
   # Dev dependencies
   '@types/node': ^22.0.0
-<<<<<<< ours
   '@types/cors': ^2.8.17
   '@types/express': ^5.0.0
-||||||| ancestor
-=======
-  '@types/express': ^5.0.0
-  '@types/cors': ^2.8.19
->>>>>>> theirs
   typescript: ^5.9.2
   tsx: ^4.20.6
   prettier: ^3.6.2
