@@ -42,6 +42,8 @@ function WagmiConfig({
         appName: 'Arbitrum VibeKit',
         options: {},
         queryClient,
+        oAuthMethods: [], // Empty array disables all OAuth methods (Google, X, etc.)
+        disablePhoneLogin: true, // Disable phone login, only allow email
       }),
     [para, queryClient],
   );
