@@ -12,7 +12,13 @@ import {
   createStorage,
   WagmiProvider,
 } from 'wagmi';
+<<<<<<< ours
+import { mainnet, arbitrum,baseSepolia,arbitrumSepolia } from 'wagmi/chains';
+||||||| ancestor
+import { mainnet, arbitrum } from 'wagmi/chains';
+=======
 import { mainnet, arbitrum,baseSepolia } from 'wagmi/chains';
+>>>>>>> theirs
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
 import { RainbowKitSiweNextAuthProvider } from '@rainbow-me/rainbowkit-siwe-next-auth';
@@ -23,12 +29,22 @@ export function ProviderWrapper({ children }: { children: React.ReactNode }) {
       getDefaultConfig({
         appName: 'Arbitrum VibeKit',
         projectId: '4b49e5e63b9f6253943b470873b47208',
-        chains: [arbitrum, mainnet],
-        ssr: true, // If your dApp uses server side rendering (SSR)
-        storage: createStorage({ storage: cookieStorage }),
-      }),
-    [],
-  );
+      },
+    );
+
+    return createConfig({
+      connectors,
+      chains: [arbitrum, mainnet,baseSepolia,arbitrumSepolia],
+      transports: {
+        [mainnet.id]: http(),
+        [arbitrum.id]: http(),
+        [baseSepolia.id]: http(),
+        [arbitrumSepolia.id]: http(),
+      },
+      ssr: true,
+      storage: createStorage({ storage: cookieStorage }),
+    });
+  }, []);
 
   const queryClient = useMemo(() => new QueryClient(), []);
   const cookie = cookieStorage.getItem('wagmi.storage') || '';

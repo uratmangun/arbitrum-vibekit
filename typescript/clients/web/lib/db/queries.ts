@@ -77,8 +77,8 @@ export async function saveChat({
 
       if (!existingUser) {
         console.log('creating new user');
-        // Create new user with the provided userId and address
-        await db.insert(user).values({ address, id: userId });
+        // Create new user with address (id will be auto-generated)
+        await db.insert(user).values({ address });
 
         console.log('actualUserId');
       }

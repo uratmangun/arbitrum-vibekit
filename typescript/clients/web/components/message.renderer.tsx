@@ -328,6 +328,34 @@ export const MessageRenderer = ({
     );
   }
 
+  // Fallback: Handle any other unhandled types by trying to parse and render with TemplateComponent
+  try {
+    // Try to parse the part as having output data
+    const genericPart = part as unknown as {
+      output?: {
+        result?: {
+          content?: Array<{ text?: string }>;
+        };
+      };
+    };
+
+    const textContent = genericPart.output?.result?.content?.[0]?.text;
+    if (textContent) {
+      const parsedData = JSON.parse(textContent);
+      console.log('🔍 [Generic Tool] Rendering unhandled type:', type, 'with data:', parsedData);
+
+      return (
+        <TemplateComponent
+          txPreview={null}
+          txPlan={null}
+          jsonObject={parsedData}
+        />
+      );
+    }
+  } catch (error) {
+    console.log('🔍 [Generic Tool] Could not parse data for type:', type);
+  }
+
   // Default return for unhandled part types
   return null;
 };
