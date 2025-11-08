@@ -158,6 +158,23 @@ export const chatAgents = [
   //   ],
   // },
   {
+    id: 'para' as const,
+    name: 'Para Wallet',
+    description: 'Para wallet transaction tools',
+    suggestedActions: [
+      {
+        title: 'Create Transaction',
+        label: 'preview',
+        action: 'Create a transaction preview to send 0.0001 ETH to 0x742d35Cc6634C0532925a3b844Bc454e4438f44e on Base Sepolia',
+      },
+      {
+        title: 'Check',
+        label: 'balance',
+        action: 'Check my wallet balance',
+      },
+    ],
+  },
+  {
     id: 'all' as const,
     name: 'All agents',
     description: 'All agents',
@@ -177,6 +194,7 @@ export const chatAgents = [
 ] as const;
 
 export const DEFAULT_SERVER_URLS = new Map<ChatAgentId, string>([
+  ['para', 'http://localhost:3012/mcp'],
   // ['ember-aave', 'http://lending-agent-no-wallet:3001/sse'],
   // ['ember-camelot', 'http://swapping-agent-no-wallet:3005/sse'],
   // ['defisafety-agent', 'http://defisafety-agent:3010/sse'],

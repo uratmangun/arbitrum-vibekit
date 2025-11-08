@@ -161,6 +161,45 @@ export const MessageRenderer = ({
     );
   }
 
+  // Handle Para create-transaction-preview tool
+  if (type === 'tool-para-create-transaction-preview') {
+    const paraToolPart = part as unknown as {
+      output: {
+        result: {
+          content: Array<{ text: string }>;
+        };
+      };
+    };
+
+    try {
+      // Parse the JSON from output.result.content[0].text
+      const textContent = paraToolPart.output?.result?.content?.[0]?.text;
+      if (textContent) {
+        const parsedData = JSON.parse(textContent);
+        const txPreview = parsedData?.artifacts?.[0]?.parts?.[0]?.data?.txPreview || null;
+        const txPlan = parsedData?.artifacts?.[0]?.parts?.[0]?.data?.txPlan || null;
+
+        console.log('🔍 [Para Transaction Preview] txPreview:', txPreview);
+        console.log('🔍 [Para Transaction Preview] txPlan:', txPlan);
+
+        return (
+          <TemplateComponent
+            txPreview={txPreview}
+            txPlan={txPlan}
+            jsonObject={parsedData}
+          />
+        );
+      }
+    } catch (error) {
+      console.error('🔍 [Para Transaction Preview] Error parsing data:', error);
+      return (
+        <div className="p-4 border border-red-200 rounded-lg bg-red-50">
+          <p className="text-red-700">Error loading transaction preview</p>
+        </div>
+      );
+    }
+  }
+
   if (type === 'tool-result') {
     const toolResult = part as unknown as { output: unknown; toolCallId: string; toolName: string };
     const { output: result, toolCallId, toolName } = toolResult;
@@ -210,6 +249,14 @@ export const MessageRenderer = ({
     const txPlan = getKeyFromResult('txPlan');
     const txPreview = getKeyFromResult('txPreview');
 
+    // Debug logging for Para tools
+    if (toolName.includes('para')) {
+      console.log('🔍 [Para Tool] Tool name:', toolName);
+      console.log('🔍 [Para Tool] Parsed result:', toolInvocationResult);
+      console.log('🔍 [Para Tool] txPreview:', txPreview);
+      console.log('🔍 [Para Tool] txPlan:', txPlan);
+    }
+
     const getParts = () =>
       toolInvocationResult?.artifacts
         ? toolInvocationResult?.artifacts[0]?.parts
@@ -236,6 +283,13 @@ export const MessageRenderer = ({
             type="request-suggestions"
             result={result as never}
             isReadonly={isReadonly}
+          />
+        ) : toolName.includes('para') && toolInvocationResult ? (
+          // Handle Para MCP tools (create-transaction-preview, execute-pregen-transaction, etc.)
+          <TemplateComponent
+            txPreview={txPreview}
+            txPlan={txPlan}
+            jsonObject={toolInvocationResult}
           />
         ) : toolName.endsWith('askSwapAgent') ? (
           toolInvocationResult && (
