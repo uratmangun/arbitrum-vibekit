@@ -1,8 +1,8 @@
 'use client';
 
-import { useChat, type Message } from '@ai-sdk/react';
-import type { UIMessage } from 'ai';
-import { useState } from 'react';
+import { useChat, type UIMessage } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useState, useRef } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
@@ -24,6 +24,18 @@ type Attachment = {
   contentType: string;
 };
 
+// Compatibility types for AI SDK v5
+export type ChatHelpers = {
+  input: string;
+  setInput: (value: string) => void;
+  handleSubmit: (e?: React.FormEvent) => void;
+  status: 'idle' | 'streaming' | 'awaiting_message' | 'submitted' | 'ready' | 'error';
+  stop: () => void;
+  append: (message: { role: string; content: string }) => void;
+  reload: () => void;
+  setMessages: (messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])) => void;
+};
+
 export function Chat({
   id,
   initialMessages,
@@ -33,7 +45,7 @@ export function Chat({
   selectedChatAgent: initialChatAgent,
 }: {
   id: string;
-  initialMessages: Array<Message>;
+  initialMessages: Array<UIMessage>;
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
@@ -45,29 +57,37 @@ export function Chat({
 
   const [selectedChatAgent, _setSelectedChatAgent] = useState(initialChatAgent);
 
+  const [input, setInput] = useState('');
+
+  // Use refs for dynamic values that need to be sent with each request
+  const selectedChatModelRef = useRef(selectedChatModel);
+  const addressRef = useRef(address);
+
+  // Update refs when values change
+  selectedChatModelRef.current = selectedChatModel;
+  addressRef.current = address;
+
   const {
     messages,
     setMessages,
-    handleSubmit,
-    input,
-    setInput,
-    append,
+    sendMessage,
     status,
     stop,
-    reload,
   } = useChat({
     id,
-    body: {
-      id,
-      selectedChatModel,
-      context: {
-        walletAddress: address,
-      },
-    },
-    initialMessages,
+    messages: initialMessages,
     experimental_throttle: 100,
-    sendExtraMessageFields: true,
     generateId: generateUUID,
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      body: () => ({
+        id,
+        selectedChatModel: selectedChatModelRef.current,
+        context: {
+          walletAddress: addressRef.current,
+        },
+      }),
+    }),
     onFinish: () => {
       mutate('/api/history');
     },
@@ -75,6 +95,31 @@ export function Chat({
       toast.error('An error occured, please try again!');
     },
   });
+
+  // Manual submit handler for v5
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (input.trim()) {
+      sendMessage({ text: input });
+      setInput('');
+    }
+  };
+
+  // Append function for compatibility
+  const append = (message: { role: string; content: string }) => {
+    sendMessage({ text: message.content });
+  };
+
+  // Reload function for compatibility (resend last user message)
+  const reload = () => {
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+    if (lastUserMessage) {
+      const textPart = lastUserMessage.parts.find(p => p.type === 'text');
+      if (textPart && 'text' in textPart) {
+        sendMessage({ text: textPart.text });
+      }
+    }
+  };
 
   const { data: votes } = useSWR<Array<Vote>>(
     messages.length >= 2 ? `/api/vote?chatId=${id}` : null,
@@ -102,7 +147,7 @@ export function Chat({
           chatId={id}
           status={status}
           votes={votes}
-          messages={messages.filter((m) => m.role !== 'data') as Array<UIMessage>}
+          messages={messages}
           setMessages={setMessages}
           reload={reload}
           isReadonly={isReadonly}
@@ -120,7 +165,7 @@ export function Chat({
               stop={stop}
               attachments={attachments}
               setAttachments={setAttachments}
-              messages={messages.filter((m) => m.role !== 'data') as Array<UIMessage>}
+              messages={messages}
               setMessages={setMessages}
               append={append}
               selectedAgentId={selectedChatAgent}
@@ -139,7 +184,7 @@ export function Chat({
         attachments={attachments}
         setAttachments={setAttachments}
         append={append}
-        messages={messages.filter((m) => m.role !== 'data') as Array<UIMessage>}
+        messages={messages}
         setMessages={setMessages}
         reload={reload}
         votes={votes}

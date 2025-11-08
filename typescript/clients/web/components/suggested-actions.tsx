@@ -3,12 +3,11 @@
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { memo } from 'react';
-import type { UseChatHelpers } from '@ai-sdk/react';
 import { chatAgents } from '../agents-config';
 
 interface SuggestedActionsProps {
   chatId: string;
-  append: UseChatHelpers['append'];
+  append: (message: { role: string; content: string }) => void;
   selectedAgentId?: string;
 }
 

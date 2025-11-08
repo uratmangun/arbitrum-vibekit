@@ -1,6 +1,6 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
+// import { useChat } from '@ai-sdk/react'; // Temporarily disabled for v5 migration
 import { useEffect, useRef } from 'react';
 import { artifactDefinitions, type ArtifactKind } from './artifact';
 import type { Suggestion } from '@/lib/db/schema';
@@ -21,10 +21,12 @@ export type DataStreamDelta = {
   content: string | Suggestion;
 };
 
-export function DataStreamHandler({ id }: { id: string }) {
-  const { data: dataStream } = useChat({ id });
+export function DataStreamHandler(_props: { id: string }) {
+  // TODO: In AI SDK v5, data streaming works differently
+  // Need to refactor this to use the new streaming API
   const { artifact, setArtifact, setMetadata } = useArtifact();
   const lastProcessedIndex = useRef(-1);
+  const dataStream: any[] = []; // Placeholder for v5 migration
 
   useEffect(() => {
     if (!dataStream?.length) return;

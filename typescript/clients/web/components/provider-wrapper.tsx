@@ -12,7 +12,7 @@ import {
   createStorage,
   WagmiProvider,
 } from 'wagmi';
-import { mainnet, arbitrum } from 'wagmi/chains';
+import { mainnet, arbitrum,baseSepolia } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
 import { RainbowKitSiweNextAuthProvider } from '@rainbow-me/rainbowkit-siwe-next-auth';

@@ -4,6 +4,7 @@ import {
   smoothStream,
   streamText,
 } from 'ai';
+import { randomUUID } from 'node:crypto';
 import { auth } from '@/app/(auth)/auth';
 import { systemPrompt } from '@/lib/ai/prompts';
 import {
@@ -33,6 +34,15 @@ const ContextSchema = z.object({
   walletAddress: z.string().optional(),
 });
 type Context = z.infer<typeof ContextSchema>;
+
+// Helper function to ensure valid UUID
+function ensureValidUUID(id: string | undefined): string {
+  // Check if ID is a valid UUID (basic check for non-empty string with proper format)
+  if (!id || id.trim() === '' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return randomUUID();
+  }
+  return id;
+}
 
 export const maxDuration = 300;
 
@@ -120,7 +130,7 @@ export async function POST(request: Request) {
         messages: [
           {
             chatId: id,
-            id: userMessage.id,
+            id: ensureValidUUID(userMessage.id),
             role: 'user',
             parts: userMessage.parts,
             attachments: fileAttachments,
@@ -173,7 +183,7 @@ export async function POST(request: Request) {
       });
 
       return result.toUIMessageStreamResponse({
-        sendReasoning: true,
+        sendReasoning: false,
         onFinish: async ({ messages }) => {
           console.log('🔍 [ROUTE] StreamText finished');
           if (session.user?.id) {
@@ -209,7 +219,7 @@ export async function POST(request: Request) {
               await saveMessages({
                 messages: [
                   {
-                    id: lastAssistantMessage.id,
+                    id: ensureValidUUID(lastAssistantMessage.id),
                     chatId: id,
                     role: lastAssistantMessage.role,
                     parts: lastAssistantMessage.parts,

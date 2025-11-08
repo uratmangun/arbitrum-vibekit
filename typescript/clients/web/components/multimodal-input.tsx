@@ -22,7 +22,7 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { SuggestedActions } from './suggested-actions';
 import equal from 'fast-deep-equal';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './chat';
 import { AgentSelector } from './ui/agent-chips';
 
 // Legacy Attachment type for local state (AI SDK v5 removed this)
@@ -49,16 +49,16 @@ function PureMultimodalInput({
   onAgentChange,
 }: {
   chatId: string;
-  input: UseChatHelpers['input'];
-  setInput: UseChatHelpers['setInput'];
-  status: UseChatHelpers['status'];
+  input: ChatHelpers['input'];
+  setInput: ChatHelpers['setInput'];
+  status: ChatHelpers['status'];
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
+  setMessages: ChatHelpers['setMessages'];
+  append: ChatHelpers['append'];
+  handleSubmit: ChatHelpers['handleSubmit'];
   className?: string;
   selectedAgentId: string;
   onAgentChange?: (agentId: string) => void;
@@ -120,9 +120,7 @@ function PureMultimodalInput({
   const submitForm = useCallback(() => {
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
-    handleSubmit(undefined, {
-      experimental_attachments: attachments,
-    });
+    handleSubmit();
 
     setAttachments([]);
     setLocalStorageInput('');
@@ -259,7 +257,7 @@ function PureMultimodalInput({
           ) {
             event.preventDefault();
 
-            if (status !== 'ready') {
+            if (status === 'streaming') {
               toast.error('Please wait for the model to finish its response!');
             } else {
               submitForm();
@@ -269,7 +267,7 @@ function PureMultimodalInput({
       />
 
       <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start">
-        <AttachmentsButton fileInputRef={fileInputRef} status={'error'} />
+        <AttachmentsButton fileInputRef={fileInputRef} status={status} />
         <AgentSelector
           selectedAgentId={selectedAgentId}
           onAgentChange={onAgentChange}
@@ -277,7 +275,7 @@ function PureMultimodalInput({
       </div>
 
       <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-        {status === 'submitted' ? (
+        {status === 'streaming' ? (
           <StopButton stop={stop} setMessages={setMessages} />
         ) : (
           <SendButton
@@ -307,7 +305,7 @@ function PureAttachmentsButton({
   status,
 }: {
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  status: UseChatHelpers['status'];
+  status: ChatHelpers['status'];
 }) {
   return (
     <Button
@@ -317,7 +315,7 @@ function PureAttachmentsButton({
         event.preventDefault();
         fileInputRef.current?.click();
       }}
-      disabled={status !== 'ready'}
+      disabled={status === 'streaming'}
       variant="ghost"
     >
       <PaperclipIcon size={14} />
@@ -332,7 +330,7 @@ function PureStopButton({
   setMessages,
 }: {
   stop: () => void;
-  setMessages: UseChatHelpers['setMessages'];
+  setMessages: ChatHelpers['setMessages'];
 }) {
   return (
     <Button

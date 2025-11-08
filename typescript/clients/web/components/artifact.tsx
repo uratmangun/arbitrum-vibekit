@@ -33,7 +33,7 @@ import { codeArtifact } from '@/artifacts/code/client';
 import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
 import equal from 'fast-deep-equal';
-import type { UseChatHelpers } from '@ai-sdk/react';
+import type { ChatHelpers } from './chat';
 
 // Cast to any[] to avoid complex inferred types that include non-exported generic parameters.
 export const artifactDefinitions: any[] = [
@@ -78,17 +78,17 @@ function PureArtifact({
 }: {
   chatId: string;
   input: string;
-  setInput: UseChatHelpers['setInput'];
-  status: UseChatHelpers['status'];
-  stop: UseChatHelpers['stop'];
+  setInput: ChatHelpers['setInput'];
+  status: ChatHelpers['status'];
+  stop: ChatHelpers['stop'];
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<UIMessage>;
-  setMessages: UseChatHelpers['setMessages'];
+  setMessages: ChatHelpers['setMessages'];
   votes: Array<Vote> | undefined;
-  append: UseChatHelpers['append'];
-  handleSubmit: UseChatHelpers['handleSubmit'];
-  reload: UseChatHelpers['reload'];
+  append: ChatHelpers['append'];
+  handleSubmit: ChatHelpers['handleSubmit'];
+  reload: ChatHelpers['reload'];
   isReadonly: boolean;
   selectedAgentId?: string;
 }) {
@@ -322,7 +322,7 @@ function PureArtifact({
               <div className="flex flex-col h-full justify-between items-center gap-4">
                 <ArtifactMessages
                   chatId={chatId}
-                  status={status}
+                  status={status as any}
                   votes={votes}
                   messages={messages}
                   setMessages={setMessages}

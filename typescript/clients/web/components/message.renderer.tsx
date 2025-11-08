@@ -28,8 +28,8 @@ interface MessageRendererProps {
   mode: 'view' | 'edit';
   setMode: Dispatch<React.SetStateAction<'view' | 'edit'>>;
   isReadonly: boolean;
-  setMessages: UseChatHelpers['setMessages'];
-  reload: UseChatHelpers['reload'];
+  setMessages: UseChatHelpers<UIMessage>['setMessages'];
+  reload: () => void;
 }
 
 export const MessageRenderer = ({
