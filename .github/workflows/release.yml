@@ -24,6 +24,7 @@ permissions:
 
 jobs:
   prepare:
+    if: false
     name: Detect release targets
     runs-on: ubuntu-latest
     defaults:
@@ -58,9 +59,9 @@ jobs:
           echo "has_changes=$(jq -r '((.selected | length) > 0)|tostring' release-targets.json)" >> "$GITHUB_OUTPUT"
 
   release:
+    if: false
     name: Publish ${{ matrix.package.packageName }}
     needs: prepare
-    if: needs.prepare.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -116,11 +117,11 @@ jobs:
           if-no-files-found: warn
 
   sync-next:
+    if: false
     name: Sync next branch
     needs:
       - prepare
       - release
-    if: github.ref == 'refs/heads/main' && (needs.release.result == 'success' || needs.release.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

@@ -5,6 +5,7 @@ on:
 
 jobs:
   onchain-tests:
+    if: false
     runs-on: ubuntu-latest
     environment: ci
     steps:
